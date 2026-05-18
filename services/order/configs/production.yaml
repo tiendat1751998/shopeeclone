@@ -1,0 +1,58 @@
+app:
+  name: shopee-order
+  env: production
+  log_level: warn
+  http_port: 8083
+  grpc_port: 9093
+
+mysql:
+  host: ${MYSQL_HOST}
+  port: ${MYSQL_PORT}
+  user: ${MYSQL_USER}
+  password: ${MYSQL_PASSWORD}
+  database: ${MYSQL_DATABASE}
+  max_open_conns: 50
+  max_idle_conns: 20
+  max_lifetime: 5m
+  timeout: 5s
+
+redis:
+  addr: ${REDIS_ADDR}
+  password: ${REDIS_PASSWORD}
+  db: 3
+  pool_size: 200
+  min_idle: 50
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+  max_retries: 3
+
+kafka:
+  brokers: ${KAFKA_BROKERS}
+  topic_prefix: shopee.orders
+  consumer_group: shopee-order-service
+  dlq_topic: shopee.orders.dlq
+
+jwt:
+  access_secret: ${JWT_ACCESS_SECRET}
+  access_ttl: 15m
+  issuer: shopee-auth
+  audience: shopee-clone
+
+order:
+  default_currency: SGD
+  payment_timeout: 30m
+  idempotency_ttl: 24h
+  snapshot_retention_days: 365
+  reconciliation_interval: 5m
+  max_cancel_retry: 3
+
+otel:
+  endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+  service_name: shopee-order
+  trace_ratio: 0.05
+
+audit:
+  enabled: true
+  flush_interval: 5s
+  batch_size: 200

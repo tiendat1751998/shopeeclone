@@ -54,5 +54,6 @@ public class AccountLockoutService {
 
     public void clearFailedAttempts(String email) {
         log.info("Clearing failed login attempts for email: {}", email);
+        failedLoginRepository.deleteByEmail(email.toLowerCase());
     }
 }

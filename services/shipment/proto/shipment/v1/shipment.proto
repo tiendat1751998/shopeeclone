@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package shopee.shipment.v1;
+
+option go_package = "github.com/shopee-clone/shopee/services/shipment/proto/shipment/v1";
+
+service ShipmentService {
+  rpc CreateShipment(CreateShipmentRequest) returns (ShipmentResponse);
+  rpc GetShipment(GetShipmentRequest) returns (ShipmentResponse);
+  rpc UpdateStatus(UpdateStatusRequest) returns (ShipmentResponse);
+}
+
+message CreateShipmentRequest {
+  string order_id = 1;
+  string user_id = 2;
+  string carrier_id = 3;
+  string idempotency_key = 4;
+  double weight = 5;
+  string currency = 6;
+}
+
+message GetShipmentRequest { string shipment_id = 1; }
+
+message UpdateStatusRequest {
+  string shipment_id = 1;
+  string status = 2;
+  string actor_id = 3;
+  string reason = 4;
+}
+
+message ShipmentResponse {
+  string id = 1;
+  string order_id = 2;
+  string user_id = 3;
+  string carrier_id = 4;
+  string tracking_number = 5;
+  string status = 6;
+  int64 cost = 7;
+  string currency = 8;
+  string created_at = 9;
+}

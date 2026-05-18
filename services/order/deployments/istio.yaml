@@ -1,0 +1,28 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: shopee-order
+spec:
+  hosts:
+    - order.shopee-clone.local
+  gateways:
+    - istio-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /api/v1/orders
+      route:
+        - destination:
+            host: shopee-order
+            port:
+              number: 80
+      retries:
+        attempts: 3
+        perTryTimeout: 2s
+        retryOn: gateway-error,connect-failure,refused-stream
+      timeout: 10s
+      fault:
+        delay:
+          percentage:
+            value: 0.0
+          fixedDelay: 0s

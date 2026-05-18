@@ -1,0 +1,59 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: shopee-order
+spec:
+  podSelector:
+    matchLabels:
+      app: shopee-order
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: shopee-gateway
+        - podSelector:
+            matchLabels:
+              app: shopee-payment
+        - podSelector:
+            matchLabels:
+              app: shopee-shipment
+      ports:
+        - port: 8083
+          protocol: TCP
+        - port: 9093
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: shopee-mysql
+      ports:
+        - port: 3306
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: shopee-redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: shopee-kafka
+      ports:
+        - port: 9092
+          protocol: TCP
+    - to:  # DNS
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

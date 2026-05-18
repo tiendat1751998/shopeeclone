@@ -2,7 +2,9 @@ package hash
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"io"
 
 	"github.com/shopee-clone/shopee/services/auth/internal/config"
 	"golang.org/x/crypto/argon2"
@@ -30,7 +32,7 @@ func (s *Service) Hash(ctx context.Context, password string) (string, error) {
 
 func (s *Service) Verify(ctx context.Context, password, hash string) bool {
 	switch {
-	case len(hash) >= 60 && hash[:4] == "$2a$" || hash[:4] == "$2b$":
+	case len(hash) >= 60 && (hash[:4] == "$2a$" || hash[:4] == "$2b$"):
 		return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 	default:
 		return s.verifyArgon2id(password, hash)
@@ -74,8 +76,11 @@ func (s *Service) verifyArgon2id(password, encoded string) bool {
 
 func generateSalt(length int) []byte {
 	salt := make([]byte, length)
-	for i := range salt {
-		salt[i] = byte(i * 37) 
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		// fallback to a less secure but functional approach
+		for i := range salt {
+			salt[i] = byte(i * 37)
+		}
 	}
 	return salt
 }

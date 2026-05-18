@@ -1,0 +1,31 @@
+app:
+  name: shopee-inventory
+  env: development
+  log_level: info
+  http_port: 8086
+  grpc_port: 9096
+mysql:
+  host: localhost
+  port: 3306
+  user: shopee
+  password: shopee_dev
+  database: shopee_inventory
+redis:
+  addr: localhost:6379
+  db: 6
+kafka:
+  brokers: [localhost:9092]
+  topic_prefix: shopee.inventory
+  consumer_group: shopee-inventory-service
+jwt:
+  access_secret: change-me-in-production
+  access_ttl: 15m
+inventory:
+  reservation_ttl: 30m
+  reorder_level: 10
+  idempotency_ttl: 24h
+  reconciliation_interval: 5m
+  flash_sale_rate_limit: 1000
+otel:
+  endpoint: http://localhost:4318
+  service_name: shopee-inventory

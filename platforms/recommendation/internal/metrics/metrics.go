@@ -1,0 +1,8 @@
+package metrics
+import ("github.com/prometheus/client_golang/prometheus"; "github.com/prometheus/client_golang/prometheus/promauto")
+var (
+	RecRequestsTotal  = promauto.NewCounter(prometheus.CounterOpts{Name: "shopee_rec_requests_total", Help: "Total recommendation requests"})
+	EventsTracked     = promauto.NewCounter(prometheus.CounterOpts{Name: "shopee_rec_events_tracked_total", Help: "Total events tracked"})
+	RecErrors         = promauto.NewCounter(prometheus.CounterOpts{Name: "shopee_rec_errors_total", Help: "Total recommendation errors"})
+	RecLatency        = promauto.NewHistogram(prometheus.HistogramOpts{Name: "shopee_rec_latency_seconds", Help: "Recommendation latency", Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1}})
+)

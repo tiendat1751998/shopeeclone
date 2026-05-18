@@ -19,15 +19,25 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 		origin := c.GetHeader("Origin")
 
 		if origin != "" {
+			allowedOrigin := ""
 			if cfg.AllowedOrigins[0] == "*" {
-				c.Header("Access-Control-Allow-Origin", "*")
+				if !cfg.AllowCredentials {
+					allowedOrigin = "*"
+				} else {
+					// When credentials are used, we must echo the specific origin
+					allowedOrigin = origin
+				}
 			} else {
 				for _, allowed := range cfg.AllowedOrigins {
 					if allowed == origin {
-						c.Header("Access-Control-Allow-Origin", origin)
+						allowedOrigin = origin
 						break
 					}
 				}
+			}
+
+			if allowedOrigin != "" {
+				c.Header("Access-Control-Allow-Origin", allowedOrigin)
 			}
 
 			c.Header("Access-Control-Allow-Methods", allowMethods)
@@ -35,7 +45,7 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 			c.Header("Access-Control-Expose-Headers", exposeHeaders)
 			c.Header("Access-Control-Max-Age", maxAge)
 
-			if cfg.AllowCredentials {
+			if cfg.AllowCredentials && allowedOrigin != "" {
 				c.Header("Access-Control-Allow-Credentials", "true")
 			}
 		}

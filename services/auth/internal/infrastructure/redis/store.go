@@ -2,6 +2,8 @@ package redis
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -178,8 +180,6 @@ func (s *Store) Close() error {
 }
 
 func hashToken(token string) string {
-	if len(token) > 32 {
-		return token[len(token)-32:]
-	}
-	return token
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
 }

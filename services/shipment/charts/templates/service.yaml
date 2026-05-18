@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "shopee-shipment.fullname" . }}
+  labels: {{- include "shopee-shipment.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.httpPort }}
+      targetPort: {{ .Values.service.targetHttpPort }}
+    - name: grpc
+      port: {{ .Values.service.grpcPort }}
+      targetPort: {{ .Values.service.targetGrpcPort }}
+  selector:
+    app: {{ include "shopee-shipment.name" . }}

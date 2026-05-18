@@ -46,9 +46,13 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
-        this.useRsa = !accessSecret.isBlank() && !refreshSecret.isBlank();
-        if (useRsa) {
+        // Use RSA signing when JWKS provider has valid keys loaded
+        this.useRsa = jwksProvider.getPublicKey() != null && jwksProvider.getPrivateKey() != null;
+        // Always initialize HMAC keys as fallback
+        if (accessSecret != null && !accessSecret.isBlank()) {
             this.hmacAccessKey = Keys.hmacShaKeyFor(accessSecret.getBytes(StandardCharsets.UTF_8));
+        }
+        if (refreshSecret != null && !refreshSecret.isBlank()) {
             this.hmacRefreshKey = Keys.hmacShaKeyFor(refreshSecret.getBytes(StandardCharsets.UTF_8));
         }
     }
@@ -146,15 +150,18 @@ public class JwtTokenProvider {
     }
 
     private SecretKey getEffectiveAccessKey() {
-        return useRsa
-            ? Keys.hmacShaKeyFor(jwksProvider.getPublicKey().toString().getBytes(StandardCharsets.UTF_8))
-            : hmacAccessKey;
+        if (useRsa) {
+            // This should not be called when using RSA, but return HMAC key as fallback
+            return hmacAccessKey;
+        }
+        return hmacAccessKey;
     }
 
     private SecretKey getEffectiveRefreshKey() {
-        return useRsa
-            ? Keys.hmacShaKeyFor(jwksProvider.getPublicKey().toString().getBytes(StandardCharsets.UTF_8))
-            : hmacRefreshKey;
+        if (useRsa) {
+            return hmacRefreshKey;
+        }
+        return hmacRefreshKey;
     }
 
     private String buildScope(User user) {

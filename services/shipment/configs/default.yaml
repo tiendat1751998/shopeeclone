@@ -1,0 +1,29 @@
+app:
+  name: shopee-shipment
+  env: development
+  log_level: info
+  http_port: 8085
+  grpc_port: 9095
+mysql:
+  host: localhost
+  port: 3306
+  user: shopee
+  password: shopee_dev
+  database: shopee_shipments
+redis:
+  addr: localhost:6379
+  db: 5
+kafka:
+  brokers: [localhost:9092]
+  topic_prefix: shopee.shipments
+  consumer_group: shopee-shipment-service
+jwt:
+  access_secret: change-me-in-production
+  access_ttl: 15m
+shipment:
+  default_carrier: ninja_van
+  idempotency_ttl: 24h
+  webhook_secret: whsec-change-me
+otel:
+  endpoint: http://localhost:4318
+  service_name: shopee-shipment

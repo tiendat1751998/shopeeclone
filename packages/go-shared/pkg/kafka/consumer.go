@@ -126,7 +126,8 @@ func (c *Consumer) extractContext(msg kafka.Message) context.Context {
 	}
 
 	ctx := context.Background()
-	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier{})
+	carrier := propagation.MapCarrier(headers)
+	ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
 
 	return ctx
 }

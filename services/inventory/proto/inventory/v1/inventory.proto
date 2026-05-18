@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package shopee.inventory.v1;
+
+option go_package = "github.com/shopee-clone/shopee/services/inventory/proto/inventory/v1";
+
+service InventoryService {
+  rpc ReserveStock(ReserveStockRequest) returns (ReservationResponse);
+  rpc ReleaseStock(ReleaseStockRequest) returns (ReleaseStockResponse);
+  rpc GetStock(GetStockRequest) returns (StockResponse);
+}
+
+message ReserveStockRequest {
+  string order_id = 1;
+  string user_id = 2;
+  string product_id = 3;
+  string sku_id = 4;
+  string warehouse_id = 5;
+  int32 quantity = 6;
+  string idempotency_key = 7;
+}
+
+message ReleaseStockRequest { string reservation_id = 1; }
+
+message GetStockRequest {
+  string sku_id = 1;
+  string warehouse_id = 2;
+}
+
+message ReservationResponse {
+  string id = 1;
+  string order_id = 2;
+  string sku_id = 3;
+  int32 quantity = 4;
+  string status = 5;
+}
+
+message ReleaseStockResponse { string status = 1; }
+
+message StockResponse {
+  string id = 1;
+  string sku_id = 2;
+  int32 quantity = 3;
+  int32 reserved_qty = 4;
+  int32 available_qty = 5;
+  string status = 6;
+}

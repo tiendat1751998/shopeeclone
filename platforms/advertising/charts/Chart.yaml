@@ -1,0 +1,6 @@
+apiVersion: v2
+name: shopee-advertising
+description: Shopee Clone Advertising
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

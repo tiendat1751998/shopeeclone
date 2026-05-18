@@ -1,0 +1,73 @@
+package http
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/shopee-clone/shopee/services/shipment/internal/application"
+	"github.com/shopee-clone/shopee/services/shipment/internal/domain"
+	"go.uber.org/zap"
+)
+
+type Handler struct {
+	shipmentService *application.ShipmentService
+}
+
+func NewHandler(svc *application.ShipmentService) *Handler { return &Handler{shipmentService: svc} }
+
+func (h *Handler) CreateShipment(c *gin.Context) {
+	var req application.CreateShipmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
+	userID, _ := c.Get("user_id"); req.UserID = userID.(string)
+	shipment, err := h.shipmentService.CreateShipment(c.Request.Context(), &req)
+	if err != nil { handleError(c, err); return }
+	c.JSON(http.StatusCreated, shipment)
+}
+
+func (h *Handler) GetShipment(c *gin.Context) {
+	shipmentID := c.Param("id")
+	shipment, err := h.shipmentService.GetShipment(c.Request.Context(), shipmentID)
+	if err != nil { handleError(c, err); return }
+	c.JSON(http.StatusOK, shipment)
+}
+
+func (h *Handler) UpdateStatus(c *gin.Context) {
+	shipmentID := c.Param("id")
+	var req struct {
+		Status string `json:"status" binding:"required"`
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
+	userID, _ := c.Get("user_id")
+	shipment, err := h.shipmentService.UpdateStatus(c.Request.Context(), shipmentID, domain.ShipmentStatus(req.Status), userID.(string), req.Reason)
+	if err != nil { handleError(c, err); return }
+	c.JSON(http.StatusOK, shipment)
+}
+
+func (h *Handler) GetTracking(c *gin.Context) {
+	shipmentID := c.Param("id")
+	history, err := h.shipmentService.GetTrackingHistory(c.Request.Context(), shipmentID)
+	if err != nil { handleError(c, err); return }
+	c.JSON(http.StatusOK, gin.H{"shipment_id": shipmentID, "tracking": history})
+}
+
+func (h *Handler) HandleWebhook(c *gin.Context) {
+	provider := c.Param("provider")
+	eventType := c.Query("event_type")
+	signature := c.GetHeader("X-Webhook-Signature")
+	idempotencyKey := c.GetHeader("X-Idempotency-Key")
+	payload, _ := c.GetRawData()
+	if err := h.shipmentService.HandleWebhook(c.Request.Context(), provider, eventType, payload, signature, idempotencyKey); err != nil {
+		handleError(c, err); return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "processed"})
+}
+
+func handleError(c *gin.Context, err error) {
+	switch err {
+	case domain.ErrShipmentNotFound: c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+	case domain.ErrInvalidShipmentState: c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case domain.ErrWebhookReplayDetected: c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	default: zap.L().Error("unexpected error", zap.Error(err)); c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+	}
+}

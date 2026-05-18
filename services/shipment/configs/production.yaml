@@ -1,0 +1,30 @@
+app:
+  name: shopee-shipment
+  env: production
+  log_level: warn
+  http_port: 8085
+  grpc_port: 9095
+mysql:
+  host: ${MYSQL_HOST}
+  port: ${MYSQL_PORT}
+  user: ${MYSQL_USER}
+  password: ${MYSQL_PASSWORD}
+  database: ${MYSQL_DATABASE}
+redis:
+  addr: ${REDIS_ADDR}
+  password: ${REDIS_PASSWORD}
+  db: 5
+kafka:
+  brokers: ${KAFKA_BROKERS}
+  topic_prefix: shopee.shipments
+  consumer_group: shopee-shipment-service
+jwt:
+  access_secret: ${JWT_ACCESS_SECRET}
+  access_ttl: 15m
+shipment:
+  default_carrier: ${DEFAULT_CARRIER}
+  idempotency_ttl: 24h
+  webhook_secret: ${WEBHOOK_SECRET}
+otel:
+  endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+  service_name: shopee-shipment

@@ -99,12 +99,16 @@ func (r *Router) setupUpstreamRoutes(engine *gin.Engine) {
 }
 
 func (r *Router) registerRouteGroup(engine *gin.Engine, route RouteGroup) {
-	authMW := sharedMiddleware.ErrorHandler()
-	rateLimitMW := r.rateLimiter.AuthenticatedRateLimit()
-
+	var authMW gin.HandlerFunc
 	if route.Auth && len(route.Roles) > 0 {
 		authMW = r.authMW.RequireRoles(route.Roles...)
+	} else if route.Auth {
+		authMW = r.authMW.RequireAuth()
+	} else {
+		authMW = func(c *gin.Context) { c.Next() }
 	}
+
+	rateLimitMW := r.rateLimiter.AuthenticatedRateLimit()
 
 	endpointRateLimit := r.rateLimiter.PerEndpointRateLimit(route.RateLimit)
 

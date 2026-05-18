@@ -1,0 +1,31 @@
+app:
+  name: shopee-payment
+  env: production
+  log_level: warn
+  http_port: 8084
+  grpc_port: 9094
+mysql:
+  host: ${MYSQL_HOST}
+  port: ${MYSQL_PORT}
+  user: ${MYSQL_USER}
+  password: ${MYSQL_PASSWORD}
+  database: ${MYSQL_DATABASE}
+redis:
+  addr: ${REDIS_ADDR}
+  password: ${REDIS_PASSWORD}
+  db: 4
+kafka:
+  brokers: ${KAFKA_BROKERS}
+  topic_prefix: shopee.payments
+  consumer_group: shopee-payment-service
+jwt:
+  access_secret: ${JWT_ACCESS_SECRET}
+  access_ttl: 15m
+payment:
+  default_psp: ${DEFAULT_PSP}
+  authorization_ttl: 168h
+  idempotency_ttl: 24h
+  webhook_secret: ${WEBHOOK_SECRET}
+otel:
+  endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+  service_name: shopee-payment

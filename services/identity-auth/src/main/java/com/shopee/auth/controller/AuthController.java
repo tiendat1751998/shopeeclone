@@ -29,28 +29,18 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody AuthRequest.Register request) {
-        try {
-            return authMetrics.recordRegistrationDuration(() -> {
-                AuthResponse response = authService.register(request);
-                return ResponseEntity.status(HttpStatus.CREATED).body(response);
-            });
-        } catch (Exception e) {
-            if (e instanceof RuntimeException) throw (RuntimeException) e;
-            throw new RuntimeException(e);
-        }
+        return authMetrics.recordRegistrationDuration(() -> {
+            AuthResponse response = authService.register(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        });
     }
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest.Login request) {
-        try {
-            return authMetrics.recordLoginDuration(() -> {
-                AuthResponse response = authService.login(request);
-                return ResponseEntity.ok(response);
-            });
-        } catch (Exception e) {
-            if (e instanceof RuntimeException) throw (RuntimeException) e;
-            throw new RuntimeException(e);
-        }
+        return authMetrics.recordLoginDuration(() -> {
+            AuthResponse response = authService.login(request);
+            return ResponseEntity.ok(response);
+        });
     }
 
     @PostMapping("/refresh")

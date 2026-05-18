@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: shopee-fraud
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: shopee-fraud
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
