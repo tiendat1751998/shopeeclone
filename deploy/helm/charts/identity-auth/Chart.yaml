@@ -1,0 +1,15 @@
+apiVersion: v2
+name: identity-auth
+description: Shopee Clone - Identity & Authentication Service (Spring Boot)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - shopee
+  - auth
+  - identity
+  - jwt
+  - spring-boot
+maintainers:
+  - name: Shopee Clone Team
+    email: dev@shopee-clone.com

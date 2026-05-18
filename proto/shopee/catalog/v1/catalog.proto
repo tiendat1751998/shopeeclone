@@ -1,0 +1,151 @@
+syntax = "proto3";
+
+package shopee.catalog.v1;
+
+option go_package = "github.com/shopee-clone/shopee/proto/catalog/v1;catalogv1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+import "validate/validate.proto";
+
+service CatalogService {
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+  rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse);
+  rpc UpdateProduct(UpdateProductRequest) returns (UpdateProductResponse);
+  rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse);
+  rpc GetSKU(GetSKURequest) returns (GetSKUResponse);
+  rpc BatchGetSKUs(BatchGetSKUsRequest) returns (BatchGetSKUsResponse);
+  rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
+}
+
+message Product {
+  string spu_id = 1;
+  string title = 2;
+  string description = 3;
+  string category_id = 4;
+  repeated SKU skus = 5;
+  map<string, string> attributes = 6;
+  repeated string images = 7;
+  string seller_id = 8;
+  string status = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message SKU {
+  string sku_id = 1;
+  string spu_id = 2;
+  double price = 3;
+  int32 stock = 4;
+  repeated Variation variations = 5;
+  string image = 6;
+  string status = 7;
+}
+
+message Variation {
+  string name = 1;
+  string value = 2;
+}
+
+message Category {
+  string category_id = 1;
+  string name = 2;
+  string parent_id = 3;
+  int32 level = 4;
+  int32 sort_order = 5;
+  repeated Category children = 6;
+}
+
+message GetProductRequest {
+  string spu_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetProductResponse {
+  Product product = 1;
+}
+
+message ListProductsRequest {
+  int32 page = 1;
+  int32 size = 2;
+  string category_id = 3;
+  string seller_id = 4;
+  string search = 5;
+  double min_price = 6;
+  double max_price = 7;
+  string sort_by = 8;
+}
+
+message ListProductsResponse {
+  repeated Product products = 1;
+  int64 total = 2;
+  int32 page = 3;
+  int32 size = 4;
+}
+
+message CreateProductRequest {
+  string title = 1 [(validate.rules).string.min_len = 1];
+  string description = 2;
+  string category_id = 3 [(validate.rules).string.min_len = 1];
+  repeated CreateSKU skus = 4 [(validate.rules).repeated.min_items = 1];
+  map<string, string> attributes = 5;
+  repeated string images = 6;
+  string seller_id = 7 [(validate.rules).string.min_len = 1];
+}
+
+message CreateSKU {
+  double price = 1 [(validate.rules).double.gt = 0];
+  int32 stock = 2 [(validate.rules).int32.gte = 0];
+  repeated Variation variations = 3;
+  string image = 4;
+}
+
+message CreateProductResponse {
+  Product product = 1;
+}
+
+message UpdateProductRequest {
+  string spu_id = 1 [(validate.rules).string.min_len = 1];
+  string title = 2;
+  string description = 3;
+  string category_id = 4;
+  map<string, string> attributes = 5;
+  repeated string images = 6;
+}
+
+message UpdateProductResponse {
+  Product product = 1;
+}
+
+message DeleteProductRequest {
+  string spu_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message DeleteProductResponse {
+  bool success = 1;
+}
+
+message GetSKURequest {
+  string sku_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetSKUResponse {
+  SKU sku = 1;
+}
+
+message BatchGetSKUsRequest {
+  repeated string sku_ids = 1 [(validate.rules).repeated.min_items = 1];
+}
+
+message BatchGetSKUsResponse {
+  repeated SKU skus = 1;
+}
+
+message ListCategoriesRequest {
+  string parent_id = 1;
+  int32 level = 2;
+}
+
+message ListCategoriesResponse {
+  repeated Category categories = 1;
+}

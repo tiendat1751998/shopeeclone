@@ -1,0 +1,22 @@
+replicaCount: 5
+
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+    cpu: "2000m"
+
+autoscaling:
+  minReplicas: 5
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+
+env:
+  SPRING_PROFILES_ACTIVE: "production"
+  LOG_LEVEL: "INFO"
+  JWT_ACCESS_TTL_SECONDS: "900"
+  JWT_REFRESH_TTL_SECONDS: "604800"
+
+javaOpts: "-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:+ParallelRefProcEnabled -XX:MaxRAMPercentage=75.0 -XX:+HeapDumpOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"

@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package shopee.payment.v1;
+
+option java_package = "com.shopee.payment.grpc";
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+service PaymentService {
+  rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
+  rpc GetPayment(GetPaymentRequest) returns (GetPaymentResponse);
+  rpc ProcessPayment(ProcessPaymentRequest) returns (ProcessPaymentResponse);
+  rpc RefundPayment(RefundPaymentRequest) returns (RefundPaymentResponse);
+}
+
+message Payment {
+  string payment_id = 1;
+  string order_id = 2;
+  string buyer_id = 3;
+  string method = 4;
+  double amount = 5;
+  string currency = 6;
+  string status = 7;
+  string transaction_ref = 8;
+  string gateway_response = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message CreatePaymentRequest {
+  string order_id = 1 [(validate.rules).string.min_len = 1];
+  string buyer_id = 2 [(validate.rules).string.min_len = 1];
+  string method = 3 [(validate.rules).string.min_len = 1];
+  double amount = 4 [(validate.rules).double.gt = 0];
+  string currency = 5;
+}
+
+message CreatePaymentResponse {
+  Payment payment = 1;
+  string payment_url = 2;
+  string qr_code = 3;
+}
+
+message GetPaymentRequest {
+  string payment_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetPaymentResponse {
+  Payment payment = 1;
+}
+
+message ProcessPaymentRequest {
+  string payment_id = 1 [(validate.rules).string.min_len = 1];
+  string order_id = 2 [(validate.rules).string.min_len = 1];
+  double amount = 3 [(validate.rules).double.gt = 0];
+}
+
+message ProcessPaymentResponse {
+  bool success = 1;
+  string transaction_ref = 2;
+  string status = 3;
+}
+
+message RefundPaymentRequest {
+  string payment_id = 1 [(validate.rules).string.min_len = 1];
+  string order_id = 2 [(validate.rules).string.min_len = 1];
+  double amount = 3 [(validate.rules).double.gt = 0];
+  string reason = 4;
+}
+
+message RefundPaymentResponse {
+  bool success = 1;
+  string transaction_ref = 2;
+}

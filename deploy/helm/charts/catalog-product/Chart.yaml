@@ -1,0 +1,14 @@
+apiVersion: v2
+name: catalog-product
+description: Shopee Clone - Catalog Product Service
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - shopee
+  - e-commerce
+  - catalog
+  - product
+maintainers:
+  - name: Shopee Clone Team
+    email: dev@shopee-clone.com

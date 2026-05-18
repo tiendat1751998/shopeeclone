@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: shopee
+  namespace: argocd
+spec:
+  description: Shopee Clone E-Commerce Platform
+  sourceRepos:
+    - https://github.com/shopee-clone/shopee-clone
+  destinations:
+    - namespace: shopee
+      server: https://kubernetes.default.svc
+    - namespace: shopee-dev
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  orphanedResources:
+    warn: false

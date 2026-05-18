@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package shopee.auth.v1;
+
+option java_package = "com.shopee.auth.grpc";
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+service AuthService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+}
+
+message User {
+  string user_id = 1;
+  string email = 2;
+  string phone = 3;
+  string full_name = 4;
+  string role = 5;
+  bool is_verified = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message RegisterRequest {
+  string email = 1 [(validate.rules).string.email = true];
+  string phone = 2 [(validate.rules).string.min_len = 10];
+  string password = 3 [(validate.rules).string.min_len = 8];
+  string full_name = 4 [(validate.rules).string.min_len = 1];
+}
+
+message RegisterResponse {
+  User user = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+}
+
+message LoginRequest {
+  string email = 1 [(validate.rules).string.email = true];
+  string password = 2 [(validate.rules).string.min_len = 1];
+}
+
+message LoginResponse {
+  User user = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1 [(validate.rules).string.min_len = 1];
+}
+
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+}
+
+message ValidateTokenRequest {
+  string access_token = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  User user = 2;
+}
+
+message LogoutRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+  string refresh_token = 2;
+}
+
+message LogoutResponse {
+  bool success = 1;
+}
+
+message GetUserRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message UpdateUserRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+  string full_name = 2;
+  string phone = 3;
+}
+
+message UpdateUserResponse {
+  User user = 1;
+}

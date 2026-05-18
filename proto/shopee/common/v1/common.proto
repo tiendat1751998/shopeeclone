@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package shopee.common.v1;
+
+option go_package = "github.com/shopee-clone/shopee/proto/common/v1;commonv1";
+
+import "google/protobuf/timestamp.proto";
+
+message Money {
+  double amount = 1;
+  string currency = 2;
+}
+
+message Address {
+  string street = 1;
+  string ward = 2;
+  string district = 3;
+  string city = 4;
+  string country = 5;
+  double latitude = 6;
+  double longitude = 7;
+}
+
+message PageRequest {
+  int32 page = 1;
+  int32 size = 2;
+  string sort = 3;
+}
+
+message PageResponse {
+  int32 page = 1;
+  int32 size = 2;
+  int64 total_elements = 3;
+  int32 total_pages = 4;
+}
+
+message ErrorDetail {
+  string field = 1;
+  string issue = 2;
+}
+
+message ErrorResponse {
+  string error_code = 1;
+  string message = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  repeated ErrorDetail details = 4;
+  string trace_id = 5;
+}

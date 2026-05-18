@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-product
+  namespace: shopee
+  labels:
+    app: catalog-product
+    service: catalog-product
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+      protocol: TCP
+    - port: 8081
+      targetPort: 8081
+      name: grpc
+      protocol: TCP
+  selector:
+    app: catalog-product
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: catalog-product
+  namespace: shopee
+  labels:
+    app: catalog-product
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: catalog-product
+  namespace: shopee
+  labels:
+    app: catalog-product
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: catalog-product
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 120

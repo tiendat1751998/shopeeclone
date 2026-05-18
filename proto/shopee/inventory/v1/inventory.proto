@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package shopee.inventory.v1;
+
+option go_package = "github.com/shopee-clone/shopee/proto/inventory/v1;inventoryv1";
+
+import "validate/validate.proto";
+
+service InventoryService {
+  rpc ReserveStock(ReserveStockRequest) returns (ReserveStockResponse);
+  rpc ReleaseStockCompensate(ReleaseStockRequest) returns (ReleaseStockResponse);
+  rpc GetStockLevel(GetStockLevelRequest) returns (GetStockLevelResponse);
+  rpc BatchGetStockLevels(BatchGetStockLevelsRequest) returns (BatchGetStockLevelsResponse);
+  rpc SetStockLevel(SetStockLevelRequest) returns (SetStockLevelResponse);
+}
+
+message ReserveStockRequest {
+  string order_id = 1 [(validate.rules).string.min_len = 1];
+  string sku_id = 2 [(validate.rules).string.min_len = 1];
+  int32 quantity = 3 [(validate.rules).int32.gt = 0];
+}
+
+message ReserveStockResponse {
+  bool success = 1;
+  string message = 2;
+  int64 reserved_at = 3;
+}
+
+message ReleaseStockRequest {
+  string order_id = 1 [(validate.rules).string.min_len = 1];
+  string sku_id = 2 [(validate.rules).string.min_len = 1];
+  int32 quantity = 3 [(validate.rules).int32.gt = 0];
+}
+
+message ReleaseStockResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetStockLevelRequest {
+  string sku_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetStockLevelResponse {
+  string sku_id = 1;
+  int32 available = 2;
+  int32 reserved = 3;
+  int32 sold = 4;
+}
+
+message BatchGetStockLevelsRequest {
+  repeated string sku_ids = 1 [(validate.rules).repeated.min_items = 1];
+}
+
+message BatchGetStockLevelsResponse {
+  map<string, StockLevel> stocks = 1;
+}
+
+message StockLevel {
+  int32 available = 1;
+  int32 reserved = 2;
+  int32 sold = 3;
+}
+
+message SetStockLevelRequest {
+  string sku_id = 1 [(validate.rules).string.min_len = 1];
+  int32 quantity = 2 [(validate.rules).int32.gte = 0];
+}
+
+message SetStockLevelResponse {
+  bool success = 1;
+}

@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package shopee.notification.v1;
+
+option go_package = "github.com/shopee-clone/shopee/proto/notification/v1;notificationv1";
+
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+service NotificationService {
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
+  rpc MarkAllAsRead(MarkAllAsReadRequest) returns (MarkAllAsReadResponse);
+  rpc GetUnreadCount(GetUnreadCountRequest) returns (GetUnreadCountResponse);
+}
+
+message Notification {
+  string notification_id = 1;
+  string user_id = 2;
+  string type = 3;
+  string title = 4;
+  string body = 5;
+  map<string, string> data = 6;
+  bool is_read = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message SendNotificationRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+  string type = 2 [(validate.rules).string.min_len = 1];
+  string title = 3 [(validate.rules).string.min_len = 1];
+  string body = 4 [(validate.rules).string.min_len = 1];
+  map<string, string> data = 5;
+}
+
+message SendNotificationResponse {
+  Notification notification = 1;
+}
+
+message ListNotificationsRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+  int32 page = 2;
+  int32 size = 3;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+  int64 total = 2;
+  int32 page = 3;
+  int32 size = 4;
+}
+
+message MarkAsReadRequest {
+  string notification_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message MarkAsReadResponse {
+  bool success = 1;
+}
+
+message MarkAllAsReadRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message MarkAllAsReadResponse {
+  bool success = 1;
+}
+
+message GetUnreadCountRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetUnreadCountResponse {
+  int32 count = 1;
+}

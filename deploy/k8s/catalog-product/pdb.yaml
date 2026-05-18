@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: catalog-product
+  namespace: shopee
+  labels:
+    app: catalog-product
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: catalog-product

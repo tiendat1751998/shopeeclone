@@ -1,0 +1,57 @@
+# Default values for catalog-product
+replicaCount: 3
+
+image:
+  repository: ghcr.io/shopee-clone/catalog-product
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  httpPort: 8080
+  grpcPort: 8081
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+env:
+  APP_ENV: "production"
+  PORT: "8080"
+  MONGODB_DATABASE: "shopee_catalog"
+  REDIS_ADDR: "redis-cluster:6379"
+  KAFKA_BROKERS: "kafka:9092"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+
+secrets:
+  mongodbUri: ""
+  mongodbPassword: ""
+
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 15
+  readiness:
+    path: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+podDisruptionBudget:
+  minAvailable: 2
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

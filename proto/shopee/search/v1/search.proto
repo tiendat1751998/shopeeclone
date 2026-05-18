@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package shopee.search.v1;
+
+option go_package = "github.com/shopee-clone/shopee/proto/search/v1;searchv1";
+
+import "validate/validate.proto";
+
+service SearchService {
+  rpc SearchProducts(SearchProductsRequest) returns (SearchProductsResponse);
+  rpc Autocomplete(AutocompleteRequest) returns (AutocompleteResponse);
+  rpc GetSuggestions(GetSuggestionsRequest) returns (GetSuggestionsResponse);
+}
+
+message SearchProductsRequest {
+  string query = 1;
+  string category_id = 2;
+  double min_price = 3;
+  double max_price = 4;
+  repeated string seller_ids = 5;
+  string sort_by = 6;
+  string sort_order = 7;
+  int32 page = 8;
+  int32 size = 9;
+  map<string, string> filters = 10;
+}
+
+message SearchProductHit {
+  string spu_id = 1;
+  string title = 2;
+  string description = 3;
+  string image = 4;
+  double min_price = 5;
+  double max_price = 6;
+  int32 sold_count = 7;
+  double rating = 8;
+  string category_id = 9;
+  string seller_id = 10;
+  double score = 11;
+}
+
+message SearchProductsResponse {
+  repeated SearchProductHit hits = 1;
+  int64 total = 2;
+  int32 page = 3;
+  int32 size = 4;
+  map<string, Aggregation> aggregations = 5;
+}
+
+message Aggregation {
+  string field = 1;
+  repeated Bucket buckets = 2;
+}
+
+message Bucket {
+  string key = 1;
+  int64 doc_count = 2;
+}
+
+message AutocompleteRequest {
+  string prefix = 1 [(validate.rules).string.min_len = 1];
+  int32 size = 2;
+}
+
+message AutocompleteResponse {
+  repeated string suggestions = 1;
+}
+
+message GetSuggestionsRequest {
+  string query = 1 [(validate.rules).string.min_len = 1];
+  int32 size = 2;
+}
+
+message GetSuggestionsResponse {
+  repeated string suggestions = 1;
+  repeated SearchProductHit trending = 2;
+}

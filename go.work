@@ -1,0 +1,9 @@
+go 1.22
+
+use (
+	./packages/go-shared
+	./services/catalog-product
+	./services/shopping-cart
+	./services/inventory-flashsale
+	./services/search-indexing
+)

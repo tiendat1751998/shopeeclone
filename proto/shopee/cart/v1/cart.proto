@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package shopee.cart.v1;
+
+option go_package = "github.com/shopee-clone/shopee/proto/cart/v1;cartv1";
+
+import "validate/validate.proto";
+
+service CartService {
+  rpc GetCart(GetCartRequest) returns (GetCartResponse);
+  rpc AddItem(AddItemRequest) returns (AddItemResponse);
+  rpc UpdateItemQuantity(UpdateItemQuantityRequest) returns (UpdateItemQuantityResponse);
+  rpc RemoveItem(RemoveItemRequest) returns (RemoveItemResponse);
+  rpc ClearCart(ClearCartRequest) returns (ClearCartResponse);
+}
+
+message CartItem {
+  string item_id = 1;
+  string sku_id = 2;
+  string spu_id = 3;
+  string title = 4;
+  string image = 5;
+  double price = 6;
+  int32 quantity = 7;
+  string seller_id = 8;
+  string shop_name = 9;
+  bool selected = 10;
+  int32 max_quantity = 11;
+}
+
+message CartGroup {
+  string seller_id = 1;
+  string shop_name = 2;
+  repeated CartItem items = 3;
+}
+
+message Cart {
+  string user_id = 1;
+  repeated CartGroup groups = 2;
+  double total_price = 3;
+  int32 total_items = 4;
+}
+
+message GetCartRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message GetCartResponse {
+  Cart cart = 1;
+}
+
+message AddItemRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+  string sku_id = 2 [(validate.rules).string.min_len = 1];
+  int32 quantity = 3 [(validate.rules).int32.gt = 0];
+}
+
+message AddItemResponse {
+  Cart cart = 1;
+}
+
+message UpdateItemQuantityRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+  string sku_id = 2 [(validate.rules).string.min_len = 1];
+  int32 quantity = 3 [(validate.rules).int32.gte = 0];
+}
+
+message UpdateItemQuantityResponse {
+  Cart cart = 1;
+}
+
+message RemoveItemRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+  string sku_id = 2 [(validate.rules).string.min_len = 1];
+}
+
+message RemoveItemResponse {
+  Cart cart = 1;
+}
+
+message ClearCartRequest {
+  string user_id = 1 [(validate.rules).string.min_len = 1];
+}
+
+message ClearCartResponse {
+  bool success = 1;
+}

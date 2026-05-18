@@ -1,0 +1,9 @@
+.git
+.gitignore
+*.md
+Dockerfile
+.dockerignore
+test/
+tests/
+*.test
+coverage/

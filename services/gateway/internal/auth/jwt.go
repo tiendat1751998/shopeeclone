@@ -1,0 +1,247 @@
+package auth
+
+import (
+	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/redis/go-redis/v9"
+	"github.com/shopee-clone/shopee/services/gateway/internal/config"
+)
+
+type JWTValidator struct {
+	cfg        config.AuthConfig
+	redis      *redis.Client
+	jwksClient *JWKSClient
+	mu         sync.RWMutex
+	cache      map[string]*jwt.MapClaims
+}
+
+type JWKS struct {
+	Keys []JWK `json:"keys"`
+}
+
+type JWK struct {
+	Kty string `json:"kty"`
+	Kid string `json:"kid"`
+	Use string `json:"use"`
+	N   string `json:"n"`
+	E   string `json:"e"`
+	Alg string `json:"alg"`
+}
+
+type Claims struct {
+	Sub       string   `json:"sub"`
+	UserID    string   `json:"user_id"`
+	Roles     []string `json:"roles"`
+	Scope     string   `json:"scope"`
+	DeviceID  string   `json:"device_id"`
+	SessionID string   `json:"session_id"`
+	jwt.RegisteredClaims
+}
+
+type JWKSClient struct {
+	endpoint  string
+	client    *http.Client
+	mu        sync.RWMutex
+	keys      map[string]*rsa.PublicKey
+	lastFetch time.Time
+	ttl       time.Duration
+}
+
+func NewJWKSClient(endpoint string) *JWKSClient {
+	return &JWKSClient{
+		endpoint: endpoint,
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				MaxIdleConns:        10,
+				IdleConnTimeout:     60 * time.Second,
+				DisableCompression:  false,
+			},
+		},
+		keys: make(map[string]*rsa.PublicKey),
+		ttl:  1 * time.Hour,
+	}
+}
+
+func (c *JWKSClient) GetKey(kid string) (*rsa.PublicKey, error) {
+	c.mu.RLock()
+	key, exists := c.keys[kid]
+	age := time.Since(c.lastFetch)
+	c.mu.RUnlock()
+
+	if exists && age < c.ttl {
+		return key, nil
+	}
+
+	if err := c.fetchKeys(); err != nil {
+		if exists {
+			return key, nil
+		}
+		return nil, err
+	}
+
+	c.mu.RLock()
+	key, exists = c.keys[kid]
+	c.mu.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("key %s not found in JWKS", kid)
+	}
+
+	return key, nil
+}
+
+func (c *JWKSClient) fetchKeys() error {
+	resp, err := c.client.Get(c.endpoint)
+	if err != nil {
+		return fmt.Errorf("failed to fetch JWKS: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("JWKS endpoint returned %d", resp.StatusCode)
+	}
+
+	var jwks JWKS
+	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+		return fmt.Errorf("failed to decode JWKS: %w", err)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.keys = make(map[string]*rsa.PublicKey)
+	for _, jwk := range jwks.Keys {
+		if jwk.Use != "sig" {
+			continue
+		}
+		key, err := jwkToPublicKey(jwk)
+		if err != nil {
+			continue
+		}
+		c.keys[jwk.Kid] = key
+	}
+	c.lastFetch = time.Now()
+
+	return nil
+}
+
+func jwkToPublicKey(jwk JWK) (*rsa.PublicKey, error) {
+	nBytes, err := base64.RawURLEncoding.DecodeString(jwk.N)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode N: %w", err)
+	}
+	eBytes, err := base64.RawURLEncoding.DecodeString(jwk.E)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode E: %w", err)
+	}
+
+	if len(eBytes) < 4 {
+		tmp := make([]byte, 4)
+		copy(tmp[4-len(eBytes):], eBytes)
+		eBytes = tmp
+	}
+
+	exp := int(eBytes[0])<<24 | int(eBytes[1])<<16 | int(eBytes[2])<<8 | int(eBytes[3])
+	n := new(rsa.PublicKey)
+	n.N = new(jwt.ParseRSAPublicKeyFromJWK(jwkToKey(jwk)))
+	n.E = exp
+	return n, nil
+}
+
+func jwkToKey(jwk JWK) interface{} {
+	return &struct {
+		N string `json:"n"`
+		E string `json:"e"`
+	}{N: jwk.N, E: jwk.E}
+}
+
+func NewJWTValidator(cfg config.AuthConfig, rdb *redis.Client) *JWTValidator {
+	return &JWTValidator{
+		cfg:        cfg,
+		redis:      rdb,
+		jwksClient: NewJWKSClient(cfg.JWKSEndpoint),
+		cache:      make(map[string]*jwt.MapClaims),
+	}
+}
+
+func (v *JWTValidator) ValidateToken(ctx context.Context, tokenString string) (*Claims, error) {
+	claims := &Claims{}
+
+	if v.redis != nil {
+		blacklisted, err := v.redis.Exists(ctx, fmt.Sprintf("token:blacklist:%s", tokenHash(tokenString))).Result()
+		if err == nil && blacklisted > 0 {
+			return nil, fmt.Errorf("token has been revoked")
+		}
+	}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		kid, ok := token.Header["kid"].(string)
+		if !ok {
+			return nil, fmt.Errorf("kid not found in token header")
+		}
+		return v.jwksClient.GetKey(kid)
+	},
+		jwt.WithLeeway(30*time.Second),
+		jwt.WithValidMethods([]string{"RS256", "RS384", "RS512"}),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("token validation failed: %w", err)
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	return claims, nil
+}
+
+func (v *JWTValidator) BlacklistToken(ctx context.Context, tokenString string, ttl time.Duration) error {
+	if v.redis == nil {
+		return nil
+	}
+	return v.redis.Set(ctx, fmt.Sprintf("token:blacklist:%s", tokenHash(tokenString)), "1", ttl).Err()
+}
+
+func tokenHash(tokenString string) string {
+	if len(tokenString) > 32 {
+		return tokenString[len(tokenString)-32:]
+	}
+	return tokenString
+}
+
+func ExtractToken(r *http.Request) string {
+	bearer := r.Header.Get("Authorization")
+	if bearer == "" {
+		return ""
+	}
+	if len(bearer) > 7 && bearer[:7] == "Bearer " {
+		return bearer[7:]
+	}
+	return ""
+}
+
+func ParsePublicKey(raw []byte) (*rsa.PublicKey, error) {
+	key, err := x509.ParsePKIXPublicKey(raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse public key: %w", err)
+	}
+	pubKey, ok := key.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not an RSA public key")
+	}
+	return pubKey, nil
+}
