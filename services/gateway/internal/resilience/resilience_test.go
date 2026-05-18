@@ -212,7 +212,6 @@ func TestProxyExecutor_WithHTTPServer(t *testing.T) {
 	}
 	req = req.WithContext(context.Background())
 
-	target := &struct{ Address string }{srv.URL}
 	resp, err := executor.client.Do(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

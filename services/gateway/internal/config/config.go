@@ -58,6 +58,8 @@ type AuthConfig struct {
 	RefreshTTL        time.Duration
 	EnableRBAC        bool
 	TokenBlacklistTTL time.Duration
+	AccessTokenKey    string
+	RefreshTokenKey   string
 }
 
 type OTELConfig struct {
@@ -148,6 +150,8 @@ func Load() *Config {
 			RefreshTTL:        getEnvDuration("JWT_REFRESH_TTL", 168*time.Hour),
 			EnableRBAC:        getEnvBool("RBAC_ENABLED", true),
 			TokenBlacklistTTL: getEnvDuration("TOKEN_BLACKLIST_TTL", 24*time.Hour),
+			AccessTokenKey:    getEnv("JWT_ACCESS_SECRET", "change-me-in-production"),
+			RefreshTokenKey:   getEnv("JWT_REFRESH_SECRET", "change-me-too-in-production"),
 		},
 
 		OpenTelemetry: OTELConfig{

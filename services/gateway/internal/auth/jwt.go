@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 	"sync"
 	"time"
@@ -152,17 +153,11 @@ func jwkToPublicKey(jwk JWK) (*rsa.PublicKey, error) {
 	}
 
 	exp := int(eBytes[0])<<24 | int(eBytes[1])<<16 | int(eBytes[2])<<8 | int(eBytes[3])
+
 	n := new(rsa.PublicKey)
-	n.N = new(jwt.ParseRSAPublicKeyFromJWK(jwkToKey(jwk)))
+	n.N = new(big.Int).SetBytes(nBytes)
 	n.E = exp
 	return n, nil
-}
-
-func jwkToKey(jwk JWK) interface{} {
-	return &struct {
-		N string `json:"n"`
-		E string `json:"e"`
-	}{N: jwk.N, E: jwk.E}
 }
 
 func NewJWTValidator(cfg config.AuthConfig, rdb *redis.Client) *JWTValidator {

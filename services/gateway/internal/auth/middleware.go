@@ -20,6 +20,7 @@ func NewAuthMiddleware(validator *JWTValidator) *AuthMiddleware {
 			"/health",
 			"/ready",
 			"/metrics",
+			"/upstreams",
 			"/api/v1/auth/login",
 			"/api/v1/auth/register",
 			"/api/v1/auth/refresh",

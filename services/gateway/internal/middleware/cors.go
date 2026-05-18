@@ -10,11 +10,6 @@ import (
 )
 
 func CORS(cfg config.CORSConfig) gin.HandlerFunc {
-	allowOrigin := "*"
-	if len(cfg.AllowedOrigins) == 1 && cfg.AllowedOrigins[0] != "*" {
-		allowOrigin = cfg.AllowedOrigins[0]
-	}
-
 	allowMethods := strings.Join(cfg.AllowedMethods, ", ")
 	allowHeaders := strings.Join(cfg.AllowedHeaders, ", ")
 	exposeHeaders := strings.Join(cfg.ExposedHeaders, ", ")

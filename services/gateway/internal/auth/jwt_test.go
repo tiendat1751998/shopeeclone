@@ -5,12 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/pem"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/shopee-clone/shopee/services/gateway/internal/config"
 )
 
 func generateTestKey() (*rsa.PrivateKey, *rsa.PublicKey, error) {
@@ -75,12 +75,7 @@ func TestParsePublicKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pemData := pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: pubKeyBytes,
-	})
-
-	parsed, err := ParsePublicKey(pemData)
+	parsed, err := ParsePublicKey(pubKeyBytes)
 	if err != nil {
 		t.Fatalf("failed to parse public key: %v", err)
 	}

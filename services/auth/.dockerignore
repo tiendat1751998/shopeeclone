@@ -1,0 +1,10 @@
+.git
+.gitignore
+README.md
+*.md
+tests/
+charts/
+deployments/
+configs/local.yaml
+.env
+.env.*

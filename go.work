@@ -2,8 +2,7 @@ go 1.22
 
 use (
 	./packages/go-shared
+	./services/auth
 	./services/catalog-product
-	./services/shopping-cart
-	./services/inventory-flashsale
-	./services/search-indexing
+	./services/gateway
 )

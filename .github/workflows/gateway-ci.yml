@@ -1,0 +1,117 @@
+name: Gateway CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'services/gateway/**'
+      - 'packages/go-shared/**'
+      - '.github/workflows/gateway-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/gateway/**'
+      - 'packages/go-shared/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/gateway
+  GO_VERSION: '1.22'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/gateway
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v4
+      with:
+        version: latest
+        working-directory: services/gateway
+
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/gateway
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+    - name: Download dependencies
+      run: |
+        go mod download
+        go work use ../../packages/go-shared
+    - name: Run tests
+      run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+    - name: Upload coverage
+      uses: codecov/codecov-action@v4
+      with:
+        file: services/gateway/coverage.out
+        flags: gateway
+
+  security:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/gateway
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+    - name: govulncheck
+      uses: golang/govulncheck-action@v1
+      with:
+        work-dir: services/gateway
+    - name: Run gosec
+      uses: securego/gosec@master
+      with:
+        args: ./...
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, test, security]
+    if: github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        working-directory: services/gateway
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: services/gateway
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  helm-validate:
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+    - name: Validate Helm chart
+      run: helm lint services/gateway/charts
+    - name: Render templates
+      run: helm template test-release services/gateway/charts

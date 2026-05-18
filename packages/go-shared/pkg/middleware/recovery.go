@@ -20,10 +20,10 @@ func Recovery() gin.HandlerFunc {
 					zap.String("stack", string(debug.Stack())),
 				)
 
-				observability.BusinessErrorsTotal.WithLabelValues(
-					observability.GetLogger().Core().String(),
-					"PANIC",
-				).Inc()
+			observability.BusinessErrorsTotal.WithLabelValues(
+				"recovery",
+				"PANIC",
+			).Inc()
 
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"error_code": "INTERNAL_ERROR",

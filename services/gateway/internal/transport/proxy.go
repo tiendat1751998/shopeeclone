@@ -2,7 +2,7 @@ package transport
 
 import (
 	"bytes"
-	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,7 +56,7 @@ type ProxyTarget struct {
 
 func (p *Proxy) ReverseProxy(target *ProxyTarget) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, span := otel.Tracer("shopee-gateway").Start(c.Request.Context(),
+		_, span := otel.Tracer("shopee-gateway").Start(c.Request.Context(),
 			fmt.Sprintf("reverse_proxy.%s", target.ServiceName),
 			trace.WithSpanKind(trace.SpanKindClient),
 		)

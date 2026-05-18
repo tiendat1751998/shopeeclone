@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: shopee-gateway
+  namespace: shopee-observability
+  labels:
+    app: shopee-gateway
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: shopee-gateway
+  namespaceSelector:
+    matchNames:
+    - shopee-platform
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 10s
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: shopee_gateway_.*
+      action: keep

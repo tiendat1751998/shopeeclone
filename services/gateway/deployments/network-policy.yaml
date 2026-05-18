@@ -1,0 +1,48 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: shopee-gateway-network-policy
+  namespace: shopee-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: shopee-gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          tier: infrastructure
+    - namespaceSelector:
+        matchLabels:
+          tier: services
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 9090
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          tier: services
+    - namespaceSelector:
+        matchLabels:
+          tier: data
+    - namespaceSelector:
+        matchLabels:
+          tier: observability
+    - namespaceSelector:
+        matchLabels:
+          name: shopee-platform
+    ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 4318
