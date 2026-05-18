@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 
+	"github.com/shopee-clone/shopee/services/auth/internal/audit"
 	"github.com/shopee-clone/shopee/services/auth/internal/config"
 	"github.com/shopee-clone/shopee/services/auth/internal/domain"
 	"github.com/shopee-clone/shopee/services/auth/internal/infrastructure/hash"
@@ -12,7 +13,9 @@ import (
 	"github.com/shopee-clone/shopee/services/auth/internal/infrastructure/mysql"
 	redisinfra "github.com/shopee-clone/shopee/services/auth/internal/infrastructure/redis"
 	"github.com/shopee-clone/shopee/services/auth/internal/metrics"
+	"github.com/shopee-clone/shopee/services/auth/internal/rbac"
 	"github.com/shopee-clone/shopee/services/auth/internal/security"
+	"github.com/shopee-clone/shopee/services/auth/internal/session"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"

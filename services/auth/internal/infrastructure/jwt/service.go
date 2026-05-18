@@ -20,7 +20,7 @@ type Claims struct {
 	Roles     []domain.Role `json:"roles,omitempty"`
 	SessionID string       `json:"session_id,omitempty"`
 	DeviceID  string       `json:"device_id,omitempty"`
-	TokenID   string       `json:"jti"`
+	TokenID   string       `json:"token_id"`
 	Type      string       `json:"type"`
 	jwt.RegisteredClaims
 }

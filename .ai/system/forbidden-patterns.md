@@ -40,3 +40,10 @@ jwt:
 jwt:
   secret: ${JWT_SIGNING_KEY} # Passed securely via Kubernetes Secrets or HashiCorp Vault
 ```
+
+NEVER:
+- use fully-qualified class names inline
+- generate IDE fallback syntax
+- generate unreadable generic signatures
+- generate compiler-style code
+- generate decompiled-looking code

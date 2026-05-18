@@ -8,7 +8,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
-import io.opentelemetry.semconv.ServiceAttributes;
+import io.opentelemetry.api.common.AttributeKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,8 +28,8 @@ public class OpenTelemetryConfig {
     public OpenTelemetry openTelemetry() {
         Resource resource = Resource.getDefault()
             .toBuilder()
-            .put(ServiceAttributes.SERVICE_NAME, serviceName)
-            .put(ServiceAttributes.SERVICE_VERSION, "0.1.0")
+            .put(AttributeKey.stringKey("service.name"), serviceName)
+            .put(AttributeKey.stringKey("service.version"), "0.1.0")
             .build();
 
         OtlpGrpcSpanExporter spanExporter = OtlpGrpcSpanExporter.builder()
@@ -47,9 +47,11 @@ public class OpenTelemetryConfig {
 
         return OpenTelemetrySdk.builder()
             .setTracerProvider(tracerProvider)
-            .setPropagators(TextMapPropagator.composite(
-                io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator.getInstance(),
-                io.opentelemetry.context.propagation.W3CBaggagePropagator.getInstance()
+            .setPropagators(io.opentelemetry.context.propagation.ContextPropagators.create(
+                TextMapPropagator.composite(
+                    io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator.getInstance(),
+                    io.opentelemetry.api.baggage.propagation.W3CBaggagePropagator.getInstance()
+                )
             ))
             .build();
     }

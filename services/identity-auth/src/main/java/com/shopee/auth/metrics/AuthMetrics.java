@@ -83,10 +83,10 @@ public class AuthMetrics {
     }
 
     public <T> T recordLoginDuration(java.util.concurrent.Callable<T> callable) throws Exception {
-        return loginDuration.call(callable);
+        return loginDuration.recordCallable(callable);
     }
 
     public <T> T recordRegistrationDuration(java.util.concurrent.Callable<T> callable) throws Exception {
-        return registrationDuration.call(callable);
+        return registrationDuration.recordCallable(callable);
     }
 }

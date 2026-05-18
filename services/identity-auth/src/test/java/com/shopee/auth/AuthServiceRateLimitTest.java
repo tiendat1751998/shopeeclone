@@ -1,19 +1,24 @@
 package com.shopee.auth;
 
 import com.shopee.auth.dto.AuthRequest;
+import com.shopee.auth.dto.AuthResponse;
 import com.shopee.auth.entity.User;
 import com.shopee.auth.exception.DuplicateResourceException;
 import com.shopee.auth.metrics.AuthMetrics;
 import com.shopee.auth.repository.FailedLoginRepository;
 import com.shopee.auth.repository.OutboxEventRepository;
 import com.shopee.auth.repository.RefreshTokenRepository;
+import com.shopee.auth.repository.RoleRepository;
 import com.shopee.auth.repository.UserRepository;
+import com.shopee.auth.repository.UserRoleRepository;
 import com.shopee.auth.security.AccountLockoutService;
 import com.shopee.auth.security.JwtTokenProvider;
 import com.shopee.auth.security.JwksProvider;
 import com.shopee.auth.security.RateLimiterService;
 import com.shopee.auth.service.AuthService;
 import com.shopee.auth.service.OutboxPublisher;
+import com.shopee.auth.service.rbac.RoleService;
+import com.shopee.auth.service.session.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +47,8 @@ class AuthServiceRateLimitTest {
     @Mock private RefreshTokenRepository refreshTokenRepository;
     @Mock private FailedLoginRepository failedLoginRepository;
     @Mock private OutboxEventRepository outboxEventRepository;
+    @Mock private RoleRepository roleRepository;
+    @Mock private UserRoleRepository userRoleRepository;
     @Mock private RedisTemplate<String, String> redisTemplate;
     @Mock private ValueOperations<String, String> valueOps;
     @Mock private HttpServletRequest httpServletRequest;
@@ -53,6 +60,8 @@ class AuthServiceRateLimitTest {
     private RateLimiterService rateLimiterService;
     private AccountLockoutService accountLockoutService;
     private OutboxPublisher outboxPublisher;
+    private SessionService sessionService;
+    private RoleService roleService;
     private AuthService authService;
 
     @BeforeEach
@@ -63,8 +72,11 @@ class AuthServiceRateLimitTest {
         rateLimiterService = new RateLimiterService(redisTemplate);
         accountLockoutService = new AccountLockoutService(failedLoginRepository);
         outboxPublisher = new OutboxPublisher(outboxEventRepository, new com.fasterxml.jackson.databind.ObjectMapper());
-        authService = new AuthService(userRepository, refreshTokenRepository, passwordEncoder,
-            jwtTokenProvider, rateLimiterService, accountLockoutService, outboxPublisher, authMetrics, httpServletRequest);
+        sessionService = new SessionService(refreshTokenRepository, jwtTokenProvider);
+        roleService = new RoleService(roleRepository, userRoleRepository);
+        authService = new AuthService(userRepository, passwordEncoder,
+            jwtTokenProvider, rateLimiterService, accountLockoutService,
+            sessionService, roleService, outboxPublisher, authMetrics, httpServletRequest);
 
         try {
             var jwksField = JwksProvider.class.getDeclaredField("configuredPrivateKey");
@@ -78,12 +90,16 @@ class AuthServiceRateLimitTest {
             throw new RuntimeException(e);
         }
 
-        var field = JwtTokenProvider.class.getDeclaredField("accessSecret");
-        field.setAccessible(true);
-        field.set(jwtTokenProvider, "test-access-secret-key-must-be-32-bytes-long!!");
-        var field2 = JwtTokenProvider.class.getDeclaredField("refreshSecret");
-        field2.setAccessible(true);
-        field2.set(jwtTokenProvider, "test-refresh-secret-key-must-be-32-bytes-long!!");
+        try {
+            var field = JwtTokenProvider.class.getDeclaredField("accessSecret");
+            field.setAccessible(true);
+            field.set(jwtTokenProvider, "test-access-secret-key-must-be-32-bytes-long!!");
+            var field2 = JwtTokenProvider.class.getDeclaredField("refreshSecret");
+            field2.setAccessible(true);
+            field2.set(jwtTokenProvider, "test-refresh-secret-key-must-be-32-bytes-long!!");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         jwtTokenProvider.init();
     }
 

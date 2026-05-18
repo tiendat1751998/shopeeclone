@@ -3,15 +3,15 @@ package com.shopee.auth.service;
 import com.shopee.auth.dto.AuthRequest;
 import com.shopee.auth.dto.AuthResponse;
 import com.shopee.auth.dto.UserResponse;
-import com.shopee.auth.entity.RefreshToken;
 import com.shopee.auth.entity.User;
 import com.shopee.auth.exception.DuplicateResourceException;
 import com.shopee.auth.metrics.AuthMetrics;
-import com.shopee.auth.repository.RefreshTokenRepository;
 import com.shopee.auth.repository.UserRepository;
 import com.shopee.auth.security.AccountLockoutService;
 import com.shopee.auth.security.JwtTokenProvider;
 import com.shopee.auth.security.RateLimiterService;
+import com.shopee.auth.service.rbac.RoleService;
+import com.shopee.auth.service.session.SessionService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -35,11 +34,12 @@ public class AuthService {
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final UserRepository userRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RateLimiterService rateLimiterService;
     private final AccountLockoutService accountLockoutService;
+    private final SessionService sessionService;
+    private final RoleService roleService;
     private final OutboxPublisher outboxPublisher;
     private final AuthMetrics authMetrics;
     private final HttpServletRequest httpServletRequest;
@@ -73,10 +73,12 @@ public class AuthService {
 
         user = userRepository.save(user);
 
+        roleService.assignDefaultRole(user.getUserId());
+
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         String refreshToken = jwtTokenProvider.generateRefreshToken(user);
 
-        saveRefreshToken(user.getUserId(), refreshToken);
+        sessionService.createRefreshToken(user.getUserId(), refreshToken);
 
         outboxPublisher.publish("user", user.getUserId().toString(), "user.registered", Map.of(
             "user_id", user.getUserId().toString(),
@@ -142,7 +144,7 @@ public class AuthService {
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         String refreshToken = jwtTokenProvider.generateRefreshToken(user);
 
-        saveRefreshToken(user.getUserId(), refreshToken);
+        sessionService.createRefreshToken(user.getUserId(), refreshToken);
 
         outboxPublisher.publish("user", user.getUserId().toString(), "user.logged_in", Map.of(
             "user_id", user.getUserId().toString(),
@@ -158,32 +160,22 @@ public class AuthService {
 
     @Transactional
     public AuthResponse refresh(String refreshTokenValue) {
-        Claims claims = jwtTokenProvider.validateRefreshToken(refreshTokenValue);
-        if (claims == null) {
-            authMetrics.incrementTokenRefreshFailures("invalid_token");
-            throw new BadCredentialsException("Invalid or expired refresh token");
-        }
-
-        RefreshToken storedToken = refreshTokenRepository.findByToken(refreshTokenValue)
-            .orElseThrow(() -> {
+        Claims claims;
+        try {
+            claims = sessionService.validateAndRotate(refreshTokenValue);
+        } catch (BadCredentialsException e) {
+            String msg = e.getMessage();
+            if (msg.contains("not found")) {
                 authMetrics.incrementTokenRefreshFailures("not_found");
-                return new BadCredentialsException("Refresh token not found");
-            });
-
-        if (storedToken.getRevoked()) {
-            authMetrics.incrementTokenRefreshFailures("revoked");
-            log.warn("Attempted to use revoked refresh token for user: {}", storedToken.getUserId());
-            refreshTokenRepository.deleteByUserId(storedToken.getUserId());
-            throw new BadCredentialsException("Refresh token has been revoked");
+            } else if (msg.contains("revoked")) {
+                authMetrics.incrementTokenRefreshFailures("revoked");
+            } else if (msg.contains("expired")) {
+                authMetrics.incrementTokenRefreshFailures("expired");
+            } else {
+                authMetrics.incrementTokenRefreshFailures("invalid_token");
+            }
+            throw e;
         }
-
-        if (storedToken.getExpiresAt().isBefore(LocalDateTime.now())) {
-            authMetrics.incrementTokenRefreshFailures("expired");
-            throw new BadCredentialsException("Refresh token has expired");
-        }
-
-        storedToken.setRevoked(true);
-        refreshTokenRepository.save(storedToken);
 
         UUID userId = UUID.fromString(claims.getSubject());
         User user = userRepository.findById(userId)
@@ -192,7 +184,7 @@ public class AuthService {
         String newAccessToken = jwtTokenProvider.generateAccessToken(user);
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user);
 
-        saveRefreshToken(user.getUserId(), newRefreshToken);
+        sessionService.createRefreshToken(user.getUserId(), newRefreshToken);
 
         authMetrics.incrementTokenRefreshes();
         log.info("Token refreshed for user: {}", userId);
@@ -204,15 +196,8 @@ public class AuthService {
     public void logout(String userId, String refreshTokenValue) {
         UUID uuid = UUID.fromString(userId);
 
-        if (refreshTokenValue != null && !refreshTokenValue.isBlank()) {
-            refreshTokenRepository.findByToken(refreshTokenValue)
-                .ifPresent(token -> {
-                    token.setRevoked(true);
-                    refreshTokenRepository.save(token);
-                });
-        }
-
-        refreshTokenRepository.deleteByUserId(uuid);
+        sessionService.revokeToken(refreshTokenValue);
+        sessionService.revokeAllForUser(uuid);
 
         outboxPublisher.publish("user", userId, "user.logged_out", Map.of(
             "user_id", userId
@@ -241,16 +226,6 @@ public class AuthService {
     @Transactional(readOnly = true)
     public boolean validateToken(String token) {
         return jwtTokenProvider.validateAccessToken(token) != null;
-    }
-
-    private void saveRefreshToken(UUID userId, String token) {
-        RefreshToken refreshToken = RefreshToken.builder()
-            .token(token)
-            .userId(userId)
-            .expiresAt(LocalDateTime.now().plusSeconds(jwtTokenProvider.getRefreshTtlSeconds()))
-            .revoked(false)
-            .build();
-        refreshTokenRepository.save(refreshToken);
     }
 
     private AuthResponse buildAuthResponse(User user, String accessToken, String refreshToken) {

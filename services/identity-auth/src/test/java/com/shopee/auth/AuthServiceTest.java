@@ -6,10 +6,21 @@ import com.shopee.auth.dto.UserResponse;
 import com.shopee.auth.entity.RefreshToken;
 import com.shopee.auth.entity.User;
 import com.shopee.auth.exception.DuplicateResourceException;
+import com.shopee.auth.metrics.AuthMetrics;
+import com.shopee.auth.repository.OutboxEventRepository;
 import com.shopee.auth.repository.RefreshTokenRepository;
+import com.shopee.auth.repository.RoleRepository;
 import com.shopee.auth.repository.UserRepository;
+import com.shopee.auth.repository.UserRoleRepository;
+import com.shopee.auth.security.AccountLockoutService;
 import com.shopee.auth.security.JwtTokenProvider;
+import com.shopee.auth.security.RateLimiterService;
 import com.shopee.auth.service.AuthService;
+import com.shopee.auth.service.OutboxPublisher;
+import com.shopee.auth.service.rbac.RoleService;
+import com.shopee.auth.service.session.SessionService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,21 +48,50 @@ class AuthServiceTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    private RoleRepository roleRepository;
+
+    @Mock
+    private UserRoleRepository userRoleRepository;
+
+    @Mock
+    private HttpServletRequest httpServletRequest;
+
+    @Mock
+    private AuthMetrics authMetrics;
+
+    @Mock
+    private OutboxEventRepository outboxEventRepository;
+
     private PasswordEncoder passwordEncoder;
     private JwtTokenProvider jwtTokenProvider;
+    private SessionService sessionService;
+    private RoleService roleService;
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
         passwordEncoder = new BCryptPasswordEncoder();
         jwtTokenProvider = new JwtTokenProvider();
-        authService = new AuthService(userRepository, refreshTokenRepository, passwordEncoder, jwtTokenProvider);
+        jwtTokenProvider.init();
 
         setField(jwtTokenProvider, "accessSecret", "test-access-secret-key-must-be-at-least-256-bits");
         setField(jwtTokenProvider, "refreshSecret", "test-refresh-secret-key-must-be-at-least-256-bits");
-        setField(jwtTokenProvider, "accessTtlMs", 900000L);
-        setField(jwtTokenProvider, "refreshTtlMs", 604800000L);
-        jwtTokenProvider.init();
+        setField(jwtTokenProvider, "accessTtlSeconds", 900L);
+        setField(jwtTokenProvider, "refreshTtlSeconds", 604800L);
+
+        sessionService = new SessionService(refreshTokenRepository, jwtTokenProvider);
+        roleService = new RoleService(roleRepository, userRoleRepository);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        OutboxPublisher outboxPublisher = new OutboxPublisher(outboxEventRepository, objectMapper);
+
+        var rateLimiterService = mock(RateLimiterService.class);
+        var accountLockoutService = mock(AccountLockoutService.class);
+
+        authService = new AuthService(userRepository, passwordEncoder,
+            jwtTokenProvider, rateLimiterService, accountLockoutService,
+            sessionService, roleService, outboxPublisher, authMetrics, httpServletRequest);
     }
 
     private void setField(Object target, String fieldName, Object value) {
