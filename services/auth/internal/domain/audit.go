@@ -1,6 +1,10 @@
 package domain
 
-import "time"
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"time"
+)
 
 type AuditAction string
 
@@ -56,10 +60,12 @@ func generateID() string {
 }
 
 func randomString(n int) string {
-	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letters[time.Now().UnixNano()%int64(len(letters))]
+	b := make([]byte, n/2+1)
+	if _, err := rand.Read(b); err != nil {
+		// fallback: use low-entropy time-based approach
+		for i := range b {
+			b[i] = byte(time.Now().UnixNano() >> uint(i*8))
+		}
 	}
-	return string(b)
+	return hex.EncodeToString(b)[:n]
 }

@@ -71,7 +71,7 @@ func (l *RateLimiter) AllowN(ctx context.Context, key string, rate int, n int) (
 	}
 
 	return &LimitResult{
-		Allowed:    res.Allowed > 0 && res.Allowed >= n,
+		Allowed:    res.Allowed >= n,
 		Remaining:  res.Remaining,
 		ResetAfter: res.RetryAfter,
 		Limit:      rate,

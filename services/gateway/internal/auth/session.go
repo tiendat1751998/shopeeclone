@@ -119,13 +119,17 @@ func (v *SessionValidator) createEphemeralSession(claims *Claims) *SessionData {
 
 func SessionMiddleware(validator *SessionValidator) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		claims, exists := c.Get(string(middleware.UserIDKey))
-		if !exists {
+		sessionID := c.GetHeader("X-Session-ID")
+		userID, hasUser := c.Get(string(middleware.UserIDKey))
+		if !hasUser || sessionID == "" {
 			c.Next()
 			return
 		}
 
-		session, err := validator.ValidateSession(c.Request.Context(), &Claims{UserID: fmt.Sprintf("%v", claims)})
+		session, err := validator.ValidateSession(c.Request.Context(), &Claims{
+			UserID:    fmt.Sprintf("%v", userID),
+			SessionID: sessionID,
+		})
 		if err != nil {
 			observability.LogWithTrace(c.Request.Context()).Warn("session validation failed",
 				zap.Error(err),

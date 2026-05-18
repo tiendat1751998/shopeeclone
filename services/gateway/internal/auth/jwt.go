@@ -3,12 +3,15 @@ package auth
 import (
 	"context"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -180,17 +183,21 @@ func (v *JWTValidator) ValidateToken(ctx context.Context, tokenString string) (*
 	}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+		switch token.Method.(type) {
+		case *jwt.SigningMethodRSA:
+			kid, ok := token.Header["kid"].(string)
+			if !ok {
+				return nil, fmt.Errorf("kid not found in token header")
+			}
+			return v.jwksClient.GetKey(kid)
+		case *jwt.SigningMethodHMAC:
+			return []byte(v.cfg.AccessTokenKey), nil
+		default:
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		kid, ok := token.Header["kid"].(string)
-		if !ok {
-			return nil, fmt.Errorf("kid not found in token header")
-		}
-		return v.jwksClient.GetKey(kid)
 	},
 		jwt.WithLeeway(30*time.Second),
-		jwt.WithValidMethods([]string{"RS256", "RS384", "RS512"}),
+		jwt.WithValidMethods([]string{"RS256", "RS384", "RS512", "HS256", "HS384", "HS512"}),
 	)
 
 	if err != nil {
@@ -212,10 +219,8 @@ func (v *JWTValidator) BlacklistToken(ctx context.Context, tokenString string, t
 }
 
 func tokenHash(tokenString string) string {
-	if len(tokenString) > 32 {
-		return tokenString[len(tokenString)-32:]
-	}
-	return tokenString
+	h := sha256.Sum256([]byte(tokenString))
+	return hex.EncodeToString(h[:])
 }
 
 func ExtractToken(r *http.Request) string {
@@ -223,7 +228,7 @@ func ExtractToken(r *http.Request) string {
 	if bearer == "" {
 		return ""
 	}
-	if len(bearer) > 7 && bearer[:7] == "Bearer " {
+	if len(bearer) > 7 && strings.EqualFold(bearer[:7], "Bearer ") {
 		return bearer[7:]
 	}
 	return ""

@@ -5,4 +5,9 @@ use (
 	./services/auth
 	./services/catalog-product
 	./services/gateway
+	./services/inventory
+	./services/order
+	./services/payment
+	./services/product-catalog
+	./services/shipment
 )

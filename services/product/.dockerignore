@@ -1,0 +1,52 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+/dist/
+/bin/
+/tmp/
+*.out
+
+# Git
+.git/
+.gitignore
+
+# Documentation (not needed for build)
+/docs/
+*.md
+
+# CI/CD (not needed for build)
+.github/
+.gitlab-ci.yml
+
+# Local config override
+configs/local*
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore

@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
@@ -87,7 +88,10 @@ func retryUnaryClientInterceptor(maxRetries int) grpc.UnaryClientInterceptor {
 			}
 			lastErr = err
 			if st, ok := status.FromError(err); ok {
-				if st.Code() != 0 {
+				code := st.Code()
+				// Only retry on transient errors
+				if code != codes.Unavailable && code != codes.ResourceExhausted &&
+					code != codes.DeadlineExceeded && code != codes.Aborted {
 					return err
 				}
 			}

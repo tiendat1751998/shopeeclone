@@ -1,0 +1,80 @@
+replicaCount: 3
+
+image:
+  repository: shopee-clone/shopee-order
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  httpPort: 80
+  grpcPort: 9093
+  targetHttpPort: 8083
+  targetGrpcPort: 9093
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilization: 70
+  targetMemoryUtilization: 80
+
+pdb:
+  enabled: true
+  minAvailable: "50%"
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+
+networkPolicy:
+  enabled: true
+
+config:
+  appName: shopee-order
+  appEnv: production
+  logLevel: info
+  mysql:
+    host: shopee-mysql
+    port: 3306
+    database: shopee_orders
+  redis:
+    addr: shopee-redis:6379
+    db: 3
+  kafka:
+    brokers: "shopee-kafka:9092"
+    topicPrefix: shopee.orders
+    consumerGroup: shopee-order-service
+  order:
+    defaultCurrency: SGD
+    paymentTimeout: 30m
+    idempotencyTTL: 24h
+
+secrets:
+  mysql:
+    user: shopee
+    password: change-me-in-production
+  jwt:
+    accessSecret: change-me-in-production
+
+probes:
+  readiness:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  liveness:
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+terminationGracePeriodSeconds: 60

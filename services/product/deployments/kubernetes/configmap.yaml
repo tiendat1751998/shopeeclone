@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-service-config
+  namespace: shopee
+  labels:
+    app: product-service
+data:
+  kafka-brokers: "kafka-headless.shopee:9092"
+  opensearch-addr: "http://opensearch-cluster-master.shopee:9200"

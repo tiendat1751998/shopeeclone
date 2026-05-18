@@ -196,8 +196,8 @@ public class AuthService {
     public void logout(String userId, String refreshTokenValue) {
         UUID uuid = UUID.fromString(userId);
 
+        // Revoke only the specific refresh token that was used for logout
         sessionService.revokeToken(refreshTokenValue);
-        sessionService.revokeAllForUser(uuid);
 
         outboxPublisher.publish("user", userId, "user.logged_out", Map.of(
             "user_id", userId

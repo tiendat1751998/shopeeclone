@@ -119,6 +119,10 @@ func (p *RetryPolicy) Do(ctx context.Context, fn func(context.Context) error) er
 		if !p.RetryableFunc(err) {
 			return err
 		}
+		// Don't retry if context is done
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 
 		observability.GetLogger().Warn("retrying request",
 			zap.Int("attempt", i+1),

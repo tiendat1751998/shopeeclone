@@ -52,7 +52,6 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                 .requestMatchers("/api/v1/auth/validate").permitAll()
                 .requestMatchers("/.well-known/**").permitAll()
-                .requestMatchers("/actuator/prometheus", "/actuator/metrics").permitAll()
                 .requestMatchers("/actuator/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )

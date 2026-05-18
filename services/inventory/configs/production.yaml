@@ -1,0 +1,32 @@
+app:
+  name: shopee-inventory
+  env: production
+  log_level: warn
+  http_port: 8086
+  grpc_port: 9096
+mysql:
+  host: ${MYSQL_HOST}
+  port: ${MYSQL_PORT}
+  user: ${MYSQL_USER}
+  password: ${MYSQL_PASSWORD}
+  database: ${MYSQL_DATABASE}
+redis:
+  addr: ${REDIS_ADDR}
+  password: ${REDIS_PASSWORD}
+  db: 6
+kafka:
+  brokers: ${KAFKA_BROKERS}
+  topic_prefix: shopee.inventory
+  consumer_group: shopee-inventory-service
+jwt:
+  access_secret: ${JWT_ACCESS_SECRET}
+  access_ttl: 15m
+inventory:
+  reservation_ttl: 30m
+  reorder_level: 10
+  idempotency_ttl: 24h
+  reconciliation_interval: 5m
+  flash_sale_rate_limit: 1000
+otel:
+  endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+  service_name: shopee-inventory

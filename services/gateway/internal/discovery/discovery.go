@@ -71,13 +71,32 @@ func (d *ServiceDiscovery) GetInstances(name string) []*ServiceInstance {
 }
 
 func (d *ServiceDiscovery) GetInstance(name string) (*ServiceInstance, error) {
-	instances := d.GetInstances(name)
-	if len(instances) == 0 {
+	d.mu.RLock()
+	instances, exists := d.instances[name]
+	if !exists || len(instances) == 0 {
+		d.mu.RUnlock()
 		return nil, fmt.Errorf("no healthy instances for service: %s", name)
 	}
 
-	idx := atomic.AddUint64(d.rrIndexes[name], 1) - 1
-	return instances[idx%uint64(len(instances))], nil
+	healthy := make([]*ServiceInstance, 0, len(instances))
+	for _, inst := range instances {
+		if inst.Healthy {
+			healthy = append(healthy, inst)
+		}
+	}
+	if len(healthy) == 0 {
+		d.mu.RUnlock()
+		return nil, fmt.Errorf("no healthy instances for service: %s", name)
+	}
+
+	idxPtr, hasIdx := d.rrIndexes[name]
+	d.mu.RUnlock()
+
+	if !hasIdx {
+		return healthy[0], nil
+	}
+	idx := atomic.AddUint64(idxPtr, 1) - 1
+	return healthy[idx%uint64(len(healthy))], nil
 }
 
 func (d *ServiceDiscovery) GetInstanceWeighted(name string) (*ServiceInstance, error) {

@@ -1,0 +1,183 @@
+package redis
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+	"github.com/shopee-clone/shopee/services/product/internal/domain"
+)
+
+// Cache implements ProductCache and CategoryCache using Redis
+type Cache struct {
+	client *redis.Client
+	prefix string
+}
+
+// NewCache creates a new Redis cache
+func NewCache(client *redis.Client) *Cache {
+	return &Cache{
+		client: client,
+		prefix: "product:",
+	}
+}
+
+// Get retrieves a product from cache
+func (c *Cache) Get(ctx context.Context, key string) (*domain.Product, error) {
+	data, err := c.client.Get(ctx, c.prefix+key).Bytes()
+	if err == redis.Nil {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("redis get: %w", err)
+	}
+
+	var product domain.Product
+	if err := json.Unmarshal(data, &product); err != nil {
+		return nil, fmt.Errorf("unmarshal product: %w", err)
+	}
+	return &product, nil
+}
+
+// Set stores a product in cache
+func (c *Cache) Set(ctx context.Context, key string, product *domain.Product, ttl time.Duration) error {
+	data, err := json.Marshal(product)
+	if err != nil {
+		return fmt.Errorf("marshal product: %w", err)
+	}
+	return c.client.Set(ctx, c.prefix+key, data, ttl).Err()
+}
+
+// Delete removes a product from cache
+func (c *Cache) Delete(ctx context.Context, key string) error {
+	return c.client.Del(ctx, c.prefix+key).Err()
+}
+
+// GetOrFetch gets from cache or fetches and caches
+func (c *Cache) GetOrFetch(ctx context.Context, key string, ttl time.Duration, fetchFn func() (*domain.Product, error)) (*domain.Product, error) {
+	// Try cache first
+	product, err := c.Get(ctx, key)
+	if err != nil {
+		// Log but continue to fetch
+	}
+	if product != nil {
+		return product, nil
+	}
+
+	// Fetch from source
+	product, err = fetchFn()
+	if err != nil {
+		return nil, err
+	}
+	if product == nil {
+		return nil, nil
+	}
+
+	// Cache the result (fire and forget)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		c.Set(ctx, key, product, ttl)
+	}()
+
+	return product, nil
+}
+
+// GetOrFetchCategory gets a category from cache or fetches it
+func (c *Cache) GetOrFetchCategory(ctx context.Context, key string, ttl time.Duration, fetchFn func() (*domain.Category, error)) (*domain.Category, error) {
+	data, err := c.client.Get(ctx, c.prefix+key).Bytes()
+	if err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("redis get: %w", err)
+	}
+	if err == nil {
+		var category domain.Category
+		if err := json.Unmarshal(data, &category); err == nil {
+			return &category, nil
+		}
+	}
+
+	category, err := fetchFn()
+	if err != nil {
+		return nil, err
+	}
+	if category == nil {
+		return nil, nil
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if data, err := json.Marshal(category); err == nil {
+			c.client.Set(ctx, c.prefix+key, data, ttl)
+		}
+	}()
+
+	return category, nil
+}
+
+// GetOrFetchTree gets the category tree from cache or fetches it
+func (c *Cache) GetOrFetchTree(ctx context.Context, key string, ttl time.Duration, fetchFn func() (*domain.CategoryTree, error)) (*domain.CategoryTree, error) {
+	data, err := c.client.Get(ctx, c.prefix+key).Bytes()
+	if err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("redis get: %w", err)
+	}
+	if err == nil {
+		var tree domain.CategoryTree
+		if err := json.Unmarshal(data, &tree); err == nil {
+			return &tree, nil
+		}
+	}
+
+	tree, err := fetchFn()
+	if err != nil {
+		return nil, err
+	}
+	if tree == nil {
+		return nil, nil
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if data, err := json.Marshal(tree); err == nil {
+			c.client.Set(ctx, c.prefix+key, data, ttl)
+		}
+	}()
+
+	return tree, nil
+}
+
+// DeleteTree invalidates the category tree cache
+func (c *Cache) DeleteTree(ctx context.Context) error {
+	iter := c.client.Scan(ctx, 0, c.prefix+"category:tree*", 100).Iterator()
+	var keys []string
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	if len(keys) > 0 {
+		return c.client.Del(ctx, keys...).Err()
+	}
+	return nil
+}
+
+// Ensure interfaces are satisfied
+var _ ProductCache = (*Cache)(nil)
+var _ CategoryCache = (*Cache)(nil)
+
+// ProductCache interface
+type ProductCache interface {
+	Get(ctx context.Context, key string) (*domain.Product, error)
+	Set(ctx context.Context, key string, product *domain.Product, ttl time.Duration) error
+	Delete(ctx context.Context, key string) error
+	GetOrFetch(ctx context.Context, key string, ttl time.Duration, fetchFn func() (*domain.Product, error)) (*domain.Product, error)
+}
+
+// CategoryCache interface
+type CategoryCache interface {
+	Get(ctx context.Context, key string) (*domain.Category, error)
+	Set(ctx context.Context, key string, category *domain.Category, ttl time.Duration) error
+	Delete(ctx context.Context, key string) error
+	DeleteTree(ctx context.Context) error
+}

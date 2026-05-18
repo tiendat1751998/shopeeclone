@@ -17,6 +17,11 @@ func TimeoutHandler(timeout time.Duration) gin.HandlerFunc {
 
 		done := make(chan struct{}, 1)
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// don't propagate panic from timed-out goroutine
+				}
+			}()
 			c.Next()
 			done <- struct{}{}
 		}()

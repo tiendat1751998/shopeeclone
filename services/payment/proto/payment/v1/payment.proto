@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package shopee.payment.v1;
+
+option go_package = "github.com/shopee-clone/shopee/services/payment/proto/payment/v1";
+
+service PaymentService {
+  rpc AuthorizePayment(AuthorizePaymentRequest) returns (PaymentResponse);
+  rpc CapturePayment(CapturePaymentRequest) returns (PaymentResponse);
+  rpc GetPayment(GetPaymentRequest) returns (PaymentResponse);
+}
+
+message AuthorizePaymentRequest {
+  string order_id = 1;
+  string user_id = 2;
+  int64 amount = 3;
+  string currency = 4;
+  string payment_method = 5;
+  string idempotency_key = 6;
+}
+
+message CapturePaymentRequest {
+  string payment_id = 1;
+  string actor_id = 2;
+}
+
+message GetPaymentRequest {
+  string payment_id = 1;
+}
+
+message PaymentResponse {
+  string id = 1;
+  string order_id = 2;
+  string user_id = 3;
+  int64 amount = 4;
+  string currency = 5;
+  string status = 6;
+  string payment_method = 7;
+  string psp_transaction_id = 8;
+  int64 amount_refunded = 9;
+  string created_at = 10;
+}

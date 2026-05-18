@@ -1,0 +1,6 @@
+apiVersion: v2
+name: shopee-payment
+description: Shopee Clone Payment Service
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

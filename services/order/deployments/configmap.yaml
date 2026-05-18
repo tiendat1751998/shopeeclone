@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopee-order-config
+data:
+  APP_NAME: "shopee-order"
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  ORDER_HTTP_PORT: "8083"
+  ORDER_GRPC_PORT: "9093"
+  MYSQL_HOST: "shopee-mysql"
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: "shopee_orders"
+  REDIS_ADDR: "shopee-redis:6379"
+  REDIS_DB: "3"
+  KAFKA_BROKERS: "shopee-kafka:9092"
+  KAFKA_TOPIC_PREFIX: "shopee.orders"
+  KAFKA_CONSUMER_GROUP: "shopee-order-service"
+  KAFKA_DLQ_TOPIC: "shopee.orders.dlq"
+  JWT_ISSUER: "shopee-auth"
+  JWT_AUDIENCE: "shopee-clone"
+  ORDER_DEFAULT_CURRENCY: "SGD"
+  ORDER_PAYMENT_TIMEOUT: "30m"
+  ORDER_IDEMPOTENCY_TTL: "24h"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+  OTEL_SERVICE_NAME: "shopee-order"
+  OTEL_TRACES_SAMPLER_ARG: "0.05"
+  AUDIT_ENABLED: "true"

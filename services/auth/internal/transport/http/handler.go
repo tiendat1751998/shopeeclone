@@ -42,9 +42,8 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	span.SetAttributes(attribute.String("user_id", tokens.SessionID))
 	observability.LogWithTrace(ctx).Info("user registered",
-		zap.String("user_id", tokens.SessionID),
+		zap.String("session_id", tokens.SessionID),
 	)
 
 	c.JSON(http.StatusCreated, tokens)
@@ -72,7 +71,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	span.SetAttributes(attribute.String("user_id", tokens.SessionID))
+	span.SetAttributes(attribute.String("session_id", tokens.SessionID))
 	c.JSON(http.StatusOK, tokens)
 }
 

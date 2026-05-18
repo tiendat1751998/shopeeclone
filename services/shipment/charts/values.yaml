@@ -1,0 +1,53 @@
+replicaCount: 3
+image:
+  repository: shopee-clone/shopee-shipment
+  tag: latest
+  pullPolicy: Always
+service:
+  type: ClusterIP
+  httpPort: 80
+  grpcPort: 9095
+  targetHttpPort: 8085
+  targetGrpcPort: 9095
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilization: 70
+  targetMemoryUtilization: 80
+pdb:
+  enabled: true
+  minAvailable: "50%"
+serviceMonitor:
+  enabled: true
+networkPolicy:
+  enabled: true
+config:
+  appName: shopee-shipment
+  appEnv: production
+  mysql:
+    host: shopee-mysql
+    port: 3306
+    database: shopee_shipments
+  redis:
+    addr: shopee-redis:6379
+    db: 5
+  kafka:
+    brokers: "shopee-kafka:9092"
+    topicPrefix: shopee.shipments
+  shipment:
+    defaultCarrier: ninja_van
+    webhookSecret: whsec-change-me
+secrets:
+  mysql:
+    user: shopee
+    password: change-me-in-production
+  jwt:
+    accessSecret: change-me-in-production

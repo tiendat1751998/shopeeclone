@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shopee-payment
+  labels:
+    app: shopee-payment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: shopee-payment
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: shopee-payment
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8084"
+    spec:
+      serviceAccountName: shopee-payment
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: shopee-payment
+          image: shopee-clone/shopee-payment:latest
+          ports:
+            - name: http
+              containerPort: 8084
+            - name: grpc
+              containerPort: 9094
+          envFrom:
+            - configMapRef:
+                name: shopee-payment-config
+            - secretRef:
+                name: shopee-payment-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      terminationGracePeriodSeconds: 60

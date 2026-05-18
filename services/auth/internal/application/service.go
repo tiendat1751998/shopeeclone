@@ -303,7 +303,7 @@ func (s *AuthService) Logout(ctx context.Context, accessToken, refreshToken stri
 			session.Revoke()
 			s.sessionRepo.Update(ctx, session)
 		}
-		if s.cfg.JWT.BlacklistEnabled {
+		if s.cfg.JWT.BlacklistEnabled && s.redisStore != nil {
 			s.redisStore.BlacklistAccessToken(ctx, accessToken, s.cfg.JWT.AccessTTL)
 			s.redisStore.BlacklistRefreshToken(ctx, refreshToken, s.cfg.JWT.RefreshTTL)
 		}
@@ -421,7 +421,9 @@ func (s *AuthService) handleTokenReuse(ctx context.Context, userID, sessionID, i
 	for _, session := range sessions {
 		session.Revoke()
 		s.sessionRepo.Update(ctx, session)
-		s.redisStore.BlacklistRefreshToken(ctx, session.RefreshTokenID, s.cfg.JWT.RefreshTTL)
+		if s.redisStore != nil {
+			s.redisStore.BlacklistRefreshToken(ctx, session.RefreshTokenID, s.cfg.JWT.RefreshTTL)
+		}
 	}
 
 	s.auditRepo.Log(ctx, domain.NewAuditLog(

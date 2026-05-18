@@ -1,0 +1,31 @@
+app:
+  name: shopee-payment
+  env: development
+  log_level: info
+  http_port: 8084
+  grpc_port: 9094
+mysql:
+  host: localhost
+  port: 3306
+  user: shopee
+  password: shopee_dev
+  database: shopee_payments
+redis:
+  addr: localhost:6379
+  db: 4
+kafka:
+  brokers: [localhost:9092]
+  topic_prefix: shopee.payments
+  consumer_group: shopee-payment-service
+jwt:
+  access_secret: change-me-in-production
+  access_ttl: 15m
+payment:
+  default_psp: stripe
+  authorization_ttl: 168h
+  idempotency_ttl: 24h
+  max_retry_attempts: 3
+  webhook_secret: whsec-change-me
+otel:
+  endpoint: http://localhost:4318
+  service_name: shopee-payment

@@ -1,7 +1,6 @@
 package health
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -64,9 +63,7 @@ func countHealthy(results []UpstreamHealth) int {
 
 func RedisHealthCheck(addr string) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
-		timeout, cancel := context.WithTimeout(ctx, 3*time.Second)
-		defer cancel()
-		_ = timeout
+		// TODO: implement actual Redis health check using addr
 		return nil
 	}
 }

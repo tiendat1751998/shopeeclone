@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shopee-checkout
+  labels:
+    app: shopee-checkout
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: shopee-checkout
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: shopee-checkout
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: checkout
+          image: shopee/checkout:latest
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9090
+              name: grpc
+          env:
+            - name: APP_NAME
+              value: "shopee-checkout"
+            - name: APP_ENV
+              value: "production"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: CHECKOUT_HTTP_PORT
+              value: "8080"
+            - name: MYSQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: checkout-secrets
+                  key: mysql-host
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: checkout-secrets
+                  key: mysql-user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: checkout-secrets
+                  key: mysql-password
+            - name: MYSQL_DATABASE
+              value: "shopee_checkout"
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: checkout-secrets
+                  key: redis-addr
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: checkout-config
+                  key: kafka-brokers
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.monitoring:4318"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+      terminationGracePeriodSeconds: 30
