@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { productsApi } from "@/lib/api/products";
 import { ProductGrid } from "@/components/product/ProductGrid";
@@ -13,19 +13,42 @@ export default function ProductsPage() {
   const searchParams = useSearchParams();
   const query = searchParams.get("q") || "";
   const categorySlug = searchParams.get("category") || "";
-  const [filters, setFilters] = useState<SearchFilters>({ query, category_id: categorySlug, page: 1, page_size: 24, sort_by: "relevance" });
+  const [filters, setFilters] = useState<SearchFilters>({
+    query, category_id: categorySlug || undefined, page: 1, page_size: 24, sort_by: "relevance",
+  });
   const [result, setResult] = useState<SearchResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const debouncedQuery = useDebounce(filters.query, 300);
+  const abortRef = useRef<AbortController | null>(null);
 
   const search = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setIsLoading(true);
-    try { const res = await productsApi.search({ ...filters, query: debouncedQuery }); setResult(res); }
-    catch { /* handle */ }
-    finally { setIsLoading(false); }
+    setError(null);
+
+    try {
+      const res = await productsApi.search({ ...filters, query: debouncedQuery }, controller.signal);
+      if (!controller.signal.aborted) {
+        setResult(res);
+        setIsLoading(false);
+      }
+    } catch (e: unknown) {
+      if (!controller.signal.aborted) {
+        setError(e instanceof Error ? e.message : "Search failed");
+        setIsLoading(false);
+      }
+    }
   }, [filters, debouncedQuery]);
 
-  useEffect(() => { search(); }, [search]);
+  useEffect(() => {
+    search();
+    return () => { if (abortRef.current) abortRef.current.abort(); };
+  }, [search]);
+
+  const totalPages = result ? Math.max(1, Math.ceil(result.total / (result.page_size || 24))) : 1;
 
   return (
     <div className="container py-6">
@@ -33,13 +56,18 @@ export default function ProductsPage() {
         <div className="hidden lg:block w-56 flex-shrink-0">
           <CategorySidebar />
           <div className="card p-4 mt-4">
-            <PriceFilter minPrice={filters.min_price} maxPrice={filters.max_price} onChange={(min, max) => setFilters((f) => ({ ...f, min_price: min, max_price: max, page: 1 }))} />
+            <PriceFilter minPrice={filters.min_price} maxPrice={filters.max_price}
+              onChange={(min, max) => setFilters((f) => ({ ...f, min_price: min, max_price: max, page: 1 }))} />
           </div>
         </div>
         <div className="flex-1 min-w-0">
+          {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded mb-4">{error}</div>}
           <SearchFiltersBar filters={filters} onChange={(f) => setFilters({ ...f, page: 1 })} resultCount={result?.total} />
           <ProductGrid products={result?.products ?? null} isLoading={isLoading} />
-          {result && result.total_pages > 1 && <Pagination currentPage={result.page} totalPages={result.total_pages} onPageChange={(page) => setFilters((f) => ({ ...f, page }))} />}
+          {result && totalPages > 1 && (
+            <Pagination currentPage={result.page} totalPages={totalPages}
+              onPageChange={(page) => setFilters((f) => ({ ...f, page }))} />
+          )}
         </div>
       </div>
     </div>

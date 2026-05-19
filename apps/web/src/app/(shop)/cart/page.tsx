@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCartStore } from "@/lib/store/cart";
@@ -7,9 +7,16 @@ import { Button } from "@/components/ui/Button";
 import { Price } from "@/components/ui/Price";
 
 export default function CartPage() {
-  const { items, isLoading, fetchCart, updateQuantity, removeItem, toggleSelect, toggleSelectAll, selectedItems, subtotal } = useCartStore();
-  useEffect(() => { fetchCart(); }, [fetchCart]);
+  const { items, isLoading, error, fetchCart, updateQuantity, removeItem, toggleSelect, toggleSelectAll, selectedItems, subtotal } = useCartStore();
+  const fetchedRef = useRef(false);
   const selected = selectedItems();
+
+  useEffect(() => {
+    if (!fetchedRef.current) {
+      fetchedRef.current = true;
+      fetchCart();
+    }
+  }, [fetchCart]);
 
   if (isLoading) return <div className="container py-6"><h1 className="text-xl font-semibold mb-6">Shopping Cart</h1><div className="space-y-4">{[...Array(3)].map((_, i) => <div key={i} className="skeleton h-24 rounded-lg" />)}</div></div>;
   if (items.length === 0) return <div className="container py-16 text-center"><h2 className="text-xl font-semibold mb-2">Your cart is empty</h2><Link href="/products"><Button variant="primary">Start Shopping</Button></Link></div>;
@@ -17,10 +24,11 @@ export default function CartPage() {
   return (
     <div className="container py-6">
       <h1 className="text-xl font-semibold mb-6">Shopping Cart ({items.length} items)</h1>
+      {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded mb-4">{error}</div>}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
           <div className="card p-3 flex items-center gap-3">
-            <input type="checkbox" checked={items.every((i) => i.is_selected)} onChange={toggleSelectAll} className="w-4 h-4 accent-[#ee4d2d]" />
+            <input type="checkbox" checked={items.length > 0 && items.every((i) => i.is_selected)} onChange={toggleSelectAll} className="w-4 h-4 accent-[#ee4d2d]" />
             <span className="text-sm">Select All</span>
           </div>
           {items.map((item) => (

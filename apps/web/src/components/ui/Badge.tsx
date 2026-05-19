@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 import type { ReactNode } from "react";
 
-interface BadgeProps { variant?: "sale" | "new" | "official" | "warning" | "info"; children: ReactNode; className?: string; }
+interface BadgeProps { variant?: "sale" | "new" | "official" | "warning" | "info"; children?: ReactNode; className?: string; }
 
 export function Badge({ variant = "info", children, className }: BadgeProps) {
   const variants = {

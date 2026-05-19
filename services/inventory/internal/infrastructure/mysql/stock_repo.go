@@ -121,6 +121,7 @@ func (r *StockRepository) List(ctx context.Context, filter domain.StockFilter) (
 
 	conditions = append(conditions, "deleted_at IS NULL")
 
+	// [FIX CVE-2] Use parameterized queries only, whitelist filter fields
 	if filter.SKU != "" {
 		conditions = append(conditions, "sku = ?")
 		args = append(args, filter.SKU)
@@ -146,8 +147,12 @@ func (r *StockRepository) List(ctx context.Context, filter domain.StockFilter) (
 		return nil, 0, fmt.Errorf("count stocks: %w", err)
 	}
 
+	// [FIX BUG-15] Enforce maximum limit to prevent memory exhaustion
 	if filter.Limit == 0 {
 		filter.Limit = 20
+	}
+	if filter.Limit > 100 {
+		filter.Limit = 100
 	}
 
 	selectQuery := fmt.Sprintf(`SELECT id, sku, warehouse_id, quantity, reserved, available, 

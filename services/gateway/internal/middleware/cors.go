@@ -20,11 +20,13 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 
 		if origin != "" {
 			allowedOrigin := ""
-			if cfg.AllowedOrigins[0] == "*" {
+
+			// [SECURITY] Check len before accessing index 0
+			if len(cfg.AllowedOrigins) > 0 && cfg.AllowedOrigins[0] == "*" {
 				if !cfg.AllowCredentials {
 					allowedOrigin = "*"
 				} else {
-					// When credentials are used, we must echo the specific origin
+					// [SECURITY] When credentials are used, echo the specific origin
 					allowedOrigin = origin
 				}
 			} else {

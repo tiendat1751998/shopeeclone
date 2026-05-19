@@ -13,7 +13,7 @@ export function CategorySidebar() {
   useEffect(() => {
     categoriesApi.getTree()
       .then(setCategories)
-      .catch(() => {})
+      .catch(() => undefined)
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -26,32 +26,35 @@ export function CategorySidebar() {
   };
 
   const renderCategory = (cat: Category, depth = 0) => {
-    const hasChildren = cat.children && cat.children.length > 0;
+    const children = cat.children ?? [];
+    const hasChildren = children.length > 0;
     const isExpanded = expanded.has(cat.id);
 
     return (
       <li key={cat.id} className="group">
         <div className="flex items-center justify-between">
-          <Link href={`/categories/${cat.slug}`}
-            className={`flex-1 py-1.5 text-sm hover:text-[#ee4d2d] transition-colors ${depth > 0 ? "pl-4" : "font-medium"}`}>
+          <Link
+            href={`/categories/${cat.slug}`}
+            className={`flex-1 py-1.5 text-sm hover:text-[#ee4d2d] transition-colors ${depth > 0 ? "pl-4" : "font-medium"}`}
+          >
             {cat.name}
             {cat.product_count !== undefined && (
               <span className="ml-1 text-xs text-[#bdbdbd]">({cat.product_count})</span>
             )}
           </Link>
-          {hasChildren && (
+          {hasChildren ? (
             <button onClick={() => toggle(cat.id)} className="p-1 text-[#757575] hover:text-[#ee4d2d]">
               <svg className={`w-3 h-3 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
-          )}
+          ) : null}
         </div>
-        {hasChildren && isExpanded && (
+        {hasChildren && isExpanded ? (
           <ul className="ml-2 border-l border-[#e8e8e8]">
-            {cat.children!.map((child) => renderCategory(child, depth + 1))}
+            {children.map((child) => renderCategory(child, depth + 1))}
           </ul>
-        )}
+        ) : null}
       </li>
     );
   };

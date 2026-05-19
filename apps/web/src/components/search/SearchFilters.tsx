@@ -35,14 +35,19 @@ export function SearchFiltersBar({ filters, onChange, resultCount }: SearchFilte
 interface PriceFilterProps { minPrice?: number; maxPrice?: number; onChange: (min?: number, max?: number) => void; }
 
 export function PriceFilter({ minPrice, maxPrice, onChange }: PriceFilterProps) {
+  const parseValue = (val: string): number | undefined => {
+    const n = Number(val);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+
   return (
     <div className="space-y-3">
       <h4 className="text-sm font-medium">Price Range</h4>
       <div className="flex items-center gap-2">
-        <input type="number" placeholder="Min" value={minPrice || ""} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : undefined, maxPrice)}
+        <input type="number" placeholder="Min" value={minPrice ?? ""} onChange={(e) => onChange(parseValue(e.target.value), maxPrice)}
           className="w-full px-2 py-1.5 text-sm border border-[#e8e8e8] rounded focus:outline-none focus:ring-1 focus:ring-[#ee4d2d]" />
         <span className="text-[#bdbdbd]">—</span>
-        <input type="number" placeholder="Max" value={maxPrice || ""} onChange={(e) => onChange(minPrice, e.target.value ? Number(e.target.value) : undefined)}
+        <input type="number" placeholder="Max" value={maxPrice ?? ""} onChange={(e) => onChange(minPrice, parseValue(e.target.value))}
           className="w-full px-2 py-1.5 text-sm border border-[#e8e8e8] rounded focus:outline-none focus:ring-1 focus:ring-[#ee4d2d]" />
       </div>
       {[[0, 20], [20, 50], [50, 100], [100, 500], [500, undefined]].map(([min, max]) => (

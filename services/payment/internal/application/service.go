@@ -60,7 +60,15 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 		}
 	}
 
-	// Anti-double-charge: check if payment already exists for this order
+	// [SECURITY] Anti-double-charge: Use distributed lock BEFORE checking existing payment.
+	// This prevents race conditions where two concurrent requests both pass the check.
+	locked, err := s.redisStore.AcquirePaymentLock(ctx, req.OrderID, 30*time.Second)
+	if err != nil || !locked {
+		return nil, fmt.Errorf("failed to acquire payment lock")
+	}
+	defer s.redisStore.ReleasePaymentLock(ctx, req.OrderID)
+
+	// Check if payment already exists for this order (inside lock)
 	existingPayment, err := s.paymentRepo.FindByOrderID(ctx, req.OrderID)
 	if err == nil && existingPayment != nil && !existingPayment.IsTerminal() {
 		span.SetStatus(codes.Error, "double charge detected")
@@ -72,13 +80,6 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 
 	payment := domain.NewPayment(req.OrderID, req.UserID, req.Amount, currency, req.PaymentMethod, s.cfg.Payment.DefaultPSP, req.IdempotencyKey)
 	payment.Metadata = req.Metadata
-
-	// Acquire distributed lock
-	locked, err := s.redisStore.AcquirePaymentLock(ctx, req.OrderID, 30*time.Second)
-	if err != nil || !locked {
-		return nil, fmt.Errorf("failed to acquire payment lock")
-	}
-	defer s.redisStore.ReleasePaymentLock(ctx, req.OrderID)
 
 	// Fraud check (async hook)
 	fraudResult := domain.NewFraudCheckResult(payment.ID, req.UserID, 10, false)
@@ -156,6 +157,10 @@ func (s *PaymentService) RefundPayment(ctx context.Context, paymentID, reason, i
 		return nil, domain.ErrRefundNotAllowed
 	}
 
+	// [FIX BUG-9] Validate amount is positive and doesn't exceed remaining
+	if amount <= 0 {
+		return nil, fmt.Errorf("refund amount must be positive, got %d", amount)
+	}
 	if amount > payment.RemainingAmount() {
 		return nil, domain.ErrRefundAmountExceeded
 	}

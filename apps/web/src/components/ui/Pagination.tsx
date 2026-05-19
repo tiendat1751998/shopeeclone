@@ -23,7 +23,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
       </button>
       {pages.map((p, i) =>
         p === "..." ? <span key={`dots-${i}`} className="px-2 text-[#757575]">...</span> : (
-          <button key={p} onClick={() => onPageChange(p)}
+          <button key={`page-${p}`} onClick={() => onPageChange(p)}
             className={clsx("px-3 py-2 text-sm rounded border transition-colors",
               p === currentPage ? "bg-[#ee4d2d] text-white border-[#ee4d2d]" : "border-[#e8e8e8] hover:border-[#ee4d2d]"
             )}>{p}</button>

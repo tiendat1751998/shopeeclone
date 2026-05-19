@@ -127,7 +127,7 @@ func (s *SKUService) BatchGetSKUs(ctx context.Context, skuIDs []string) (map[str
 }
 
 // UpdateSKUPrice updates the price and/or sale price of an SKU.
-func (s *SKUService) UpdateSKUPrice(ctx context.Context, skuID string, price int64, salePrice int64) (*SKUResponse, error) {
+func (s *SKUService) UpdateSKUPrice(ctx context.Context, skuID string, price float64, salePrice float64) (*SKUResponse, error) {
 	ctx, span := s.tracer.Start(ctx, "application.sku.update_price")
 	defer span.End()
 
@@ -224,7 +224,7 @@ func (s *SKUService) UpdateSKUPrice(ctx context.Context, skuID string, price int
 }
 
 // UpdateSKUStock updates the stock quantity of an SKU.
-func (s *SKUService) UpdateSKUStock(ctx context.Context, skuID string, stock int64) (*SKUResponse, error) {
+func (s *SKUService) UpdateSKUStock(ctx context.Context, skuID string, stock int32) (*SKUResponse, error) {
 	ctx, span := s.tracer.Start(ctx, "application.sku.update_stock")
 	defer span.End()
 

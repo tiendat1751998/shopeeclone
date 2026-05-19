@@ -315,6 +315,90 @@ func toCategoryTreeNode(node *domain.CategoryTreeNode) CategoryTreeNode {
 }
 
 // -----------------------------------------------------------------------------
+// Attribute DTOs
+// -----------------------------------------------------------------------------
+
+type CreateAttributeRequest struct {
+	Name         string `json:"name"          validate:"required,max=255"`
+	Type         string `json:"type"          validate:"required,oneof=TEXT NUMBER BOOLEAN SELECT MULTI_SELECT COLOR"`
+	CategoryID   string `json:"category_id"   validate:"required"`
+	IsRequired   bool   `json:"is_required"`
+	IsFilterable bool   `json:"is_filterable"`
+	IsSearchable bool   `json:"is_searchable"`
+}
+
+type UpdateAttributeRequest struct {
+	Name         string `json:"name"          validate:"omitempty,max=255"`
+	Type         string `json:"type"          validate:"omitempty,oneof=TEXT NUMBER BOOLEAN SELECT MULTI_SELECT COLOR"`
+	IsRequired   bool   `json:"is_required"`
+	IsFilterable bool   `json:"is_filterable"`
+	IsSearchable bool   `json:"is_searchable"`
+}
+
+type SetAttributeRequest struct {
+	AttributeID string `json:"attribute_id" validate:"required"`
+	ValueID     string `json:"value_id,omitempty" validate:"omitempty"`
+	CustomValue string `json:"custom_value,omitempty" validate:"max=500"`
+}
+
+type CreateAttributeValueRequest struct {
+	AttributeID  string `json:"attribute_id"   validate:"required"`
+	Value        string `json:"value"          validate:"required,max=255"`
+	DisplayValue string `json:"display_value,omitempty" validate:"max=255"`
+	SortOrder    int    `json:"sort_order"     validate:"min=0"`
+}
+
+type AttributeResponse struct {
+	ID           string                   `json:"id"`
+	CategoryID   string                   `json:"category_id"`
+	Name         string                   `json:"name"`
+	Type         string                   `json:"type"`
+	IsRequired   bool                     `json:"is_required"`
+	IsFilterable bool                     `json:"is_filterable"`
+	IsSearchable bool                     `json:"is_searchable"`
+	SortOrder    int                      `json:"sort_order"`
+	Values       []AttributeValueResponse `json:"values,omitempty"`
+	CreatedAt    time.Time                `json:"created_at"`
+	UpdatedAt    time.Time                `json:"updated_at"`
+}
+
+type AttributeValueResponse struct {
+	ID           string `json:"id"`
+	AttributeID  string `json:"attribute_id"`
+	Value        string `json:"value"`
+	DisplayValue string `json:"display_value,omitempty"`
+	SortOrder    int    `json:"sort_order"`
+}
+
+func ToAttributeResponse(a *domain.Attribute) AttributeResponse {
+	if a == nil {
+		return AttributeResponse{}
+	}
+	vals := make([]AttributeValueResponse, 0, len(a.Values))
+	for _, v := range a.Values {
+		vals = append(vals, AttributeValueResponse{
+			AttributeID:  v.AttributeID,
+			Value:        v.Value,
+			DisplayValue: v.DisplayValue,
+			SortOrder:    v.SortOrder,
+		})
+	}
+	return AttributeResponse{
+		ID:           a.ID,
+		CategoryID:   a.CategoryID,
+		Name:         a.Name,
+		Type:         string(a.Type),
+		IsRequired:   a.IsRequired,
+		IsFilterable: a.IsFilterable,
+		IsSearchable: a.IsSearchable,
+		SortOrder:    a.SortOrder,
+		Values:       vals,
+		CreatedAt:    a.CreatedAt,
+		UpdatedAt:    a.UpdatedAt,
+	}
+}
+
+// -----------------------------------------------------------------------------
 // Moderation DTOs
 // -----------------------------------------------------------------------------
 
