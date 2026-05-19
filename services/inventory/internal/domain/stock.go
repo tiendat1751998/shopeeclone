@@ -131,5 +131,3 @@ func (s *Stock) updateStatus() {
 		s.Status = StockStatusInStock
 	}
 }
-
-}
