@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 RUN apk add --no-cache gcc musl-dev
 
@@ -17,3 +17,4 @@ COPY --from=builder /app/migrations /etc/live-scale/migrations
 
 EXPOSE 8081 9091
 ENTRYPOINT ["server"]
+
