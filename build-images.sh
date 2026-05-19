@@ -107,8 +107,8 @@ if [ "$SKIP_GO" = false ]; then
                     print "        protoc --proto_path=/proto/shopee --proto_path=/tmp/validate --proto_path=/usr/include --go_out=/proto --go_opt=module=github.com/shopee-clone/shopee/proto --go-grpc_out=/proto --go-grpc_opt=module=github.com/shopee-clone/shopee/proto /proto/shopee/catalog/v1/catalog.proto || exit 1; \\"
                     print "    fi && \\"
                     print "    find . -name \"*.proto\" -type f | while read f; do \\"
-                    print "        echo \"Compiling $$f...\" && \\"
-                    print "        protoc --proto_path=. --proto_path=/tmp/validate --proto_path=/usr/include --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \"$$f\" || exit 1; \\"
+                    print "        echo \"Compiling $f...\" && \\"
+                    print "        protoc --proto_path=. --proto_path=/tmp/validate --proto_path=/usr/include --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \"$f\" || exit 1; \\"
                     print "    done"
                     print "RUN go mod tidy"
                     next
