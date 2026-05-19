@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -18,10 +20,11 @@ type Watcher struct {
 }
 
 type Service struct {
-	repo          Repository
-	mu            sync.RWMutex
-	writers       map[string]*Watcher
-	missedHeartbeats map[string]int
+	repo              Repository
+	mu                sync.RWMutex
+	writers           map[string]*Watcher
+	missedHeartbeats  map[string]int
+	stopCh            chan struct{}
 }
 
 func NewService(repo Repository) *Service {
@@ -29,9 +32,14 @@ func NewService(repo Repository) *Service {
 		repo:             repo,
 		writers:          make(map[string]*Watcher),
 		missedHeartbeats: make(map[string]int),
+		stopCh:           make(chan struct{}),
 	}
 	go s.healthCheckLoop()
 	return s
+}
+
+func (s *Service) Stop() {
+	close(s.stopCh)
 }
 
 func (s *Service) Register(ctx context.Context, inst *ServiceInstance) error {
@@ -79,19 +87,31 @@ func (s *Service) Watch(ctx context.Context, name string) *Watcher {
 
 func (s *Service) healthCheckLoop() {
 	ticker := time.NewTicker(5 * time.Second)
-	for range ticker.C {
-		s.mu.Lock()
-		instances, _ := s.repo.ListServices(context.Background())
-		for _, inst := range instances {
-			if time.Since(inst.LastHeartbeat) > 15*time.Second {
-				s.missedHeartbeats[inst.ID]++
-				if s.missedHeartbeats[inst.ID] >= 3 {
-					inst.Status = StatusDown
-				}
-			} else {
-				s.missedHeartbeats[inst.ID] = 0
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			instances, err := s.repo.ListServices(ctx)
+			cancel()
+			if err != nil {
+				zap.L().Error("health check: failed to list services", zap.Error(err))
+				continue
 			}
+			s.mu.Lock()
+			for _, inst := range instances {
+				if time.Since(inst.LastHeartbeat) > 15*time.Second {
+					s.missedHeartbeats[inst.ID]++
+					if s.missedHeartbeats[inst.ID] >= 3 {
+						inst.Status = StatusDown
+					}
+				} else {
+					s.missedHeartbeats[inst.ID] = 0
+				}
+			}
+			s.mu.Unlock()
+		case <-s.stopCh:
+			return
 		}
-		s.mu.Unlock()
 	}
 }

@@ -96,12 +96,21 @@ func (v *SessionValidator) RevokeAllUserSessions(ctx context.Context, userID str
 		return nil
 	}
 	pattern := fmt.Sprintf("%s*:%s", v.prefix, userID)
-	iter := v.redis.Scan(ctx, 0, pattern, 1000).Iterator()
+	iter := v.redis.Scan(ctx, 0, pattern, 100).Iterator()
+	batchSize := 100
+	keys := make([]string, 0, batchSize)
 	for iter.Next(ctx) {
-		if err := v.redis.Del(ctx, iter.Val()).Err(); err != nil {
-			observability.GetLogger().Error("failed to delete session",
-				zap.String("key", iter.Val()),
-				zap.Error(err))
+		keys = append(keys, iter.Val())
+		if len(keys) >= batchSize {
+			if err := v.redis.Del(ctx, keys...).Err(); err != nil {
+				observability.GetLogger().Error("failed to batch delete sessions", zap.Error(err))
+			}
+			keys = keys[:0]
+		}
+	}
+	if len(keys) > 0 {
+		if err := v.redis.Del(ctx, keys...).Err(); err != nil {
+			observability.GetLogger().Error("failed to batch delete sessions", zap.Error(err))
 		}
 	}
 	return iter.Err()

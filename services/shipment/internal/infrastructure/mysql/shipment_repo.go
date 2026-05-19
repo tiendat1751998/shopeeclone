@@ -71,7 +71,7 @@ func (r *ShipmentRepository) SaveTrackingEvent(ctx context.Context, event *domai
 
 func (r *ShipmentRepository) GetTrackingHistory(ctx context.Context, shipmentID string) ([]*domain.TrackingEvent, error) {
 	var events []*domain.TrackingEvent
-	err := r.db.SelectContext(ctx, &events, "SELECT * FROM tracking_events WHERE shipment_id = ? ORDER BY timestamp ASC", shipmentID)
+	err := r.db.SelectContext(ctx, &events, "SELECT * FROM tracking_events WHERE shipment_id = ? ORDER BY timestamp ASC LIMIT 200", shipmentID)
 	return events, err
 }
 

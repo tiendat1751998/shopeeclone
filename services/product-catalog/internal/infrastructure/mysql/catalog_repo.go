@@ -133,7 +133,7 @@ func (r *CatalogRepository) CreateSKU(ctx context.Context, sku *domain.SKU) erro
 
 func (r *CatalogRepository) FindSKUsByProductID(ctx context.Context, productID string) ([]domain.SKU, error) {
 	var skus []domain.SKU
-	err := r.db.SelectContext(ctx, &skus, "SELECT * FROM skus WHERE product_id = ? ORDER BY sort_order ASC", productID)
+	err := r.db.SelectContext(ctx, &skus, "SELECT * FROM skus WHERE product_id = ? ORDER BY sort_order ASC LIMIT 500", productID)
 	return skus, err
 }
 
@@ -168,10 +168,10 @@ func (r *CatalogRepository) FindCategoryTree(ctx context.Context, rootID string)
 
 	if rootID != "" {
 		// Get all descendants of the root
-		query = `SELECT * FROM categories WHERE path LIKE ? AND is_active = true ORDER BY depth ASC, sort_order ASC`
+		query = `SELECT * FROM categories WHERE path LIKE ? AND is_active = true ORDER BY depth ASC, sort_order ASC LIMIT 1000`
 		args = []interface{}{rootID + "%"}
 	} else {
-		query = `SELECT * FROM categories WHERE is_active = true ORDER BY depth ASC, sort_order ASC`
+		query = `SELECT * FROM categories WHERE is_active = true ORDER BY depth ASC, sort_order ASC LIMIT 1000`
 		args = []interface{}{}
 	}
 
@@ -184,7 +184,7 @@ func (r *CatalogRepository) FindCategoryTree(ctx context.Context, rootID string)
 func (r *CatalogRepository) FindMediaByProductID(ctx context.Context, productID string) ([]domain.Media, error) {
 	var media []domain.Media
 	err := r.db.SelectContext(ctx, &media,
-		"SELECT * FROM media WHERE product_id = ? AND status != ? ORDER BY sort_order ASC",
+		"SELECT * FROM media WHERE product_id = ? AND status != ? ORDER BY sort_order ASC LIMIT 100",
 		productID, domain.MediaStatusDeleted,
 	)
 	return media, err

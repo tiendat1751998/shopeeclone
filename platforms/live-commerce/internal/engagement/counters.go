@@ -4,15 +4,20 @@ import (
 	"context"
 	"sync"
 	"time"
+
 	"github.com/shopee-clone/shopee/platforms/live-commerce/internal/fanout"
 	redi "github.com/shopee-clone/shopee/platforms/live-commerce/internal/infrastructure/redis"
+	"go.uber.org/zap"
 )
+
+const maxConcurrentCounterWrites = 100
 
 type Counters struct {
 	mu       sync.RWMutex
 	redis    *redi.Store
 	fanout   *fanout.Broadcaster
 	rooms    map[string]*RoomCounters
+	sem      chan struct{}
 }
 
 type RoomCounters struct {
@@ -29,6 +34,7 @@ func NewCounters(redis *redi.Store, f *fanout.Broadcaster) *Counters {
 		redis:  redis,
 		fanout: f,
 		rooms:  make(map[string]*RoomCounters),
+		sem:    make(chan struct{}, maxConcurrentCounterWrites),
 	}
 }
 
@@ -54,15 +60,26 @@ func (c *Counters) AddReaction(ctx context.Context, roomID, reactionType string)
 		c.rooms[roomID] = rc
 	}
 	rc.Reactions[reactionType]++
+	count := rc.Reactions[reactionType]
 	rc.updatedAt = time.Now()
 	c.mu.Unlock()
-	go func() {
-		c.redis.IncrementReaction(ctx, roomID, reactionType)
-		c.fanout.Broadcast(ctx, roomID, "reaction", map[string]interface{}{
-			"type":  reactionType,
-			"count": rc.Reactions[reactionType],
-		}, "")
-	}()
+	select {
+	case c.sem <- struct{}{}:
+		go func() {
+			defer func() { <-c.sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					zap.L().Error("panic in counter write", zap.Any("recover", r))
+				}
+			}()
+			c.redis.IncrementReaction(ctx, roomID, reactionType)
+			c.fanout.Broadcast(ctx, roomID, "reaction", map[string]interface{}{
+				"type":  reactionType,
+				"count": count,
+			}, "")
+		}()
+	default:
+	}
 }
 
 func (c *Counters) AddGift(ctx context.Context, roomID string, amount int64) {
@@ -73,12 +90,23 @@ func (c *Counters) AddGift(ctx context.Context, roomID string, amount int64) {
 		c.rooms[roomID] = rc
 	}
 	rc.Gifts += amount
+	total := rc.Gifts
 	rc.updatedAt = time.Now()
 	c.mu.Unlock()
-	go func() {
-		c.redis.AddGiftAmount(ctx, roomID, amount)
-		c.fanout.Broadcast(ctx, roomID, "gift_total", map[string]int64{"total": rc.Gifts}, "")
-	}()
+	select {
+	case c.sem <- struct{}{}:
+		go func() {
+			defer func() { <-c.sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					zap.L().Error("panic in counter write", zap.Any("recover", r))
+				}
+			}()
+			c.redis.AddGiftAmount(ctx, roomID, amount)
+			c.fanout.Broadcast(ctx, roomID, "gift_total", map[string]int64{"total": total}, "")
+		}()
+	default:
+	}
 }
 
 func (c *Counters) GetViewerCount(ctx context.Context, roomID string) int64 {

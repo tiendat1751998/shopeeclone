@@ -133,7 +133,7 @@ func (r *StockMovementRepository) FindByWarehouse(ctx context.Context, warehouse
 func (r *StockMovementRepository) FindByReference(ctx context.Context, referenceID string) ([]*domain.StockMovement, error) {
 	var movements []*domain.StockMovement
 	query := `SELECT id, sku, warehouse_id, type, quantity, before_qty, after_qty, reference_id, reason, operator_id, created_at 
-		FROM stock_movements WHERE reference_id = ? ORDER BY created_at DESC`
+		FROM stock_movements WHERE reference_id = ? ORDER BY created_at DESC LIMIT 100`
 	err := r.db.SelectContext(ctx, &movements, query, referenceID)
 	return movements, err
 }

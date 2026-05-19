@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -19,11 +20,14 @@ func TimeoutHandler(timeout time.Duration) gin.HandlerFunc {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					// don't propagate panic from timed-out goroutine
+					c.Error(fmt.Errorf("panic in request handler: %v", r))
+				}
+				select {
+				case done <- struct{}{}:
+				default:
 				}
 			}()
 			c.Next()
-			done <- struct{}{}
 		}()
 
 		select {

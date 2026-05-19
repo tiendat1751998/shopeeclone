@@ -119,12 +119,17 @@ func (r *SessionRepository) DeleteExpired(ctx context.Context) error {
 }
 
 func (r *SessionRepository) CleanupUserSessions(ctx context.Context, userID string, keepCount int) error {
-	query := `DELETE s FROM sessions s
-		INNER JOIN (
-			SELECT id FROM sessions WHERE user_id = ? AND status = 'active'
-			ORDER BY last_active_at DESC LIMIT 999999 OFFSET ?
-		) to_delete ON s.id = to_delete.id`
-	_, err := r.db.ExecContext(ctx, query, userID, keepCount)
+	query := `DELETE FROM sessions
+		WHERE user_id = ? AND status = 'active'
+		AND id NOT IN (
+			SELECT id FROM (
+				SELECT id FROM sessions
+				WHERE user_id = ? AND status = 'active'
+				ORDER BY last_active_at DESC
+				LIMIT ?
+			) AS keep_sessions
+		)`
+	_, err := r.db.ExecContext(ctx, query, userID, userID, keepCount)
 	return err
 }
 

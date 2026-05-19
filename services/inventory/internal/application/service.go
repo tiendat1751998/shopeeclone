@@ -233,13 +233,19 @@ func (s *InventoryService) ExpireReservations(ctx context.Context) error {
 	}
 
 	for _, res := range reservations {
-		// Use per-reservation context to prevent shutdown from aborting in-flight work
-		resCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		if err := s.ReleaseStock(resCtx, res.ID); err != nil {
-			zap.L().Warn("failed to expire reservation",
-				zap.String("id", res.ID), zap.Error(err))
-		}
-		cancel()
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					zap.L().Error("panic in ExpireReservations", zap.Any("recover", r), zap.String("id", res.ID))
+				}
+			}()
+			resCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := s.ReleaseStock(resCtx, res.ID); err != nil {
+				zap.L().Warn("failed to expire reservation",
+					zap.String("id", res.ID), zap.Error(err))
+			}
+		}()
 	}
 	return nil
 }
@@ -251,6 +257,7 @@ func (s *InventoryService) ProcessOutboxEvents(ctx context.Context) error {
 		return err
 	}
 
+	var processedIDs []string
 	for _, event := range events {
 		// Mark as processing first (prevents duplicate processing)
 		s.invRepo.MarkOutboxEventProcessing(ctx, event.ID)
@@ -266,7 +273,13 @@ func (s *InventoryService) ProcessOutboxEvents(ctx context.Context) error {
 			continue
 		}
 
-		s.invRepo.MarkOutboxEventProcessed(ctx, event.ID)
+		processedIDs = append(processedIDs, event.ID)
+	}
+	// Batch-mark all processed events in a single query
+	if len(processedIDs) > 0 {
+		if err := s.invRepo.MarkOutboxEventsProcessed(ctx, processedIDs); err != nil {
+			zap.L().Error("failed to batch mark outbox events processed", zap.Error(err))
+		}
 	}
 	return nil
 }

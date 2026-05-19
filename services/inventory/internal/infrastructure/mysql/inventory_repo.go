@@ -198,6 +198,20 @@ func (r *InventoryRepository) MarkOutboxEventProcessed(ctx context.Context, even
 	return err
 }
 
+// MarkOutboxEventsProcessed marks multiple events as successfully published in one query.
+func (r *InventoryRepository) MarkOutboxEventsProcessed(ctx context.Context, eventIDs []string) error {
+	if len(eventIDs) == 0 {
+		return nil
+	}
+	query, args, err := sqlx.In("UPDATE outbox_events SET processed = TRUE WHERE event_id IN (?)", eventIDs)
+	if err != nil {
+		return err
+	}
+	query = r.db.Rebind(query)
+	_, err = r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
 // MarkOutboxEventProcessing marks an event as being processed (prevents duplicate processing).
 func (r *InventoryRepository) MarkOutboxEventProcessing(ctx context.Context, eventID string) error {
 	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET processed = processing WHERE event_id = ? AND processed = FALSE", eventID)

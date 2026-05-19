@@ -99,7 +99,7 @@ func (r *CartItemRepository) FindByID(ctx context.Context, id string) (*domain.C
 
 func (r *CartItemRepository) FindByCartID(ctx context.Context, cartID string) ([]*domain.CartItem, error) {
 	var items []*domain.CartItem
-	err := r.db.SelectContext(ctx, &items, "SELECT * FROM cart_items WHERE cart_id = ? ORDER BY added_at DESC", cartID)
+	err := r.db.SelectContext(ctx, &items, "SELECT * FROM cart_items WHERE cart_id = ? ORDER BY added_at DESC LIMIT 500", cartID)
 	return items, err
 }
 
