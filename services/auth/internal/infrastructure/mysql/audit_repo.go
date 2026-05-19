@@ -22,6 +22,7 @@ type AuditRepository struct {
 	buffer      []*domain.AuditLog
 	lastFlush   time.Time
 	stopCh      chan struct{}
+	flushCh     chan struct{}
 }
 
 func NewAuditRepository(db *sqlx.DB, cfg config.AuditConfig) *AuditRepository {
@@ -31,6 +32,7 @@ func NewAuditRepository(db *sqlx.DB, cfg config.AuditConfig) *AuditRepository {
 		buffer:    make([]*domain.AuditLog, 0, cfg.BatchSize),
 		lastFlush: time.Now(),
 		stopCh:    make(chan struct{}),
+		flushCh:   make(chan struct{}, 1),
 	}
 	go r.flushLoop()
 	return r
@@ -42,12 +44,19 @@ func (r *AuditRepository) Log(ctx context.Context, log *domain.AuditLog) {
 	}
 
 	r.mu.Lock()
+	if len(r.buffer) >= r.cfg.MaxBufferSize {
+		r.mu.Unlock()
+		return
+	}
 	r.buffer = append(r.buffer, log)
 	shouldFlush := len(r.buffer) >= r.cfg.BatchSize || time.Since(r.lastFlush) > r.cfg.FlushInterval
 	r.mu.Unlock()
 
 	if shouldFlush {
-		go r.Flush()
+		select {
+		case r.flushCh <- struct{}{}:
+		default:
+		}
 	}
 }
 
@@ -71,6 +80,13 @@ func (r *AuditRepository) Flush() {
 			zap.Error(err),
 		)
 		r.mu.Lock()
+		if len(r.buffer)+len(batch) > r.cfg.MaxBufferSize {
+			drop := len(batch) - (r.cfg.MaxBufferSize - len(r.buffer))
+			if drop > len(batch) {
+				drop = len(batch)
+			}
+			batch = batch[drop:]
+		}
 		r.buffer = append(batch, r.buffer...)
 		r.mu.Unlock()
 	}
@@ -135,6 +151,8 @@ func (r *AuditRepository) flushLoop() {
 	for {
 		select {
 		case <-ticker.C:
+			r.Flush()
+		case <-r.flushCh:
 			r.Flush()
 		case <-r.stopCh:
 			r.Flush()

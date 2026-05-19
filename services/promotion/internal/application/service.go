@@ -153,9 +153,21 @@ func (s *PromotionService) EvaluatePromotions(ctx context.Context, userID string
 		return nil, err
 	}
 
+	// Batch load pricing rules for all flash sale campaigns
+	var flashIDs []string
+	for _, c := range campaigns {
+		if c.Type == domain.CampaignTypeFlashSale {
+			flashIDs = append(flashIDs, c.ID)
+		}
+	}
+	rulesByCampaign, err := s.pricingRepo.FindByCampaigns(ctx, flashIDs)
+	if err != nil {
+		observability.LogWithTrace(ctx).Warn("failed to batch load pricing rules", zap.Error(err))
+	}
+
 	for _, campaign := range campaigns {
 		if campaign.Type == domain.CampaignTypeFlashSale {
-			rules, _ := s.pricingRepo.FindByCampaign(ctx, campaign.ID)
+			rules := rulesByCampaign[campaign.ID]
 			for _, rule := range rules {
 				if rule.IsActive {
 					discount := s.evaluatePricingRule(rule, subtotal)

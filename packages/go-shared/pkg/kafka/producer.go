@@ -26,13 +26,14 @@ type Message struct {
 
 func NewProducer(brokers []string, service string) *Producer {
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(brokers...),
-		Balancer:     &kafka.Hash{},
-		BatchTimeout: 10 * time.Millisecond,
-		BatchSize:    100,
-		Async:        false,
-		RequiredAcks: kafka.RequireAll,
-		MaxAttempts:  3,
+		Addr:          kafka.TCP(brokers...),
+		Balancer:      &kafka.Hash{},
+		BatchTimeout:  10 * time.Millisecond,
+		WriteTimeout:  10 * time.Second,
+		BatchSize:     100,
+		Async:         false,
+		RequiredAcks:  kafka.RequireAll,
+		MaxAttempts:   3,
 	}
 
 	return &Producer{

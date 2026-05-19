@@ -82,11 +82,11 @@ func main() {
 	go func() { if err := grpcServer.Serve(grpcListener); err != nil { logger.Fatal("grpc server failed", zap.Error(err)) } }()
 	go func() {
 		ticker := time.NewTicker(30 * time.Second); defer ticker.Stop()
-		for { select { case <-ticker.C: invService.ExpireReservations(context.Background()); case <-quit: return } }
+		for { select { case <-ticker.C: func(){ ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second); defer cancel(); invService.ExpireReservations(ctx) }(); case <-quit: return } }
 	}()
 	go func() {
 		ticker := time.NewTicker(5 * time.Second); defer ticker.Stop()
-		for { select { case <-ticker.C: invService.ProcessOutboxEvents(context.Background()); case <-quit: return } }
+		for { select { case <-ticker.C: func(){ ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second); defer cancel(); invService.ProcessOutboxEvents(ctx) }(); case <-quit: return } }
 	}()
 
 	<-quit; logger.Info("shutting down inventory service...")

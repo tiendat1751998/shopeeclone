@@ -34,14 +34,15 @@ func NewProducer(brokers []string, service string) *Producer {
 
 func newWriter(brokers []string, topic string) *kafka.Writer {
 	return &kafka.Writer{
-		Addr:         kafka.TCP(brokers...),
-		Topic:        topic,
-		Balancer:     &kafka.Hash{},
-		BatchTimeout: 10 * time.Millisecond,
-		BatchSize:    100,
-		Async:        false,
-		RequiredAcks: kafka.RequireAll,
-		MaxAttempts:  3,
+		Addr:          kafka.TCP(brokers...),
+		Topic:         topic,
+		Balancer:      &kafka.Hash{},
+		BatchTimeout:  10 * time.Millisecond,
+		WriteTimeout:  10 * time.Second,
+		BatchSize:     100,
+		Async:         false,
+		RequiredAcks:  kafka.RequireAll,
+		MaxAttempts:   3,
 	}
 }
 

@@ -110,9 +110,13 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				if err := paymentService.ProcessOutboxEvents(context.Background()); err != nil {
-					zap.L().Warn("outbox processing failed", zap.Error(err))
-				}
+				func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					if err := paymentService.ProcessOutboxEvents(ctx); err != nil {
+						zap.L().Warn("outbox processing failed", zap.Error(err))
+					}
+				}()
 			case <-quit:
 				return
 			}

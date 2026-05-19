@@ -19,10 +19,11 @@ type Producer struct {
 func NewProducer(brokers []string) *Producer {
 	return &Producer{
 		writer: &kafka.Writer{
-			Addr:         kafka.TCP(brokers...),
-			Balancer:     &kafka.LeastBytes{},
-			BatchTimeout: 10 * time.Millisecond,
-			Async:        false,
+			Addr:          kafka.TCP(brokers...),
+			Balancer:      &kafka.LeastBytes{},
+			BatchTimeout:  10 * time.Millisecond,
+			WriteTimeout:  10 * time.Second,
+			Async:         false,
 		},
 	}
 }

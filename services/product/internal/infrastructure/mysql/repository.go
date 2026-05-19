@@ -133,11 +133,9 @@ func (r *ProductRepo) List(ctx context.Context, filter domain.ProductFilter) (*d
 		return nil, fmt.Errorf("list products: %w", err)
 	}
 
-	// Load relations for each product
-	for i := range products {
-		if _, err := r.loadRelations(ctx, &products[i]); err != nil {
-			return nil, err
-		}
+	// Load relations in batch
+	if err := r.loadRelationsBatch(ctx, products); err != nil {
+		return nil, err
 	}
 
 	return &domain.ProductList{
@@ -199,10 +197,8 @@ func (r *ProductRepo) Search(ctx context.Context, query string, filter domain.Pr
 		return nil, fmt.Errorf("search products: %w", err)
 	}
 
-	for i := range products {
-		if _, err := r.loadRelations(ctx, &products[i]); err != nil {
-			return nil, err
-		}
+	if err := r.loadRelationsBatch(ctx, products); err != nil {
+		return nil, err
 	}
 
 	return &domain.ProductList{
@@ -314,6 +310,84 @@ func (r *ProductRepo) loadRelations(ctx context.Context, product *domain.Product
 	return product, nil
 }
 
+// loadRelationsBatch loads SKUs, images, and attributes for all products in 3 queries
+func (r *ProductRepo) loadRelationsBatch(ctx context.Context, products []domain.Product) error {
+	if len(products) == 0 {
+		return nil
+	}
+
+	spuIDs := make([]string, len(products))
+	spuIndex := make(map[string]int, len(products))
+	for i, p := range products {
+		spuIDs[i] = p.SPUID
+		spuIndex[p.SPUID] = i
+	}
+
+	placeholders := make([]string, len(spuIDs))
+	args := make([]interface{}, len(spuIDs))
+	for i, id := range spuIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	inClause := strings.Join(placeholders, ",")
+
+	// Batch load SKUs
+	var skus []domain.SKU
+	skuQuery := `SELECT id, sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, created_at, updated_at
+		FROM skus WHERE spu_id IN (` + inClause + `) ORDER BY created_at ASC`
+	if err := r.db.SelectContext(ctx, &skus, skuQuery, args...); err != nil {
+		return fmt.Errorf("batch load skus: %w", err)
+	}
+	skuMap := make(map[string][]domain.SKU, len(products))
+	for i := range skus {
+		skuMap[skus[i].SPUID] = append(skuMap[skus[i].SPUID], skus[i])
+	}
+
+	// Batch load images
+	var images []domain.ProductImage
+	imgQuery := `SELECT id, spu_id, url, alt_text, sort_order, is_primary, created_at FROM product_images
+		WHERE spu_id IN (` + inClause + `) ORDER BY sort_order ASC`
+	if err := r.db.SelectContext(ctx, &images, imgQuery, args...); err != nil {
+		return fmt.Errorf("batch load images: %w", err)
+	}
+	imgMap := make(map[string][]domain.ProductImage, len(products))
+	for i := range images {
+		imgMap[images[i].SPUID] = append(imgMap[images[i].SPUID], images[i])
+	}
+
+	// Batch load attributes
+	var attrValues []struct {
+		SPUID       string `db:"spu_id"`
+		AttributeID string `db:"attribute_id"`
+		ValueID     string `db:"value_id"`
+		CustomValue string `db:"custom_value"`
+	}
+	attrQuery := `SELECT spu_id, attribute_id, value_id, custom_value FROM product_attribute_values WHERE spu_id IN (` + inClause + `)`
+	if err := r.db.SelectContext(ctx, &attrValues, attrQuery, args...); err != nil {
+		return fmt.Errorf("batch load attributes: %w", err)
+	}
+	attrMap := make(map[string][]struct {
+		AttributeID string `db:"attribute_id"`
+		ValueID     string `db:"value_id"`
+		CustomValue string `db:"custom_value"`
+	}, len(products))
+	for _, v := range attrValues {
+		attrMap[v.SPUID] = append(attrMap[v.SPUID], struct {
+			AttributeID string `db:"attribute_id"`
+			ValueID     string `db:"value_id"`
+			CustomValue string `db:"custom_value"`
+		}{AttributeID: v.AttributeID, ValueID: v.ValueID, CustomValue: v.CustomValue})
+	}
+
+	// Assign back to products
+	for i := range products {
+		products[i].SKUs = skuMap[products[i].SPUID]
+		products[i].Images = imgMap[products[i].SPUID]
+	}
+
+	return nil
+}
+
 // CategoryRepo implements CategoryRepository using MySQL
 type CategoryRepo struct {
 	db *sqlx.DB
@@ -359,7 +433,7 @@ func (r *CategoryRepo) GetBySlug(ctx context.Context, slug string) (*domain.Cate
 
 func (r *CategoryRepo) GetTree(ctx context.Context) (*domain.CategoryTree, error) {
 	query := `SELECT id, category_id, name, slug, parent_id, level, sort_order, image_url, is_active, created_at, updated_at
-		FROM categories WHERE is_active = true ORDER BY level ASC, sort_order ASC`
+		FROM categories WHERE is_active = true ORDER BY level ASC, sort_order ASC LIMIT 1000`
 	var categories []domain.Category
 	if err := r.db.SelectContext(ctx, &categories, query); err != nil {
 		return nil, fmt.Errorf("get categories: %w", err)
@@ -395,10 +469,10 @@ func (r *CategoryRepo) List(ctx context.Context, parentID string) ([]domain.Cate
 	var args []interface{}
 	if parentID == "" {
 		query = `SELECT id, category_id, name, slug, parent_id, level, sort_order, image_url, is_active, created_at, updated_at
-			FROM categories WHERE parent_id IS NULL AND is_active = true ORDER BY sort_order ASC`
+			FROM categories WHERE parent_id IS NULL AND is_active = true ORDER BY sort_order ASC LIMIT 500`
 	} else {
 		query = `SELECT id, category_id, name, slug, parent_id, level, sort_order, image_url, is_active, created_at, updated_at
-			FROM categories WHERE parent_id = ? AND is_active = true ORDER BY sort_order ASC`
+			FROM categories WHERE parent_id = ? AND is_active = true ORDER BY sort_order ASC LIMIT 500`
 		args = append(args, parentID)
 	}
 	if err := r.db.SelectContext(ctx, &categories, query, args...); err != nil {

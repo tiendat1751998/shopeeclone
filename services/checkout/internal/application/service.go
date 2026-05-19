@@ -82,8 +82,12 @@ func (s *CheckoutService) InitiateCheckout(ctx context.Context, req InitiateRequ
 		return nil, fmt.Errorf("create checkout: %w", err)
 	}
 
-	// Execute saga steps asynchronously
-	go s.executeSaga(context.Background(), checkout.ID, req)
+	// Execute saga steps asynchronously with timeout
+	sagaCtx, sagaCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	go func() {
+		defer sagaCancel()
+		s.executeSaga(sagaCtx, checkout.ID, req)
+	}()
 
 	metrics.CheckoutsInitiated.Inc()
 	return checkout, nil

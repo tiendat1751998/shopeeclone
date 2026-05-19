@@ -120,7 +120,7 @@ func (r *CampaignRepository) Update(ctx context.Context, c *domain.Campaign) err
 
 func (r *CampaignRepository) ListActive(ctx context.Context) ([]*domain.Campaign, error) {
 	var campaigns []*domain.Campaign
-	err := r.db.SelectContext(ctx, &campaigns, "SELECT * FROM campaigns WHERE status = 'active' AND start_time <= NOW() AND end_time > NOW() ORDER BY priority DESC")
+	err := r.db.SelectContext(ctx, &campaigns, "SELECT * FROM campaigns WHERE status = 'active' AND start_time <= NOW() AND end_time > NOW() ORDER BY priority DESC LIMIT 100")
 	return campaigns, err
 }
 
@@ -138,6 +138,26 @@ func (r *PricingRuleRepository) FindByCampaign(ctx context.Context, campaignID s
 	var rules []*domain.PricingRule
 	err := r.db.SelectContext(ctx, &rules, "SELECT * FROM pricing_rules WHERE campaign_id = ? AND is_active = true ORDER BY priority DESC", campaignID)
 	return rules, err
+}
+func (r *PricingRuleRepository) FindByCampaigns(ctx context.Context, campaignIDs []string) (map[string][]*domain.PricingRule, error) {
+	if len(campaignIDs) == 0 {
+		return map[string][]*domain.PricingRule{}, nil
+	}
+	var rules []*domain.PricingRule
+	query, args, err := sqlx.In("SELECT * FROM pricing_rules WHERE campaign_id IN (?) AND is_active = true ORDER BY priority DESC", campaignIDs)
+	if err != nil {
+		return nil, err
+	}
+	query = r.db.Rebind(query)
+	err = r.db.SelectContext(ctx, &rules, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string][]*domain.PricingRule, len(campaignIDs))
+	for _, rule := range rules {
+		result[rule.CampaignID] = append(result[rule.CampaignID], rule)
+	}
+	return result, nil
 }
 func (r *PricingRuleRepository) Create(ctx context.Context, rule *domain.PricingRule) error {
 	query := `INSERT INTO pricing_rules (id, campaign_id, rule_type, condition_json, action_json, priority, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
