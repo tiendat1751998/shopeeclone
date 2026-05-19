@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: shopee-gateway-pdb
+  namespace: shopee-platform
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: shopee-gateway

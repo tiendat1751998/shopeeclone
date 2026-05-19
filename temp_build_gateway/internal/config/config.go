@@ -1,0 +1,239 @@
+package config
+
+import (
+	"os"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type Config struct {
+	AppName  string
+	AppEnv   string
+	LogLevel string
+	HTTPPort int
+	GRPCPort int
+
+	Redis RedisConfig
+
+	RateLimit RateLimitConfig
+
+	Auth AuthConfig
+
+	OpenTelemetry OTELConfig
+
+	Upstreams UpstreamConfig
+
+	CORS CORSConfig
+
+	Server ServerConfig
+}
+
+type RedisConfig struct {
+	Addr         string
+	Password     string
+	DB           int
+	PoolSize     int
+	MinIdleConns int
+	DialTimeout  time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	MaxRetries   int
+}
+
+type RateLimitConfig struct {
+	Enabled          bool
+	GlobalMaxRPS     int
+	DefaultMaxRPS    int
+	IPMaxRPS         int
+	AuthenticatedRPS int
+	LoginMaxRPS      int
+	CheckoutMaxRPS   int
+	WindowSize       time.Duration
+}
+
+type AuthConfig struct {
+	JWKSEndpoint      string
+	AccessTTL         time.Duration
+	RefreshTTL        time.Duration
+	EnableRBAC        bool
+	TokenBlacklistTTL time.Duration
+	AccessTokenKey    string
+	RefreshTokenKey   string
+}
+
+type OTELConfig struct {
+	Endpoint      string
+	ServiceName   string
+	TraceRatio    float64
+	MetricsPrefix string
+}
+
+type UpstreamConfig struct {
+	AuthService         string
+	CatalogService      string
+	CartService         string
+	OrderService        string
+	InventoryService    string
+	PaymentService      string
+	SearchService       string
+	RecommendationService string
+	DefaultTimeout      time.Duration
+	MaxIdleConns        int
+	IdleConnTimeout     time.Duration
+}
+
+type CORSConfig struct {
+	AllowedOrigins   []string
+	AllowedMethods   []string
+	AllowedHeaders   []string
+	ExposedHeaders   []string
+	MaxAge           time.Duration
+	AllowCredentials bool
+}
+
+type ServerConfig struct {
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
+	ShutdownTimeout   time.Duration
+	MaxHeaderBytes    int
+	MaxBodySize       int64
+	EnablePprof       bool
+	TrustedProxies    []string
+}
+
+func Load() *Config {
+	return &Config{
+		AppName:  getEnv("APP_NAME", "shopee-gateway"),
+		AppEnv:   getEnv("APP_ENV", "development"),
+		LogLevel: getEnv("LOG_LEVEL", "info"),
+		HTTPPort: getEnvInt("GATEWAY_HTTP_PORT", 8080),
+		GRPCPort: getEnvInt("GATEWAY_GRPC_PORT", 9090),
+
+		Redis: RedisConfig{
+			Addr:         getEnv("REDIS_ADDR", "localhost:6379"),
+			Password:     getEnv("REDIS_PASSWORD", ""),
+			DB:           getEnvInt("REDIS_DB", 0),
+			PoolSize:     getEnvInt("REDIS_POOL_SIZE", 100),
+			MinIdleConns: getEnvInt("REDIS_MIN_IDLE", 20),
+			DialTimeout:  getEnvDuration("REDIS_DIAL_TIMEOUT", 5*time.Second),
+			ReadTimeout:  getEnvDuration("REDIS_READ_TIMEOUT", 3*time.Second),
+			WriteTimeout: getEnvDuration("REDIS_WRITE_TIMEOUT", 3*time.Second),
+			MaxRetries:   getEnvInt("REDIS_MAX_RETRIES", 3),
+		},
+
+		RateLimit: RateLimitConfig{
+			Enabled:          getEnvBool("RATE_LIMIT_ENABLED", true),
+			GlobalMaxRPS:     getEnvInt("RATE_LIMIT_GLOBAL_RPS", 10000),
+			DefaultMaxRPS:    getEnvInt("RATE_LIMIT_DEFAULT_RPS", 100),
+			IPMaxRPS:         getEnvInt("RATE_LIMIT_IP_RPS", 50),
+			AuthenticatedRPS: getEnvInt("RATE_LIMIT_AUTH_RPS", 200),
+			LoginMaxRPS:      getEnvInt("RATE_LIMIT_LOGIN_RPS", 5),
+			CheckoutMaxRPS:   getEnvInt("RATE_LIMIT_CHECKOUT_RPS", 1),
+			WindowSize:       getEnvDuration("RATE_LIMIT_WINDOW", 1*time.Second),
+		},
+
+		Auth: AuthConfig{
+			JWKSEndpoint:      getEnv("JWKS_ENDPOINT", "http://identity-auth:8080/.well-known/jwks.json"),
+			AccessTTL:         getEnvDuration("JWT_ACCESS_TTL", 15*time.Minute),
+			RefreshTTL:        getEnvDuration("JWT_REFRESH_TTL", 168*time.Hour),
+			EnableRBAC:        getEnvBool("RBAC_ENABLED", true),
+			TokenBlacklistTTL: getEnvDuration("TOKEN_BLACKLIST_TTL", 24*time.Hour),
+			AccessTokenKey:    getEnv("JWT_ACCESS_SECRET", "change-me-in-production"),
+			RefreshTokenKey:   getEnv("JWT_REFRESH_SECRET", "change-me-too-in-production"),
+		},
+
+		OpenTelemetry: OTELConfig{
+			Endpoint:      getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
+			ServiceName:   getEnv("OTEL_SERVICE_NAME", "shopee-gateway"),
+			TraceRatio:    getEnvFloat("OTEL_TRACES_SAMPLER_ARG", 0.1),
+			MetricsPrefix: getEnv("OTEL_METRICS_PREFIX", "shopee_gateway"),
+		},
+
+		Upstreams: UpstreamConfig{
+			AuthService:          getEnv("UPSTREAM_AUTH_SERVICE", "identity-auth:8080"),
+			CatalogService:       getEnv("UPSTREAM_CATALOG_SERVICE", "catalog-product:8080"),
+			CartService:          getEnv("UPSTREAM_CART_SERVICE", "shopping-cart:8080"),
+			OrderService:         getEnv("UPSTREAM_ORDER_SERVICE", "order-processing:8080"),
+			InventoryService:     getEnv("UPSTREAM_INVENTORY_SERVICE", "inventory-flashsale:8080"),
+			PaymentService:       getEnv("UPSTREAM_PAYMENT_SERVICE", "payment-ledger:8080"),
+			SearchService:        getEnv("UPSTREAM_SEARCH_SERVICE", "search-indexing:8080"),
+			RecommendationService: getEnv("UPSTREAM_RECOMMENDATION_SERVICE", "recommendation-ml:8080"),
+			DefaultTimeout:       getEnvDuration("UPSTREAM_DEFAULT_TIMEOUT", 30*time.Second),
+			MaxIdleConns:         getEnvInt("UPSTREAM_MAX_IDLE_CONNS", 100),
+			IdleConnTimeout:      getEnvDuration("UPSTREAM_IDLE_CONN_TIMEOUT", 90*time.Second),
+		},
+
+		CORS: CORSConfig{
+			AllowedOrigins:   strings.Split(getEnv("CORS_ALLOWED_ORIGINS", "*"), ","),
+			AllowedMethods:   strings.Split(getEnv("CORS_ALLOWED_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS"), ","),
+			AllowedHeaders:   strings.Split(getEnv("CORS_ALLOWED_HEADERS", "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-Correlation-ID"), ","),
+			ExposedHeaders:   strings.Split(getEnv("CORS_EXPOSED_HEADERS", "X-Request-ID,X-Correlation-ID,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset"), ","),
+			MaxAge:           getEnvDuration("CORS_MAX_AGE", 86400*time.Second),
+			AllowCredentials: getEnvBool("CORS_ALLOW_CREDENTIALS", true),
+		},
+
+		Server: ServerConfig{
+			ReadTimeout:     getEnvDuration("SERVER_READ_TIMEOUT", 15*time.Second),
+			WriteTimeout:    getEnvDuration("SERVER_WRITE_TIMEOUT", 60*time.Second),
+			IdleTimeout:     getEnvDuration("SERVER_IDLE_TIMEOUT", 120*time.Second),
+			ShutdownTimeout: getEnvDuration("SERVER_SHUTDOWN_TIMEOUT", 30*time.Second),
+			MaxHeaderBytes:  getEnvInt("SERVER_MAX_HEADER_BYTES", 1<<20),
+			MaxBodySize:     int64(getEnvInt("SERVER_MAX_BODY_SIZE_MB", 10)) * 1024 * 1024,
+			EnablePprof:     getEnvBool("SERVER_ENABLE_PPROF", false),
+			TrustedProxies:  strings.Split(getEnv("SERVER_TRUSTED_PROXIES", "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"), ","),
+		},
+	}
+}
+
+func (c *Config) IsDevelopment() bool {
+	return c.AppEnv == "development"
+}
+
+func (c *Config) IsProduction() bool {
+	return c.AppEnv == "production"
+}
+
+func getEnv(key, fallback string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
+	return fallback
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	if val := os.Getenv(key); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			return b
+		}
+	}
+	return fallback
+}
+
+func getEnvDuration(key string, fallback time.Duration) time.Duration {
+	if val := os.Getenv(key); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			return d
+		}
+	}
+	return fallback
+}
+
+func getEnvFloat(key string, fallback float64) float64 {
+	if val := os.Getenv(key); val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f
+		}
+	}
+	return fallback
+}

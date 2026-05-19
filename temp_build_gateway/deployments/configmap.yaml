@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopee-gateway-config
+  namespace: shopee-platform
+data:
+  redis_addr: "redis-cluster.shopee-data:6379"
+  otel_endpoint: "http://otel-collector.shopee-observability:4318"
+  jwks_endpoint: "http://identity-auth.shopee-services:8080/.well-known/jwks.json"
+  upstream_auth: "identity-auth.shopee-services:8080"
+  upstream_catalog: "catalog-product.shopee-services:8080"
+  upstream_cart: "shopping-cart.shopee-services:8080"
+  upstream_order: "order-processing.shopee-services:8080"
+  upstream_inventory: "inventory-flashsale.shopee-services:8080"
+  upstream_payment: "payment-ledger.shopee-services:8080"
+  upstream_search: "search-indexing.shopee-services:8080"
+  upstream_recommendation: "recommendation-ml.shopee-services:8080"

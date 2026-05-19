@@ -1,0 +1,170 @@
+# Istio VirtualService for traffic routing
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: shopee-gateway-vs
+  namespace: shopee-platform
+spec:
+  hosts:
+  - shopee-gateway
+  - api.shopee-clone.com
+  gateways:
+  - mesh
+  - shopee-gateway-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /api/v1/auth
+    route:
+    - destination:
+        host: identity-auth.shopee-services.svc.cluster.local
+        port:
+          number: 8080
+      weight: 100
+  - match:
+    - uri:
+        prefix: /api/v1/products
+    route:
+    - destination:
+        host: catalog-product.shopee-services.svc.cluster.local
+        port:
+          number: 8080
+      weight: 100
+  - match:
+    - uri:
+        prefix: /api/v1/cart
+    route:
+    - destination:
+        host: shopping-cart.shopee-services.svc.cluster.local
+        port:
+          number: 8080
+      weight: 100
+  - match:
+    - uri:
+        prefix: /api/v1/orders
+    - uri:
+        prefix: /api/v1/checkout
+    route:
+    - destination:
+        host: order-processing.shopee-services.svc.cluster.local
+        port:
+          number: 8080
+      weight: 100
+  - match:
+    - uri:
+        prefix: /api/v1/inventory
+    route:
+    - destination:
+        host: inventory-flashsale.shopee-services.svc.cluster.local
+        port:
+          number: 8080
+      weight: 100
+  - match:
+    - uri:
+        prefix: /api/v1/payments
+    route:
+    - destination:
+        host: payment-ledger.shopee-services.svc.cluster.local
+        port:
+          number: 8080
+      weight: 100
+  - match:
+    - uri:
+        prefix: /api/v1/search
+    route:
+    - destination:
+        host: search-indexing.shopee-services.svc.cluster.local
+        port:
+          number: 8080
+      weight: 100
+  - match:
+    - uri:
+        prefix: /api/v1/recommendations
+    route:
+    - destination:
+        host: recommendation-ml.shopee-services.svc.cluster.local
+        port:
+          number: 8080
+      weight: 100
+---
+# Istio DestinationRule for mTLS + circuit breaking
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: shopee-gateway-dr
+  namespace: shopee-platform
+spec:
+  host: shopee-gateway.shopee-platform.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 5s
+      http:
+        http1MaxPendingRequests: 1000
+        http2MaxRequests: 2000
+        maxRequestsPerConnection: 100
+        maxRetries: 3
+    loadBalancer:
+      simple: ROUND_ROBIN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 60s
+      maxEjectionPercent: 50
+---
+# Istio Gateway for external traffic
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: shopee-gateway-gateway
+  namespace: shopee-platform
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - api.shopee-clone.com
+    tls:
+      mode: SIMPLE
+      credentialName: shopee-gateway-tls
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - api.shopee-clone.com
+---
+# PeerAuthentication for mTLS strict mode
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: shopee-gateway-mtls
+  namespace: shopee-platform
+spec:
+  selector:
+    matchLabels:
+      app: shopee-gateway
+  mtls:
+    mode: STRICT
+---
+# RequestAuthentication for JWT validation at Istio level
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: shopee-gateway-jwt
+  namespace: shopee-platform
+spec:
+  selector:
+    matchLabels:
+      app: shopee-gateway
+  jwtRules:
+  - issuer: shopee-auth
+    jwksUri: http://identity-auth.shopee-services:8080/.well-known/jwks.json
+    forwardOriginalToken: true

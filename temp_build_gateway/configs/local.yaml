@@ -1,0 +1,33 @@
+# Local Development Gateway Configuration
+app:
+  name: shopee-gateway
+  env: development
+  log_level: debug
+
+server:
+  http_port: 8080
+  max_body_size_mb: 10
+
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+
+auth:
+  jwks_endpoint: http://localhost:8081/.well-known/jwks.json
+
+otel:
+  endpoint: http://localhost:4318
+  trace_ratio: 1.0
+
+upstreams:
+  auth_service: localhost:8081
+  catalog_service: localhost:8082
+  cart_service: localhost:8083
+  order_service: localhost:8084
+  inventory_service: localhost:8085
+  payment_service: localhost:8086
+  search_service: localhost:8087
+  recommendation_service: localhost:8088
+  default_timeout: 5s
+  max_retries: 1

@@ -1,0 +1,32 @@
+# Production Gateway Configuration
+app:
+  name: shopee-gateway
+  env: production
+  log_level: info
+
+server:
+  http_port: 8080
+  grpc_port: 9090
+  read_timeout: 10s
+  write_timeout: 30s
+  idle_timeout: 120s
+  shutdown_timeout: 45s
+  max_body_size_mb: 5
+  trusted_proxies:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+
+rate_limit:
+  enabled: true
+  global_rps: 50000
+  default_rps: 200
+  ip_rps: 100
+  authenticated_rps: 500
+  login_rps: 5
+  checkout_rps: 1
+  window: 1s
+
+otel:
+  endpoint: http://otel-collector:4318
+  service_name: shopee-gateway
+  trace_ratio: 0.05
