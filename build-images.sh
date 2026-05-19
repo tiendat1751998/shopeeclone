@@ -97,8 +97,8 @@ if [ "$SKIP_GO" = false ]; then
                 awk '/COPY \. \./ {
                     print "COPY . ."
                     print "RUN apk add --no-cache protobuf-dev protoc git && \\"
-                    print "    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \\"
-                    print "    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \\"
+                    print "    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2 && \\"
+                    print "    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1 && \\"
                     print "    mkdir -p /tmp/validate/validate && \\"
                     print "    wget -qO /tmp/validate/validate/validate.proto https://raw.githubusercontent.com/bufbuild/protoc-gen-validate/main/validate/validate.proto && \\"
                     print "    if [ -d \"/proto/shopee/catalog/v1\" ]; then \\"

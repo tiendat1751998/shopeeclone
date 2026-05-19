@@ -131,8 +131,8 @@ if (-not $SkipGo) {
                 
                 $ProtoLogic = "COPY . .`n" +
                               "RUN apk add --no-cache protobuf-dev protoc git && \`n" +
-                              "    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \`n" +
-                              "    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \`n" +
+                              "    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2 && \`n" +
+                              "    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1 && \`n" +
                               "    mkdir -p /tmp/validate/validate && \`n" +
                               "    wget -qO /tmp/validate/validate/validate.proto https://raw.githubusercontent.com/bufbuild/protoc-gen-validate/main/validate/validate.proto && \`n" +
                               "    if [ -d `"/proto/shopee/catalog/v1`" ]; then \`n" +

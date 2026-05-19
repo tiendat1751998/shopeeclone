@@ -12,8 +12,8 @@ docker run --rm \
   golang:1.24-alpine \
   sh -c "
     apk add --no-cache protobuf-dev protoc git && \
-    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
-    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \
+    go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2 && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1 && \
     
     echo 'Cloning protoc-gen-validate for imports...' && \
     git clone --depth 1 https://github.com/bufbuild/protoc-gen-validate.git /tmp/validate && \
