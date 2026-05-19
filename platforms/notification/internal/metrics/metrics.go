@@ -61,4 +61,12 @@ var (
 		Help:    "Notification delivery latency",
 		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
 	}, []string{"channel"})
+
+	RateLimitHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "notification_rate_limit_hits_total", Help: "Total rate limit hits",
+	})
+
+	NotificationsSent = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "notifications_sent_count", Help: "Total notifications sent (bare count)",
+	})
 )
