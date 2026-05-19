@@ -72,7 +72,10 @@ docker run --rm \
            --go_opt=paths=source_relative \
            --go-grpc_out=services/shipment \
            --go-grpc_opt=paths=source_relative \
-           services/shipment/proto/shipment/v1/shipment.proto
+           services/shipment/proto/shipment/v1/shipment.proto && \
+    
+    echo 'Verifying generated catalog-product files:' && \
+    ls -la proto/catalog/v1/
   "
 
 echo "All protobuf compilation completed successfully!"

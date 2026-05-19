@@ -73,6 +73,11 @@ if [ "$SKIP_GO" = false ]; then
                     mkdir -p "${TEMP_CONTEXT_DIR}/proto"
                     cp -r "${SCRIPT_DIR}/proto/"* "${TEMP_CONTEXT_DIR}/proto/"
                     HAS_PROTO=1
+                    echo "-> Central proto folder context copy contents:"
+                    ls -la "${TEMP_CONTEXT_DIR}/proto/"
+                    if [ -d "${TEMP_CONTEXT_DIR}/proto/catalog" ]; then
+                        ls -la "${TEMP_CONTEXT_DIR}/proto/catalog/v1/"
+                    fi
                 fi
                 
                 # Apply replacements to go.mod inside the temp context
