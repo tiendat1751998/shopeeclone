@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shopee-recommendation
+  labels:
+    app: shopee-recommendation
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: shopee-recommendation
+  template:
+    metadata:
+      labels:
+        app: shopee-recommendation
+    spec:
+      containers:
+      - name: recommendation
+        image: shopee/recommendation:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: grpc
+        env:
+        - name: APP_NAME
+          value: "shopee-recommendation"
+        - name: APP_ENV
+          value: "production"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: REC_HTTP_PORT
+          value: "8080"
+        - name: REC_GRPC_PORT
+          value: "9090"
+        - name: REDIS_ADDR
+          valueFrom:
+            secretKeyRef:
+              name: shopee-recommendation-secrets
+              key: redis-addr
+        - name: KAFKA_BROKERS
+          value: "kafka-headless.kafka:9092"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector.monitoring:4318"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10

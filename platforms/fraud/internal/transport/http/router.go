@@ -1,10 +1,64 @@
 package http
-import ("github.com/gin-gonic/gin"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/health"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/observability")
-type Router struct { handler *Handler; health *health.Checker }
-func NewRouter(h *Handler, hc *health.Checker) *Router { return &Router{handler: h, health: hc} }
-func (r *Router) Setup(e *gin.Engine) {
-	e.Use(middleware.Recovery(), middleware.ErrorHandler(), middleware.RequestID(), middleware.CORS(), middleware.OTelMiddleware("shopee-fraud"), observability.ObserveHTTPMetrics("shopee-fraud"))
-	e.GET("/health", r.health.LivenessHandler()); e.GET("/ready", r.health.ReadinessHandler()); e.GET("/metrics", observability.MetricsHandler())
-	api := e.Group("/api/v1")
-	{ api.POST("/fraud/score", r.handler.ScoreTransaction); api.POST("/fraud/cases", r.handler.CreateCase) }
+
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/health"
+)
+
+type Router struct {
+	handler *Handler
+	health  *health.Checker
+}
+
+func NewRouter(h *Handler, hc *health.Checker) *Router {
+	return &Router{handler: h, health: hc}
+}
+
+func (r *Router) Setup(engine *gin.Engine) {
+	engine.Use(middleware.Recovery())
+	engine.Use(middleware.CORS())
+	engine.Use(middleware.RequestID())
+	engine.Use(middleware.OTelMiddleware("shopee-fraud"))
+	engine.Use(observability.ObserveHTTPMetrics("shopee-fraud"))
+
+	engine.GET("/health/live", r.health.LivenessHandler())
+	engine.GET("/health/ready", r.health.ReadinessHandler())
+	engine.GET("/metrics", observability.MetricsHandler())
+
+	v1 := engine.Group("/api/v1/fraud")
+	{
+		v1.POST("/evaluate", r.handler.Evaluate)
+		v1.GET("/alerts", r.handler.ListAlerts)
+		v1.PUT("/alerts/:id/resolve", r.handler.ResolveAlert)
+	}
+
+	rules := engine.Group("/api/v1/rules")
+	{
+		rules.POST("", r.handler.CreateRule)
+		rules.GET("", r.handler.ListRules)
+		rules.PUT("/:id", r.handler.UpdateRule)
+		rules.POST("/:id/toggle", r.handler.ToggleRule)
+	}
+
+	bl := engine.Group("/api/v1/blacklist")
+	{
+		bl.POST("/check", r.handler.CheckBlacklist)
+		bl.POST("/add", r.handler.AddToBlacklist)
+		bl.POST("/remove", r.handler.RemoveFromBlacklist)
+	}
+
+	cases := engine.Group("/api/v1/cases")
+	{
+		cases.POST("", r.handler.CreateCase)
+		cases.GET("", r.handler.ListCases)
+		cases.PUT("/:id", r.handler.UpdateCase)
+	}
+
+	verify := engine.Group("/api/v1/verify")
+	{
+		verify.POST("/initiate", r.handler.InitiateVerification)
+		verify.POST("/check", r.handler.VerifyCode)
+	}
 }

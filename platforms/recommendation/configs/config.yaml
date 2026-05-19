@@ -1,0 +1,28 @@
+app:
+  name: shopee-recommendation
+  env: development
+  log_level: info
+
+server:
+  http_port: 8080
+  grpc_port: 9090
+
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+  pool_size: 100
+  min_idle_conns: 20
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+  max_retries: 3
+
+kafka:
+  brokers:
+    - localhost:9092
+
+otel:
+  endpoint: http://localhost:4318
+  service_name: shopee-recommendation
+  trace_ratio: 0.1

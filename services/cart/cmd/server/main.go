@@ -46,7 +46,10 @@ func main() {
 		logger.Warn("redis not available", zap.Error(err))
 		redisClient = nil
 	}
-	redisStore := redisinfra.NewStore(redisClient, cfg.Redis)
+	var redisStore *redisinfra.Store
+	if redisClient != nil {
+		redisStore = redisinfra.NewStore(redisClient, cfg.Redis)
+	}
 
 	cartRepo := mysql.NewCartRepository(db)
 	itemRepo := mysql.NewCartItemRepository(db)
@@ -62,7 +65,7 @@ func main() {
 
 	cartService := application.NewCartService(
 		cartRepo, itemRepo, snapshotRepo, mergeRepo,
-		redisStore, cfg.CartTTL, cfg.MaxCartItems, cfg.MaxQuantityPerItem, publisher,
+		redisStore, cfg.CartTTL, cfg.CheckoutPreviewTTL, cfg.MaxCartItems, cfg.MaxQuantityPerItem, publisher,
 	)
 
 	healthChecker := health.NewChecker(cfg.AppName, version)

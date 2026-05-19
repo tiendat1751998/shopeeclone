@@ -1,0 +1,28 @@
+app_name: logistics-delivery
+env: development
+version: "0.0.1"
+http_port: "8080"
+grpc_port: "9090"
+
+postgres:
+  dsn: "postgres://logistics:logistics@localhost:5432/logistics?sslmode=disable"
+  max_conns: 25
+  min_conns: 5
+  max_conn_lifetime_min: 30
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+kafka:
+  brokers: "localhost:9092"
+  shipment_topic: "logistics.shipments"
+  tracking_topic: "logistics.tracking"
+  courier_topic: "logistics.couriers"
+  fulfillment_topic: "logistics.fulfillment"
+  consumer_group: "logistics-consumer-group"
+
+otel:
+  endpoint: "localhost:4317"
+  insecure: true

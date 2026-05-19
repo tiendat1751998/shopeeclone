@@ -1,26 +1,115 @@
 package main
-import ("context"; "fmt"; "net/http"; "os"; "os/signal"; "syscall"; "time"; "github.com/gin-gonic/gin"; sharedRedis "github.com/shopee-clone/shopee/packages/go-shared/pkg/redis"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/health"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"; "github.com/shopee-clone/shopee/platforms/notification/internal/application"; "github.com/shopee-clone/shopee/platforms/notification/internal/config"; "github.com/shopee-clone/shopee/platforms/notification/internal/infrastructure/mysql"; redisinfra "github.com/shopee-clone/shopee/platforms/notification/internal/infrastructure/redis"; httptransport "github.com/shopee-clone/shopee/platforms/notification/internal/transport/http"; kafkatransport "github.com/shopee-clone/shopee/platforms/notification/internal/transport/kafka"; "go.uber.org/zap")
-var version = "1.0.0"
+
+import (
+	"context"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	sharedRedis "github.com/shopee-clone/shopee/packages/go-shared/pkg/redis"
+	"go.uber.org/zap"
+
+	"github.com/shopee-clone/shopee/platforms/notification/internal/config"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/dispatcher"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/email"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/events"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/health"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/inapp"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/logging"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/notifier"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/preferences"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/push"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/sms"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/template"
+	"github.com/shopee-clone/shopee/platforms/notification/internal/tracing"
+	httpTransport "github.com/shopee-clone/shopee/platforms/notification/internal/transport/http"
+)
+
 func main() {
-	cfg := config.Load(); logger := observability.InitLogger(cfg.AppName, cfg.LogLevel)
-	shutdownTracer, _ := observability.InitTracer(cfg.OpenTelemetry.ServiceName, cfg.OpenTelemetry.Endpoint)
-	defer shutdownTracer(); defer observability.Sync()
-	db, err := mysql.NewDB(cfg.MySQL); if err != nil { logger.Fatal("failed to connect to mysql", zap.Error(err)) }; defer db.Close()
+	cfg := config.Load()
+	logger := logging.NewLogger(cfg.Env)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	redisClient, err := sharedRedis.NewClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
-	if err != nil { logger.Warn("redis not available", zap.Error(err)); redisClient = nil }
-	redisStore := redisinfra.NewStore(redisClient, cfg.Redis)
-	nr := mysql.NewNotificationRepository(db); tr := mysql.NewTemplateRepository(db)
-	pr := mysql.NewPreferenceRepository(db); dr := mysql.NewDeliveryLogRepository(db)
-	var pub application.EventPublisher
-	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" { p := kafkatransport.NewProducer(cfg.Kafka.Brokers, cfg.AppName); defer p.Close(); pub = p }
-	notifyService := application.NewNotificationService(nr, tr, pr, dr, redisStore, pub)
-	hc := health.NewChecker(cfg.AppName, version, db, redisClient)
-	gin.SetMode(getGinMode(cfg.AppEnv)); engine := gin.New()
-	handler := httptransport.NewHandler(notifyService); router := httptransport.NewRouter(handler, hc); router.Setup(engine)
-	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HTTPPort), Handler: engine, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
-	quit := make(chan os.Signal, 1); signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	go func() { logger.Info("starting notification service", zap.Int("http_port", cfg.HTTPPort)); if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed { logger.Fatal("http server failed", zap.Error(err)) } }()
-	<-quit; logger.Info("shutting down..."); ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second); defer cancel()
-	httpServer.Shutdown(ctx); if redisClient != nil { redisClient.Close() }; logger.Info("stopped")
+	if err != nil {
+		logger.Warn("redis not available", zap.Error(err))
+		redisClient = nil
+	}
+	if redisClient != nil {
+		defer redisClient.Close()
+	}
+
+	shutdownTracer, err := tracing.Init(cfg.AppName, cfg.OTEL.Endpoint)
+	if err != nil {
+		logger.Warn("failed to init tracer", zap.Error(err))
+	}
+	if shutdownTracer != nil {
+		defer shutdownTracer()
+	}
+
+	var pub events.Publisher
+	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" {
+		p := events.NewKafkaProducer(cfg.Kafka.Brokers, cfg.AppName)
+		defer p.Close()
+		pub = p
+	} else {
+		pub = events.NewNoOpPublisher()
+	}
+
+	notifRepo := notifier.NewInMemoryRepository()
+	pushRepo := push.NewInMemoryRepository()
+	emailRepo := email.NewInMemoryRepository()
+	smsRepo := sms.NewInMemoryRepository()
+	inappRepo := inapp.NewInMemoryRepository()
+	prefRepo := preferences.NewInMemoryRepository()
+	tmplRepo := template.NewInMemoryRepository()
+	dispatchRepo := dispatcher.NewInMemoryRepository()
+
+	notifSvc := notifier.NewService(notifRepo, pub)
+	pushSvc := push.NewService(pushRepo, pub)
+	emailSvc := email.NewService(emailRepo, pub, cfg.SMTP.From)
+	smsSvc := sms.NewService(smsRepo, pub, cfg.Twilio.FromNumber)
+	inappSvc := inapp.NewService(inappRepo, pub)
+	prefSvc := preferences.NewService(prefRepo)
+	tmplSvc := template.NewService(tmplRepo)
+	dispatchSvc := dispatcher.NewService(dispatchRepo, notifSvc, pushSvc, emailSvc, smsSvc, inappSvc, prefSvc)
+
+	handler := httpTransport.NewHandler(notifSvc, pushSvc, emailSvc, smsSvc, inappSvc, prefSvc, tmplSvc, dispatchSvc)
+	hc := health.NewChecker(cfg.AppName, cfg.Version)
+	router := httpTransport.NewRouter(handler, hc)
+
+	gin.SetMode(gin.ReleaseMode)
+	engine := gin.New()
+	router.Setup(engine)
+
+	srv := &http.Server{
+		Addr:         ":" + cfg.HTTPPort,
+		Handler:      engine,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	go func() {
+		logger.Info("starting server", zap.String("port", cfg.HTTPPort))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("server error", zap.Error(err))
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("shutting down server")
+	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer shutdownCancel()
+
+	srv.Shutdown(shutdownCtx)
+	cancel()
 }
-func getGinMode(env string) string { if env == "production" || env == "staging" { return gin.ReleaseMode }; return gin.DebugMode }

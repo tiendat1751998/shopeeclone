@@ -1,0 +1,81 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/shopee-clone/shopee/platforms/aiml/internal/config"
+	"github.com/shopee-clone/shopee/platforms/aiml/internal/embeddings"
+	"github.com/shopee-clone/shopee/platforms/aiml/internal/experiments"
+	"github.com/shopee-clone/shopee/platforms/aiml/internal/featurestore"
+	"github.com/shopee-clone/shopee/platforms/aiml/internal/health"
+	"github.com/shopee-clone/shopee/platforms/aiml/internal/inference"
+	"github.com/shopee-clone/shopee/platforms/aiml/internal/modelregistry"
+	"github.com/shopee-clone/shopee/platforms/aiml/internal/training"
+	httptransport "github.com/shopee-clone/shopee/platforms/aiml/internal/transport/http"
+)
+
+func main() {
+	cfg := config.Load()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	featureRepo := featurestore.NewInMemoryRepository()
+	featureSvc := featurestore.NewService(featureRepo)
+
+	modelRepo := modelregistry.NewInMemoryRepository()
+	modelSvc := modelregistry.NewService(modelRepo)
+
+	trainingRepo := training.NewInMemoryRepository()
+	trainingSvc := training.NewService(trainingRepo)
+
+	predictor := inference.NewMockPredictor()
+	inferenceSvc := inference.NewService(predictor)
+
+	embedGen := embeddings.NewEmbeddingGenerator()
+	embedStore := embeddings.NewInMemoryVectorStore()
+	embedSvc := embeddings.NewService(embedGen, embedStore)
+
+	experimentRepo := experiments.NewInMemoryRepository()
+	experimentSvc := experiments.NewService(experimentRepo)
+
+	handler := httptransport.NewHandler(featureSvc, modelSvc, trainingSvc, inferenceSvc, embedSvc, experimentSvc)
+	hc := health.NewChecker(cfg.AppName, "1.0.0")
+	router := httptransport.NewRouter(handler, hc)
+
+	gin.SetMode(gin.ReleaseMode)
+	engine := gin.New()
+	router.Setup(engine)
+
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
+		Handler:      engine,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			panic(err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer shutdownCancel()
+
+	srv.Shutdown(shutdownCtx)
+	cancel()
+}

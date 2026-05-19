@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  labels:
+    app: notification-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+      - name: notification-service
+        image: shopee-clone/notification-service:latest
+        ports:
+        - containerPort: 8080
+        - containerPort: 9090
+        env:
+        - name: APP_NAME
+          value: "notification"
+        - name: ENV
+          value: "production"
+        - name: HTTP_PORT
+          value: "8080"
+        - name: GRPC_PORT
+          value: "9090"
+        - name: POSTGRES_DSN
+          valueFrom:
+            secretKeyRef:
+              name: notification-db
+              key: dsn
+        - name: REDIS_ADDR
+          value: "redis-service:6379"
+        - name: KAFKA_BROKERS
+          value: "kafka-service:9092"
+        - name: SMTP_HOST
+          valueFrom:
+            secretKeyRef:
+              name: notification-smtp
+              key: host
+        - name: SMTP_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: notification-smtp
+              key: username
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: notification-smtp
+              key: password
+        - name: TWILIO_ACCOUNT_SID
+          valueFrom:
+            secretKeyRef:
+              name: notification-twilio
+              key: account_sid
+        - name: TWILIO_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: notification-twilio
+              key: auth_token
+        - name: FCM_SERVER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: notification-fcm
+              key: server_key
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+spec:
+  selector:
+    app: notification-service
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  - name: grpc
+    port: 9090
+    targetPort: 9090
+  type: ClusterIP

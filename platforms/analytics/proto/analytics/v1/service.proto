@@ -1,0 +1,246 @@
+syntax = "proto3";
+
+package analytics.v1;
+
+option go_package = "github.com/shopee-clone/shopee/platforms/analytics/proto/analytics/v1;analyticsv1";
+
+service AnalyticsService {
+  rpc RunQuery(QueryRequest) returns (QueryResponse);
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+  rpc IngestEvent(IngestEventRequest) returns (IngestEventResponse);
+  rpc BatchIngest(BatchIngestRequest) returns (BatchIngestResponse);
+  rpc AnalyzeFunnel(FunnelRequest) returns (FunnelResponse);
+  rpc AnalyzeCohort(CohortRequest) returns (CohortResponse);
+  rpc GetSessions(SessionRequest) returns (SessionResponse);
+  rpc CreateDashboard(CreateDashboardRequest) returns (DashboardResponse);
+  rpc ListDashboards(ListDashboardsRequest) returns (ListDashboardsResponse);
+  rpc GetDashboard(GetDashboardRequest) returns (DashboardResponse);
+  rpc CreateSchedule(CreateScheduleRequest) returns (ScheduleResponse);
+  rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse);
+}
+
+message QueryRequest {
+  repeated Metric metrics = 1;
+  repeated string dimensions = 2;
+  TimeRange time_range = 3;
+  repeated Filter filters = 4;
+  repeated string group_by = 5;
+  int32 limit = 6;
+  int32 offset = 7;
+}
+
+message Metric {
+  string name = 1;
+  string aggregation = 2;
+  string alias = 3;
+}
+
+message TimeRange {
+  string type = 1;
+  string start_at = 2;
+  string end_at = 3;
+}
+
+message Filter {
+  string field = 1;
+  string operator = 2;
+  string value = 3;
+}
+
+message QueryResponse {
+  repeated string columns = 1;
+  repeated Row rows = 2;
+  int64 total = 3;
+}
+
+message Row {
+  map<string, double> values = 1;
+}
+
+message GetMetricsRequest {
+  string time_range = 1;
+}
+
+message GetMetricsResponse {
+  repeated MetricValue metrics = 1;
+}
+
+message MetricValue {
+  string name = 1;
+  double value = 2;
+  string label = 3;
+}
+
+message IngestEventRequest {
+  string event_id = 1;
+  string event_type = 2;
+  string user_id = 3;
+  string session_id = 4;
+  string timestamp = 5;
+  map<string, string> properties = 6;
+  EventContext context = 7;
+  string source = 8;
+  string country = 9;
+  string device = 10;
+  double revenue = 11;
+}
+
+message EventContext {
+  string ip = 1;
+  string user_agent = 2;
+  string device = 3;
+  string referrer = 4;
+}
+
+message IngestEventResponse {
+  string event_id = 1;
+  string status = 2;
+}
+
+message BatchIngestRequest {
+  repeated IngestEventRequest events = 1;
+}
+
+message BatchIngestResponse {
+  int32 ingested = 1;
+  int32 total = 2;
+}
+
+message FunnelRequest {
+  string name = 1;
+  repeated FunnelStep steps = 2;
+  string time_range = 3;
+}
+
+message FunnelStep {
+  string name = 1;
+  string event_type = 2;
+  int32 order = 3;
+  string window = 4;
+}
+
+message FunnelResponse {
+  string id = 1;
+  string funnel_name = 2;
+  repeated FunnelStepResult steps = 3;
+  double overall_conversion_rate = 4;
+  int64 start_count = 5;
+  int64 end_count = 6;
+}
+
+message FunnelStepResult {
+  string step_name = 1;
+  string event_type = 2;
+  int32 order = 3;
+  int64 user_count = 4;
+  double step_conversion_rate = 5;
+  double overall_conversion_rate = 6;
+  int64 drop_off_count = 7;
+  double drop_off_rate = 8;
+}
+
+message CohortRequest {
+  string name = 1;
+  string period = 2;
+  string time_range = 3;
+}
+
+message CohortResponse {
+  string id = 1;
+  string name = 2;
+  string period = 3;
+  repeated CohortRow cohorts = 4;
+  repeated int32 periods = 5;
+}
+
+message CohortRow {
+  string period_start = 1;
+  int64 user_count = 2;
+  repeated double retention = 3;
+}
+
+message SessionRequest {
+  string user_id = 1;
+  string source = 2;
+  string device = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message SessionResponse {
+  repeated Session sessions = 1;
+  int64 total = 2;
+}
+
+message Session {
+  string session_id = 1;
+  string user_id = 2;
+  string start_time = 3;
+  string end_time = 4;
+  int64 pageviews = 5;
+  int64 events_count = 6;
+  bool has_conversion = 7;
+  double revenue = 8;
+}
+
+message CreateDashboardRequest {
+  string title = 1;
+  string description = 2;
+  bool is_public = 3;
+  repeated string tags = 4;
+}
+
+message DashboardResponse {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  bool is_public = 4;
+  repeated string tags = 5;
+  repeated Widget widgets = 6;
+}
+
+message Widget {
+  string id = 1;
+  string title = 2;
+  string type = 3;
+  int32 width = 4;
+  int32 height = 5;
+}
+
+message ListDashboardsRequest {
+  int32 offset = 1;
+  int32 limit = 2;
+}
+
+message ListDashboardsResponse {
+  repeated DashboardResponse dashboards = 1;
+  int32 total = 2;
+}
+
+message GetDashboardRequest {
+  string id = 1;
+}
+
+message CreateScheduleRequest {
+  string name = 1;
+  string frequency = 2;
+  string delivery_channel = 3;
+  repeated string recipients = 4;
+}
+
+message ScheduleResponse {
+  string id = 1;
+  string name = 2;
+  string frequency = 3;
+  bool is_active = 4;
+}
+
+message ListSchedulesRequest {
+  int32 offset = 1;
+  int32 limit = 2;
+}
+
+message ListSchedulesResponse {
+  repeated ScheduleResponse schedules = 1;
+  int32 total = 2;
+}

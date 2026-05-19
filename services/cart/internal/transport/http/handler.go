@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -182,7 +183,7 @@ var errorStatusMap = map[error]int{
 
 func handleError(c *gin.Context, err error) {
 	for domainErr, status := range errorStatusMap {
-		if err.Error() == domainErr.Error() || len(err.Error()) >= len(domainErr.Error()) && err.Error()[:len(domainErr.Error())] == domainErr.Error() {
+		if errors.Is(err, domainErr) {
 			c.AbortWithStatusJSON(status, gin.H{"error_code": domainErr.Error(), "message": err.Error()})
 			return
 		}

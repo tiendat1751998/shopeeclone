@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package livescale.v1;
+
+option go_package = "github.com/shopee-clone/shopee/platforms/live-scale/proto/livescale/v1;livescalev1";
+
+message SFUNode {
+  string id = 1;
+  string address = 2;
+  string region = 3;
+  int32 capacity = 4;
+  int32 current_load = 5;
+  int32 stream_count = 6;
+  string status = 7;
+  int64 last_heartbeat = 8;
+  int64 registered_at = 9;
+}
+
+message StreamSession {
+  string id = 1;
+  string stream_id = 2;
+  string node_id = 3;
+  string region = 4;
+  int32 viewers = 5;
+  int64 started_at = 6;
+  int64 last_active = 7;
+}
+
+message CDNEndpoint {
+  string id = 1;
+  string url = 2;
+  string provider = 3;
+  string region = 4;
+  int32 latency_ms = 5;
+  int32 capacity = 6;
+  int32 current_load = 7;
+  string status = 8;
+}
+
+message CDNPurgeRequest {
+  string id = 1;
+  repeated string urls = 2;
+  string pattern = 3;
+  repeated string tags = 4;
+  string reason = 5;
+  int64 requested_at = 6;
+}
+
+message WSNode {
+  string id = 1;
+  string address = 2;
+  string region = 3;
+  string status = 4;
+  int32 room_count = 5;
+  int32 client_count = 6;
+  int32 max_rooms = 7;
+  int32 max_clients = 8;
+}
+
+message RoomAssignment {
+  string room_id = 1;
+  string node_id = 2;
+  int32 clients = 3;
+  int64 assigned_at = 4;
+}
+
+message StreamHealth {
+  string stream_id = 1;
+  string status = 2;
+  string node_id = 3;
+  string region = 4;
+  int64 last_checked = 5;
+}
+
+message HealthMetric {
+  int32 bitrate = 1;
+  double frame_rate = 2;
+  int32 latency_ms = 3;
+  double packet_loss = 4;
+  int32 viewers = 5;
+  int64 recorded_at = 6;
+}
+
+message Region {
+  string id = 1;
+  string name = 2;
+  string code = 3;
+  string status = 4;
+  int32 latency_ms = 5;
+}
+
+message TranscodeJob {
+  string id = 1;
+  string stream_id = 2;
+  string input_url = 3;
+  repeated string profiles = 4;
+  string status = 5;
+  double progress = 6;
+  int64 created_at = 7;
+  int64 started_at = 8;
+  int64 completed_at = 9;
+  string error = 10;
+}
+
+message VideoProfile {
+  string name = 1;
+  int32 width = 2;
+  int32 height = 3;
+  int32 bitrate_kbps = 4;
+}
+
+service LiveScaleService {
+  rpc RegisterSFUNode(SFUNode) returns (SFUNode);
+  rpc GetOptimalSFUNode(GetOptimalSFUNodeRequest) returns (SFUNode);
+  rpc PurgeCDNCache(CDNPurgeRequest) returns (CDNPurgeResponse);
+  rpc RegisterWSNode(WSNode) returns (WSNode);
+  rpc AssignRoom(AssignRoomRequest) returns (RoomAssignment);
+  rpc BroadcastMessage(BroadcastMessageRequest) returns (BroadcastMessageResponse);
+  rpc ReportStreamHealth(ReportStreamHealthRequest) returns (StreamHealth);
+  rpc GetStreamHealth(GetStreamHealthRequest) returns (StreamHealth);
+  rpc GetNearestRegion(GetNearestRegionRequest) returns (Region);
+  rpc CreateTranscodeJob(CreateTranscodeJobRequest) returns (TranscodeJob);
+  rpc GetTranscodeJob(GetTranscodeJobRequest) returns (TranscodeJob);
+}
+
+message GetOptimalSFUNodeRequest {
+  string stream_id = 1;
+  string viewer_region = 2;
+}
+
+message CDNPurgeResponse {
+  string id = 1;
+  string message = 2;
+}
+
+message AssignRoomRequest {
+  string room_id = 1;
+  string preferred_node_id = 2;
+}
+
+message BroadcastMessageRequest {
+  string room_id = 1;
+  bytes message = 2;
+}
+
+message BroadcastMessageResponse {
+  repeated string delivered_nodes = 1;
+}
+
+message ReportStreamHealthRequest {
+  string stream_id = 1;
+  HealthMetric metric = 2;
+}
+
+message GetStreamHealthRequest {
+  string stream_id = 1;
+}
+
+message GetNearestRegionRequest {
+  string viewer_region = 1;
+}
+
+message CreateTranscodeJobRequest {
+  string stream_id = 1;
+  string input_url = 2;
+  repeated string profiles = 3;
+}
+
+message GetTranscodeJobRequest {
+  string id = 1;
+}

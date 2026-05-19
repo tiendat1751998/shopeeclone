@@ -45,7 +45,10 @@ func main() {
 		logger.Warn("redis not available", zap.Error(err))
 		redisClient = nil
 	}
-	redisStore := redisinfra.NewStore(redisClient, cfg.Redis)
+	var redisStore *redisinfra.Store
+	if redisClient != nil {
+		redisStore = redisinfra.NewStore(redisClient, cfg.Redis)
+	}
 
 	voucherRepo := mysql.NewVoucherRepository(db)
 	redemptionRepo := mysql.NewVoucherRedemptionRepository(db)

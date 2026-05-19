@@ -1,21 +1,104 @@
 package main
-import ("context"; "fmt"; "net/http"; "os"; "os/signal"; "syscall"; "time"; "github.com/gin-gonic/gin"; sharedRedis "github.com/shopee-clone/shopee/packages/go-shared/pkg/redis"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/health"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"; "github.com/shopee-clone/shopee/platforms/fraud/internal/application"; "github.com/shopee-clone/shopee/platforms/fraud/internal/config"; httptransport "github.com/shopee-clone/shopee/platforms/fraud/internal/transport/http"; kafkatransport "github.com/shopee-clone/shopee/platforms/fraud/internal/transport/kafka"; "go.uber.org/zap")
-var version = "1.0.0"
+
+import (
+	"context"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"fmt"
+	"go.uber.org/zap"
+
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/blacklist"
+	fraudcase "github.com/shopee-clone/shopee/platforms/fraud/internal/case"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/config"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/detection"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/events"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/health"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/logging"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/rules"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/scoring"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/streaming"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/tracing"
+	httpTransport "github.com/shopee-clone/shopee/platforms/fraud/internal/transport/http"
+	"github.com/shopee-clone/shopee/platforms/fraud/internal/verification"
+)
+
 func main() {
-	cfg := config.Load(); logger := observability.InitLogger(cfg.AppName, cfg.LogLevel)
-	shutdownTracer, _ := observability.InitTracer(cfg.OpenTelemetry.ServiceName, cfg.OpenTelemetry.Endpoint)
-	defer shutdownTracer(); defer observability.Sync()
-	redisClient, err := sharedRedis.NewClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
-	if err != nil { logger.Warn("redis not available", zap.Error(err)); redisClient = nil }
-	var pub application.EventPublisher
-	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" { p := kafkatransport.NewProducer(cfg.Kafka.Brokers, cfg.AppName); defer p.Close(); pub = p }
-	fraudService := application.NewFraudService(pub)
-	hc := health.NewChecker(cfg.AppName, version, redisClient)
-	gin.SetMode(gin.ReleaseMode); engine := gin.New()
-	handler := httptransport.NewHandler(fraudService); router := httptransport.NewRouter(handler, hc); router.Setup(engine)
-	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HTTPPort), Handler: engine, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
-	quit := make(chan os.Signal, 1); signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	go func() { logger.Info("starting fraud service", zap.Int("http_port", cfg.HTTPPort)); if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed { logger.Fatal("http server failed", zap.Error(err)) } }()
-	<-quit; logger.Info("shutting down..."); ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second); defer cancel()
-	httpServer.Shutdown(ctx); if redisClient != nil { redisClient.Close() }; logger.Info("stopped")
+	cfg := config.Load()
+	logger := logging.NewLogger(cfg.AppEnv)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	shutdownTracer, err := tracing.Init(cfg.AppName, cfg.OpenTelemetry.Endpoint)
+	if err != nil {
+		logger.Warn("failed to init tracer", zap.Error(err))
+	}
+	if shutdownTracer != nil {
+		defer shutdownTracer()
+	}
+
+	var pub events.Publisher
+	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" {
+		p := events.NewKafkaProducer(cfg.Kafka.Brokers, cfg.AppName)
+		defer p.Close()
+		pub = p
+	} else {
+		pub = events.NewNoOpPublisher()
+	}
+	_ = pub
+
+	detectRepo := detection.NewInMemoryRepository()
+	ruleRepo := rules.NewInMemoryRepository()
+	scoreRepo := scoring.NewInMemoryRepository()
+	streamRepo := streaming.NewInMemoryRepository()
+	blacklistRepo := blacklist.NewInMemoryRepository()
+	caseRepo := fraudcase.NewInMemoryRepository()
+	verifyRepo := verification.NewInMemoryRepository()
+
+	ruleSvc := rules.NewService(ruleRepo)
+	scoreSvc := scoring.NewService(scoreRepo)
+	streamSvc := streaming.NewService(streamRepo)
+	blacklistSvc := blacklist.NewService(blacklistRepo)
+	caseSvc := fraudcase.NewService(caseRepo)
+	verifySvc := verification.NewService(verifyRepo, cfg.Verification.CodeExpiryMinutes)
+	detectSvc := detection.NewService(detectRepo, ruleSvc, scoreSvc, streamSvc, blacklistSvc, float64(cfg.Fraud.DefaultThreshold))
+
+	handler := httpTransport.NewHandler(detectSvc, ruleSvc, blacklistSvc, caseSvc, verifySvc)
+	hc := health.NewChecker(cfg.AppName, "1.0.0")
+	router := httpTransport.NewRouter(handler, hc)
+
+	gin.SetMode(gin.ReleaseMode)
+	engine := gin.New()
+	router.Setup(engine)
+
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
+		Handler:      engine,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	go func() {
+		logger.Info("starting fraud detection server", zap.Int("port", cfg.HTTPPort))
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("server error", zap.Error(err))
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("shutting down server")
+	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer shutdownCancel()
+
+	srv.Shutdown(shutdownCtx)
+	cancel()
 }

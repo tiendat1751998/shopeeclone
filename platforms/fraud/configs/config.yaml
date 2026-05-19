@@ -1,0 +1,31 @@
+app:
+  name: shopee-fraud
+  env: development
+  version: 1.0.0
+
+server:
+  http_port: 8080
+  grpc_port: 9090
+
+postgres:
+  dsn: "postgres://shopee:shopee_dev@localhost:5432/shopee_fraud?sslmode=disable"
+
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - localhost:9092
+
+fraud:
+  default_threshold: 50
+  score_window_size: 100
+
+verification:
+  code_expiry_minutes: 10
+
+otel:
+  endpoint: http://localhost:4318
+  service_name: shopee-fraud

@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logistics-delivery
+  labels:
+    app: logistics-delivery
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: logistics-delivery
+  template:
+    metadata:
+      labels:
+        app: logistics-delivery
+    spec:
+      containers:
+      - name: logistics-delivery
+        image: shopee/logistics-delivery:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: grpc
+        env:
+        - name: APP_NAME
+          value: "logistics-delivery"
+        - name: ENV
+          value: "production"
+        - name: HTTP_PORT
+          value: "8080"
+        - name: GRPC_PORT
+          value: "9090"
+        - name: POSTGRES_DSN
+          valueFrom:
+            secretKeyRef:
+              name: logistics-db
+              key: dsn
+        - name: REDIS_ADDR
+          valueFrom:
+            secretKeyRef:
+              name: logistics-redis
+              key: addr
+        - name: KAFKA_BROKERS
+          value: "kafka-cluster:9092"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "otel-collector:4317"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "1000m"
+            memory: "512Mi"

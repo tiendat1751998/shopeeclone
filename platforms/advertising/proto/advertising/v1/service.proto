@@ -1,0 +1,202 @@
+syntax = "proto3";
+
+package shopee.advertising.v1;
+
+option go_package = "github.com/shopee-clone/shopee/platforms/advertising/proto/advertising/v1;advertisingpb";
+
+import "google/protobuf/timestamp.proto";
+
+service AdvertisingService {
+  rpc CreateCampaign(CreateCampaignRequest) returns (CreateCampaignResponse);
+  rpc GetCampaign(GetCampaignRequest) returns (GetCampaignResponse);
+  rpc ListCampaigns(ListCampaignsRequest) returns (ListCampaignsResponse);
+  rpc UpdateCampaign(UpdateCampaignRequest) returns (UpdateCampaignResponse);
+  rpc PauseCampaign(PauseCampaignRequest) returns (PauseCampaignResponse);
+  rpc ResumeCampaign(ResumeCampaignRequest) returns (ResumeCampaignResponse);
+  rpc RunAuction(RunAuctionRequest) returns (RunAuctionResponse);
+  rpc CreateCreative(CreateCreativeRequest) returns (CreateCreativeResponse);
+  rpc ApproveCreative(ApproveCreativeRequest) returns (ApproveCreativeResponse);
+  rpc RecordImpression(RecordImpressionRequest) returns (RecordImpressionResponse);
+  rpc RecordClick(RecordClickRequest) returns (RecordClickResponse);
+  rpc RecordConversion(RecordConversionRequest) returns (RecordConversionResponse);
+  rpc GetAnalyticsReport(GetAnalyticsReportRequest) returns (GetAnalyticsReportResponse);
+}
+
+message Campaign {
+  string id = 1;
+  string name = 2;
+  string status = 3;
+  string campaign_type = 4;
+  double daily_budget = 5;
+  double lifetime_budget = 6;
+  double bid_amount = 7;
+  double target_cpa = 8;
+  double quality_score = 9;
+  google.protobuf.Timestamp start_date = 10;
+  google.protobuf.Timestamp end_date = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message CreateCampaignRequest {
+  string name = 1;
+  string campaign_type = 2;
+  double bid_amount = 3;
+  double daily_budget = 4;
+  double lifetime_budget = 5;
+}
+
+message CreateCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message GetCampaignRequest {
+  string id = 1;
+}
+
+message GetCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message ListCampaignsRequest {
+  string status = 1;
+}
+
+message ListCampaignsResponse {
+  repeated Campaign campaigns = 1;
+}
+
+message UpdateCampaignRequest {
+  string id = 1;
+  string name = 2;
+  double bid_amount = 3;
+}
+
+message UpdateCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message PauseCampaignRequest {
+  string id = 1;
+}
+
+message PauseCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message ResumeCampaignRequest {
+  string id = 1;
+}
+
+message ResumeCampaignResponse {
+  Campaign campaign = 1;
+}
+
+message RunAuctionRequest {
+  string user_id = 1;
+  string device = 2;
+  string location = 3;
+}
+
+message BidResult {
+  string campaign_id = 1;
+  string creative_id = 2;
+  double bid_amount = 3;
+  double ad_rank = 4;
+  double quality_score = 5;
+}
+
+message RunAuctionResponse {
+  BidResult winner = 1;
+  double second_price = 2;
+  repeated BidResult all_bids = 3;
+}
+
+message CreateCreativeRequest {
+  string campaign_id = 1;
+  string name = 2;
+  string format = 3;
+  string content = 4;
+  string destination_url = 5;
+}
+
+message Creative {
+  string id = 1;
+  string campaign_id = 2;
+  string name = 3;
+  string format = 4;
+  string status = 5;
+  string content = 6;
+  string destination_url = 7;
+}
+
+message CreateCreativeResponse {
+  Creative creative = 1;
+}
+
+message ApproveCreativeRequest {
+  string id = 1;
+}
+
+message ApproveCreativeResponse {
+  Creative creative = 1;
+}
+
+message RecordImpressionRequest {
+  string campaign_id = 1;
+  string creative_id = 2;
+  string user_id = 3;
+  double cost = 4;
+}
+
+message RecordImpressionResponse {
+  string id = 1;
+}
+
+message RecordClickRequest {
+  string impression_id = 1;
+  string campaign_id = 2;
+  string creative_id = 3;
+  string user_id = 4;
+  double cost = 5;
+}
+
+message RecordClickResponse {
+  string id = 1;
+}
+
+message RecordConversionRequest {
+  string click_id = 1;
+  string campaign_id = 2;
+  string creative_id = 3;
+  string user_id = 4;
+  double revenue = 5;
+}
+
+message RecordConversionResponse {
+  string id = 1;
+}
+
+message GetAnalyticsReportRequest {
+  string campaign_id = 1;
+  string start_date = 2;
+  string end_date = 3;
+}
+
+message AnalyticsReport {
+  string campaign_id = 1;
+  int64 impressions = 2;
+  int64 clicks = 3;
+  int64 conversions = 4;
+  double spend = 5;
+  double revenue = 6;
+  double ctr = 7;
+  double cvr = 8;
+  double cpc = 9;
+  double cpm = 10;
+  double roas = 11;
+}
+
+message GetAnalyticsReportResponse {
+  AnalyticsReport report = 1;
+}
