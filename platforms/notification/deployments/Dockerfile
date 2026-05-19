@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine AS builder
+FROM golang:tip-trixie AS builder
 
 WORKDIR /app
 

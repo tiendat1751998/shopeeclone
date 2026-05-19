@@ -130,7 +130,7 @@ if (-not $SkipGo) {
                 $TempDockerfileContent = $TempDockerfileContent -replace "RUN go mod download", "# RUN go mod download"
                 
                 $ProtoLogic = "COPY . .`n" +
-                              "RUN apk add --no-cache protobuf-dev protoc git && \`n" +
+                              "RUN apt-get update && apt-get install -y protobuf-compiler libprotobuf-dev git wget && \`n" +
                               "    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \`n" +
                               "    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \`n" +
                               "    mkdir -p /tmp/validate/validate && \`n" +

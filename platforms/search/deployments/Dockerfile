@@ -1,6 +1,6 @@
-FROM golang:1.26-alpine AS builder
+FROM golang:tip-trixie AS builder
 
-RUN apk add --no-cache git ca-certificates
+RUN apt-get update && apt-get install -y git ca-certificates
 
 WORKDIR /app
 COPY go.mod go.sum ./

@@ -1,7 +1,7 @@
 # Build stage
-FROM golang:1.26-alpine AS builder
+FROM golang:tip-trixie AS builder
 
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apt-get update && apt-get install -y git ca-certificates tzdata
 
 WORKDIR /app
 

@@ -96,7 +96,7 @@ if [ "$SKIP_GO" = false ]; then
                 # Safely inject the protoc builder step replacing COPY . .
                 awk '/COPY \. \./ {
                     print "COPY . ."
-                    print "RUN apk add --no-cache protobuf-dev protoc git && \\"
+                    print "RUN apt-get update && apt-get install -y protobuf-compiler libprotobuf-dev git wget && \\"
                     print "    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \\"
                     print "    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \\"
                     print "    mkdir -p /tmp/validate/validate && \\"
