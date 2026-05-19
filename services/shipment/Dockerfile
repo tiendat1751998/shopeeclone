@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 RUN apk add --no-cache git ca-certificates tzdata
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -18,3 +18,4 @@ USER appuser
 EXPOSE 8085 9095
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:8085/health/live || exit 1
 ENTRYPOINT ["/app/shipment-service"]
+

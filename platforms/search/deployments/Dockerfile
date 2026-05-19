@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates
 
@@ -19,3 +19,4 @@ COPY --from=builder /app/configs /configs
 EXPOSE 8080 9090
 
 ENTRYPOINT ["/server"]
+
