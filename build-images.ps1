@@ -25,17 +25,7 @@ Write-Host "Starting Docker Image Build Process" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 
 $GoModules = @(
-    # Services
-    "services/auth", "services/cart", "services/catalog-product", "services/checkout",
-    "services/gateway", "services/inventory", "services/order", "services/payment",
-    "services/product", "services/product-catalog", "services/promotion", "services/shipment",
-    # Platforms
-    "platforms/advertising", "platforms/aiml", "platforms/analytics", "platforms/api-gateway",
-    "platforms/billing", "platforms/developer", "platforms/fraud", "platforms/fraud-risk",
-    "platforms/global-infra", "platforms/live-commerce", "platforms/live-scale", "platforms/logistics-delivery",
-    "platforms/notification", "platforms/notification-campaign", "platforms/oms-fulfillment",
-    "platforms/payment-ledger", "platforms/rec-vector", "platforms/recommendation", "platforms/search",
-    "platforms/search-indexing", "platforms/service-mesh", "platforms/sre", "platforms/user-behavior"
+    "services/gateway"
 )
 
 # 1. Build Java Image

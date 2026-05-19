@@ -59,8 +59,8 @@ func TestTokenHash(t *testing.T) {
 	if hash == "" {
 		t.Error("hash should not be empty")
 	}
-	if len(hash) > 32 {
-		t.Errorf("hash too long: %d", len(hash))
+	if len(hash) != 64 {
+		t.Errorf("hash length expected 64, got %d", len(hash))
 	}
 }
 

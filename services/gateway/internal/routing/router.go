@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.uber.org/zap"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/shopee-clone/shopee/services/gateway/internal/transport"
 	sharedMiddleware "github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
-	"github.com/redis/go-redis/v9"
 )
 
 type Router struct {
