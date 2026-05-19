@@ -28,7 +28,7 @@ func (s *CatalogService) CreateProduct(ctx context.Context, shopID, name, descri
 	}
 	p := domain.NewProduct(shopID, name, description, categoryID, currency)
 	if err := s.productRepo.Create(ctx, p); err != nil { return nil, err }
-	data, _ := json.Marshal(p); s.redis.SetProduct(ctx, p.ID, data, s.productTTL)
+	s.redis.DeleteProduct(ctx, p.ID)
 	metrics.ProductsCreated.Inc()
 	if s.publisher != nil { s.publisher.Publish(ctx, &domain.CatalogEvent{EventType: domain.EventProductCreated, AggregateType: "product", AggregateID: p.ID, Payload: p, CreatedAt: time.Now()}) }
 	return p, nil
@@ -84,8 +84,8 @@ func (s *CatalogService) CreateCategory(ctx context.Context, parentID, name, slu
 	return c, nil
 }
 
-func (s *CatalogService) AddSKU(ctx context.Context, productID, skuCode, attributes string, price int64) (*domain.SKU, error) {
-	sku := domain.NewSKU(productID, skuCode, attributes, price)
+func (s *CatalogService) AddSKU(ctx context.Context, productID, skuCode, name, currency string, price int64) (*domain.SKU, error) {
+	sku := domain.NewSKU(productID, skuCode, name, currency, price)
 	if err := s.skuRepo.Create(ctx, sku); err != nil { return nil, err }
 	s.redis.DeleteProduct(ctx, productID)
 	metrics.SKUsCreated.Inc()

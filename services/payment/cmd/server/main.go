@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -37,16 +37,23 @@ func main() {
 	logger := observability.InitLogger(cfg.AppName, cfg.LogLevel)
 
 	shutdownTracer, err := tracing.Init(cfg.OpenTelemetry)
-	if err != nil { logger.Fatal("failed to init tracer", zap.Error(err)) }
+	if err != nil {
+		logger.Fatal("failed to init tracer", zap.Error(err))
+	}
 	defer shutdownTracer()
 	defer observability.Sync()
 
 	db, err := mysql.NewDB(cfg.MySQL)
-	if err != nil { logger.Fatal("failed to connect to mysql", zap.Error(err)) }
+	if err != nil {
+		logger.Fatal("failed to connect to mysql", zap.Error(err))
+	}
 	defer db.Close()
 
 	redisClient, err := sharedRedis.NewClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
-	if err != nil { logger.Warn("redis not available", zap.Error(err)); redisClient = nil }
+	if err != nil {
+		logger.Warn("redis not available", zap.Error(err))
+		redisClient = nil
+	}
 
 	paymentRepo := mysql.NewPaymentRepository(db)
 	redisStore := redisinfra.NewStore(redisClient, cfg.Redis)
@@ -75,8 +82,11 @@ func main() {
 	engine.GET("/health/ready", healthChecker.ReadinessHandler())
 
 	httpServer := &http.Server{
-		Addr: fmt.Sprintf(":%d", cfg.HTTPPort), Handler: engine,
-		ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second,
+		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
+		Handler:      engine,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	grpcServer := grpc.NewServer()
@@ -86,10 +96,14 @@ func main() {
 	reflection.Register(grpcServer)
 
 	grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
-	if err != nil { logger.Fatal("failed to listen grpc", zap.Error(err)) }
+	if err != nil {
+		logger.Fatal("failed to listen grpc", zap.Error(err))
+	}
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	var bgWg sync.WaitGroup
 
 	go func() {
 		logger.Info("starting payment service", zap.Int("http_port", cfg.HTTPPort), zap.Int("grpc_port", cfg.GRPCPort))
@@ -100,37 +114,48 @@ func main() {
 
 	go func() {
 		if err := grpcServer.Serve(grpcListener); err != nil {
-			logger.Fatal("grpc server failed", zap.Error(err))
+			logger.Warn("grpc server stopped", zap.Error(err))
 		}
 	}()
 
+	bgWg.Add(1)
 	go func() {
+		defer bgWg.Done()
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
 				func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
-					if err := paymentService.ProcessOutboxEvents(ctx); err != nil {
+					oCtx, oCancel := context.WithTimeout(ctx, 30*time.Second)
+					defer oCancel()
+					if err := paymentService.ProcessOutboxEvents(oCtx); err != nil {
 						zap.L().Warn("outbox processing failed", zap.Error(err))
 					}
 				}()
-			case <-quit:
+			case <-ctx.Done():
 				return
 			}
 		}
 	}()
 
-	<-quit
+	<-ctx.Done()
 	logger.Info("shutting down payment service...")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	grpcServer.GracefulStop()
 	httpServer.Shutdown(shutdownCtx)
-	if redisClient != nil { redisClient.Close() }
-	if kafkaProducer != nil { kafkaProducer.Close() }
+	bgWg.Wait()
+
+	if redisClient != nil {
+		redisClient.Close()
+	}
+	if kafkaProducer != nil {
+		kafkaProducer.Close()
+	}
+
 	logger.Info("payment service stopped")
 }
 
@@ -146,7 +171,9 @@ func (s *grpcHealthServer) Watch(req *grpc_health_v1.HealthCheckRequest, stream 
 
 func getGinMode(env string) string {
 	switch env {
-	case "production", "staging": return gin.ReleaseMode
-	default: return gin.DebugMode
+	case "production", "staging":
+		return gin.ReleaseMode
+	default:
+		return gin.DebugMode
 	}
 }

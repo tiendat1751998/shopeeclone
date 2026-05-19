@@ -20,5 +20,7 @@ var (
 	ErrCircularCategory     = errors.New("circular category reference")
 	ErrConcurrentModification = errors.New("concurrent modification detected")
 	ErrIndexingFailed       = errors.New("search indexing failed")
+	ErrInvalidState         = errors.New("invalid state")
+	ErrDuplicateSKU         = errors.New("duplicate SKU")
 	ErrModerationRequired   = errors.New("product requires moderation")
 )

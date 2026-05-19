@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/shopee-clone/shopee/services/order/internal/domain"
 	"github.com/shopee-clone/shopee/services/order/internal/metrics"
 	"go.opentelemetry.io/otel"
@@ -15,10 +16,10 @@ import (
 )
 
 type CancelOrderRequest struct {
-	OrderID    string                  `json:"order_id" validate:"required"`
-	Reason     string                  `json:"reason" validate:"required"`
-	CancelledBy string                 `json:"cancelled_by" validate:"required"`
-	CancelledType domain.CancellationType `json:"cancelled_type" validate:"required"`
+	OrderID       string                   `json:"order_id" validate:"required"`
+	Reason        string                   `json:"reason" validate:"required"`
+	CancelledBy   string                   `json:"cancelled_by" validate:"required"`
+	CancelledType domain.CancellationType  `json:"cancelled_type" validate:"required"`
 }
 
 func (s *OrderService) CancelOrder(ctx context.Context, req *CancelOrderRequest) (*domain.Order, error) {
@@ -60,32 +61,41 @@ func (s *OrderService) CancelOrder(ctx context.Context, req *CancelOrderRequest)
 		return nil, err
 	}
 
-	// Persist
-	// TransitionTo already incremented Version, so we use the current Version as expected
-	if err := s.orderRepo.UpdateStatus(ctx, req.OrderID, domain.OrderStatusCancelled, order.Version); err != nil {
-		return nil, err
-	}
-
-	// Save lifecycle event
-	s.orderRepo.SaveLifecycleEvent(ctx, lifecycleEvent)
-
-	// Record cancellation
 	cancellation := domain.NewOrderCancellation(
 		req.OrderID, req.Reason, req.CancelledBy, req.CancelledType, order.TotalAmount,
 	)
-	s.orderRepo.SaveCancellation(ctx, cancellation)
+
+	// Persist all changes in a single SERIALIZABLE transaction
+	cancelEvent := domain.NewOrderEvent(order, domain.EventOrderCancelled, nil)
+	eventPayload, _ := json.Marshal(cancelEvent)
+	outboxEvent := domain.NewOutboxEvent("order", order.ID, string(domain.EventOrderCancelled), eventPayload)
+
+	err = s.orderRepo.ExecInTx(ctx, func(tx *sqlx.Tx) error {
+		// TransitionTo already incremented Version, so we use the current Version as expected
+		if err := s.orderRepo.UpdateStatusInTx(ctx, tx, req.OrderID, domain.OrderStatusCancelled, order.Version); err != nil {
+			return err
+		}
+		if err := s.orderRepo.SaveLifecycleEventInTx(ctx, tx, lifecycleEvent); err != nil {
+			return err
+		}
+		if err := s.orderRepo.SaveCancellationInTx(ctx, tx, cancellation); err != nil {
+			return err
+		}
+		if err := s.outboxRepo.SaveOutboxEventInTx(ctx, tx, outboxEvent); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to persist cancellation: %w", err)
+	}
 
 	// Invalidate cache
 	s.redisStore.InvalidateOrderCache(ctx, req.OrderID)
 
-	// Publish event
-	event := domain.NewOrderEvent(order, domain.EventOrderCancelled, nil)
-	eventPayload, _ := json.Marshal(event)
-	outboxEvent := domain.NewOutboxEvent("order", order.ID, string(domain.EventOrderCancelled), eventPayload)
-	s.orderRepo.SaveOutboxEvent(ctx, outboxEvent)
-
+	// Publish event to Kafka (best-effort after successful transaction)
 	if s.kafkaProducer != nil {
-		s.kafkaProducer.PublishEvent(ctx, event)
+		s.kafkaProducer.PublishEvent(ctx, cancelEvent)
 	}
 
 	// Trigger compensation workflows asynchronously

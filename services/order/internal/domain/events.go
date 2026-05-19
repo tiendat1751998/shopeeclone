@@ -22,14 +22,39 @@ const (
 	EventOrderReconciliationTriggered EventType = "order.reconciliation_triggered"
 )
 
+type OutboxEventStatus string
+
+const (
+	OutboxStatusPending   OutboxEventStatus = "pending"
+	OutboxStatusProcessing OutboxEventStatus = "processing"
+	OutboxStatusProcessed  OutboxEventStatus = "processed"
+	OutboxStatusFailed     OutboxEventStatus = "failed"
+)
+
 type OutboxEvent struct {
-	ID             string    `db:"event_id" json:"event_id"`
-	AggregateType  string    `db:"aggregate_type" json:"aggregate_type"`
-	AggregateID    string    `db:"aggregate_id" json:"aggregate_id"`
-	EventType      string    `db:"event_type" json:"event_type"`
-	Payload        []byte    `db:"payload" json:"payload"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	Processed      bool      `db:"processed" json:"processed"`
+	ID             string            `db:"event_id" json:"event_id"`
+	AggregateType  string            `db:"aggregate_type" json:"aggregate_type"`
+	AggregateID    string            `db:"aggregate_id" json:"aggregate_id"`
+	EventType      string            `db:"event_type" json:"event_type"`
+	Status         OutboxEventStatus `db:"status" json:"status"`
+	ErrorMessage   string            `db:"error_message" json:"error_message,omitempty"`
+	Retries        int               `db:"retries" json:"retries"`
+	Payload        []byte            `db:"payload" json:"payload"`
+	CreatedAt      time.Time         `db:"created_at" json:"created_at"`
+	Processed      bool              `db:"processed" json:"processed"`
+}
+
+func NewOutboxEvent(aggregateType, aggregateID, eventType string, payload []byte) *OutboxEvent {
+	return &OutboxEvent{
+		ID:            uuid.New().String(),
+		AggregateType: aggregateType,
+		AggregateID:   aggregateID,
+		EventType:     eventType,
+		Status:        OutboxStatusPending,
+		Payload:       payload,
+		CreatedAt:     time.Now().UTC(),
+		Processed:     false,
+	}
 }
 
 type OrderEvent struct {
@@ -53,17 +78,5 @@ func NewOrderEvent(order *Order, eventType EventType, metadata json.RawMessage) 
 		EventType:   eventType,
 		Metadata:    metadata,
 		Timestamp:   time.Now().UTC(),
-	}
-}
-
-func NewOutboxEvent(aggregateType, aggregateID, eventType string, payload []byte) *OutboxEvent {
-	return &OutboxEvent{
-		ID:            uuid.New().String(),
-		AggregateType: aggregateType,
-		AggregateID:   aggregateID,
-		EventType:     eventType,
-		Payload:       payload,
-		CreatedAt:     time.Now().UTC(),
-		Processed:     false,
 	}
 }

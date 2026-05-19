@@ -18,7 +18,7 @@ func NewOrderRepository(db *sqlx.DB) *OrderRepository {
 	return &OrderRepository{db: db}
 }
 
-func (r *OrderRepository) Create(ctx context.Context, order *domain.Order) error {
+func (r *OrderRepository) Create(ctx context.Context, order *domain.Order, outboxEvent *domain.OutboxEvent) error {
 	tx, err := r.db.BeginTxx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -47,6 +47,18 @@ func (r *OrderRepository) Create(ctx context.Context, order *domain.Order) error
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert order item: %w", err)
+		}
+	}
+
+	// Save outbox event in the same transaction (atomic with order creation)
+	if outboxEvent != nil {
+		oq := `INSERT INTO outbox_events (event_id, aggregate_type, aggregate_id, event_type, status, payload, created_at, processed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+		if _, err = tx.ExecContext(ctx, oq,
+			outboxEvent.ID, outboxEvent.AggregateType, outboxEvent.AggregateID,
+			outboxEvent.EventType, outboxEvent.Status, outboxEvent.Payload,
+			outboxEvent.CreatedAt, outboxEvent.Processed,
+		); err != nil {
+			return fmt.Errorf("failed to insert outbox event: %w", err)
 		}
 	}
 
@@ -249,6 +261,75 @@ func (r *OrderRepository) GetSnapshot(ctx context.Context, snapshotID string) (*
 }
 
 // Cancellation methods
+// ExecInTx executes a function within a database transaction with SERIALIZABLE isolation.
+func (r *OrderRepository) ExecInTx(ctx context.Context, fn func(tx *sqlx.Tx) error) error {
+	tx, err := r.db.BeginTxx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		}
+	}()
+	if err := fn(tx); err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return fmt.Errorf("tx error: %v, rollback error: %w", err, rbErr)
+		}
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *OrderRepository) UpdateStatusInTx(ctx context.Context, tx *sqlx.Tx, id string, status domain.OrderStatus, version int) error {
+	query := `UPDATE orders SET status = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ? AND deleted_at IS NULL`
+	result, err := tx.ExecContext(ctx, query, status, time.Now().UTC(), id, version)
+	if err != nil {
+		return fmt.Errorf("failed to update order status: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rows == 0 {
+		return domain.ErrConcurrentModification
+	}
+	return nil
+}
+
+func (r *OrderRepository) SaveLifecycleEventInTx(ctx context.Context, tx *sqlx.Tx, event *domain.LifecycleEvent) error {
+	query := `INSERT INTO order_lifecycle_history (id, order_id, from_state, to_state, transition_reason, actor_id, actor_type, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query,
+		event.ID, event.OrderID, event.FromStatus, event.ToStatus,
+		event.TransitionReason, event.ActorID, event.ActorType, event.Metadata, event.CreatedAt,
+	)
+	return err
+}
+
+func (r *OrderRepository) SaveCancellationInTx(ctx context.Context, tx *sqlx.Tx, cancellation *domain.OrderCancellation) error {
+	query := `INSERT INTO order_cancellations (id, order_id, reason, cancelled_by, cancelled_by_type, compensation_status, refund_amount, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query,
+		cancellation.ID, cancellation.OrderID, cancellation.Reason,
+		cancellation.CancelledBy, cancellation.CancelledByType,
+		cancellation.CompensationStatus, cancellation.RefundAmount,
+		cancellation.Metadata, cancellation.CreatedAt,
+	)
+	return err
+}
+
+func (r *OrderRepository) SaveOutboxEventInTx(ctx context.Context, tx *sqlx.Tx, event *domain.OutboxEvent) error {
+	query := `INSERT INTO outbox_events (event_id, aggregate_type, aggregate_id, event_type, payload, created_at, processed) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query,
+		event.ID, event.AggregateType, event.AggregateID, event.EventType,
+		event.Payload, event.CreatedAt, event.Processed,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to save outbox event: %w", err)
+	}
+	return nil
+}
+
 func (r *OrderRepository) SaveCancellation(ctx context.Context, cancellation *domain.OrderCancellation) error {
 	query := `INSERT INTO order_cancellations (id, order_id, reason, cancelled_by, cancelled_by_type, compensation_status, refund_amount, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	_, err := r.db.ExecContext(ctx, query,

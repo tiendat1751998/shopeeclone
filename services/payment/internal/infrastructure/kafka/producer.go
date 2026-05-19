@@ -32,18 +32,18 @@ func NewProducer(cfg config.KafkaConfig) *Producer {
 func (p *Producer) PublishEvent(ctx context.Context, event *domain.PaymentEvent) error {
 	payload, err := json.Marshal(event)
 	if err != nil { return err }
-	topic := fmt.Sprintf("%s.%s", p.cfg.TopicPrefix, event.EventType)
+	topic := fmt.Sprintf("%s.%s", p.cfg.TopicPrefix, string(event.EventType))
 	msg := kafka.Message{
 		Topic:   topic,
 		Key:     []byte(event.PaymentID),
 		Value:   payload,
-		Headers: []kafka.Header{{Key: "event_type", Value: []byte(event.EventType)}},
+		Headers: []kafka.Header{{Key: "event_type", Value: []byte(string(event.EventType))}},
 	}
 	start := time.Now()
 	err = p.writer.WriteMessages(ctx, msg)
-	metrics.KafkaPublishLatency.WithLabelValues(event.EventType).Observe(time.Since(start).Seconds())
+	metrics.KafkaPublishLatency.WithLabelValues(string(event.EventType)).Observe(time.Since(start).Seconds())
 	if err != nil {
-		metrics.KafkaPublishErrors.WithLabelValues(event.EventType).Inc()
+		metrics.KafkaPublishErrors.WithLabelValues(string(event.EventType)).Inc()
 		return err
 	}
 	return nil
