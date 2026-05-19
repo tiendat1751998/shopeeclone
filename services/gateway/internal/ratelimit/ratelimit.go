@@ -69,13 +69,6 @@ func (l *RateLimiter) AllowN(ctx context.Context, key string, rate int, n int) (
 
 	res, err := l.limiter.AllowN(ctx, key, redis_rate.PerSecond(rate), n)
 	if err != nil {
-<<<<<<< HEAD
-<<<<<<< HEAD
-		observability.GetLogger().Error("rate limiter error", zap.Error(err))
-		return &LimitResult{Allowed: true, Remaining: rate, Limit: rate}, nil
-=======
-=======
->>>>>>> 95b4e78 (fix: resolve ratelimit conflict without workflow changes)
 		// [SECURITY] Fail closed - reject on Redis error
 		// This prevents rate limit bypass when Redis is down
 		observability.GetLogger().Error("rate limiter Redis error, failing closed",
@@ -88,14 +81,6 @@ func (l *RateLimiter) AllowN(ctx context.Context, key string, rate int, n int) (
 			ResetAfter: l.cfg.WindowSize,
 			Limit:      rate,
 		}, err
-<<<<<<< HEAD
->>>>>>> eb736f1 (remove make file)
-=======
-=======
-		observability.GetLogger().Error("rate limiter error", zap.Error(err))
-		return &LimitResult{Allowed: true, Remaining: rate, Limit: rate}, nil
->>>>>>> ddedd84b8e82af810c79a7f8e58aefc26c047982
->>>>>>> 95b4e78 (fix: resolve ratelimit conflict without workflow changes)
 	}
 
 	return &LimitResult{
