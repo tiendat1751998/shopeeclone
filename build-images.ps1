@@ -77,56 +77,49 @@ if (-not $SkipGo) {
                 Write-Host "`n[Go] Building docker image for $Module..." -ForegroundColor Yellow
                 $ImageName = "ghcr.io/shopee-clone/${ModuleName}:latest"
                 
-                # Check if Dockerfile contains references to shared package outside the build context
-                $DockerfileContent = Get-Content $DockerfilePath -Raw
-                $RequiresSharedPackage = $DockerfileContent -match "packages/go-shared"
+                # Handle outside-context packages safely by creating a temp directory context
+                Write-Host "Creating temporary build context for $ModuleName..." -ForegroundColor Gray
                 
-                if ($RequiresSharedPackage) {
-                    # Handle outside-context packages safely by creating a temp directory context
-                    Write-Host "-> Module requires packages/go-shared. Creating temporary build context..." -ForegroundColor Gray
-                    
-                    $TempContextDir = Join-Path $PSScriptRoot "temp_build_${ModuleName}"
-                    if (Test-Path $TempContextDir) { Remove-Item -Recurse -Force $TempContextDir }
-                    New-Item -ItemType Directory -Path $TempContextDir | Out-Null
-                    
-                    # Copy module contents and go-shared into the temporary context
-                    Copy-Item -Recurse -Force "${FullModulePath}\*" $TempContextDir
-                    
-                    $TempSharedPath = Join-Path $TempContextDir "packages/go-shared"
-                    New-Item -ItemType Directory -Path $TempSharedPath | Out-Null
-                    Copy-Item -Recurse -Force "${SharedPackagePath}\*" $TempSharedPath
-                    
-                    # Create a temporary Dockerfile adjusting the COPY path to be local
-                    $TempDockerfilePath = Join-Path $TempContextDir "Dockerfile.build"
-                    $TempDockerfileContent = $DockerfileContent -replace "COPY \.\./\.\./packages/go-shared /app/packages/go-shared", "COPY packages/go-shared /packages/go-shared"
-                    $TempDockerfileContent = $TempDockerfileContent -replace "RUN go mod download", "# RUN go mod download"
-                    $TempDockerfileContent = $TempDockerfileContent -replace "COPY \. \.", "COPY . .`nRUN go mod tidy"
-                    Set-Content -Path $TempDockerfilePath -Value $TempDockerfileContent
-                    
-                    try {
-                        & docker build -t $ImageName -f $TempDockerfilePath $TempContextDir
-                        if ($LASTEXITCODE -ne 0) {
-                            throw "Docker build failed"
-                        }
-                        Write-Host "[Go] Success: Built $ImageName" -ForegroundColor Green
-                    }
-                    catch {
-                        Write-Host "[Go] Docker build FAILED for ${Module}: $_" -ForegroundColor Red
-                        Remove-Item -Recurse -Force $TempContextDir
-                        exit 1
-                    }
-                    
-                    # Cleanup
-                    Remove-Item -Recurse -Force $TempContextDir
+                $TempContextDir = Join-Path $PSScriptRoot "temp_build_${ModuleName}"
+                if (Test-Path $TempContextDir) { Remove-Item -Recurse -Force $TempContextDir }
+                New-Item -ItemType Directory -Path $TempContextDir | Out-Null
+                
+                # Copy module contents and go-shared into the temporary context
+                Copy-Item -Recurse -Force "${FullModulePath}\*" $TempContextDir
+                
+                $TempSharedPath = Join-Path $TempContextDir "packages/go-shared"
+                New-Item -ItemType Directory -Path $TempSharedPath | Out-Null
+                Copy-Item -Recurse -Force "${SharedPackagePath}\*" $TempSharedPath
+                
+                # Create a temporary Dockerfile adjusting the COPY path to be local
+                $TempDockerfilePath = Join-Path $TempContextDir "Dockerfile.build"
+                $TempDockerfileContent = $DockerfileContent -replace "; ", "`n"
+                
+                if ($TempDockerfileContent -match "packages/go-shared") {
+                    $TempDockerfileContent = $TempDockerfileContent -replace "COPY \.\./\.\./packages/go-shared /app/packages/go-shared", "COPY packages/go-shared /packages/go-shared"
                 } else {
-                    # Build directly using module folder as context
-                    & docker build -t $ImageName -f $DockerfilePath $FullModulePath
+                    $TempDockerfileContent = $TempDockerfileContent -replace "COPY go\.mod go\.sum \./", "COPY go.mod go.sum ./`nCOPY packages/go-shared /packages/go-shared"
+                }
+                
+                $TempDockerfileContent = $TempDockerfileContent -replace "RUN go mod download", "# RUN go mod download"
+                $TempDockerfileContent = $TempDockerfileContent -replace "COPY \. \.", "COPY . .`nRUN go mod tidy"
+                Set-Content -Path $TempDockerfilePath -Value $TempDockerfileContent
+                
+                try {
+                    & docker build -t $ImageName -f $TempDockerfilePath $TempContextDir
                     if ($LASTEXITCODE -ne 0) {
-                        Write-Host "[Go] Docker build FAILED for ${Module}" -ForegroundColor Red
-                        exit 1
+                        throw "Docker build failed"
                     }
                     Write-Host "[Go] Success: Built $ImageName" -ForegroundColor Green
                 }
+                catch {
+                    Write-Host "[Go] Docker build FAILED for ${Module}: $_" -ForegroundColor Red
+                    Remove-Item -Recurse -Force $TempContextDir
+                    exit 1
+                }
+                
+                # Cleanup
+                Remove-Item -Recurse -Force $TempContextDir
             }
         }
     }

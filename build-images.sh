@@ -55,33 +55,35 @@ if [ "$SKIP_GO" = false ]; then
                 echo -e "\n\033[0;33m[Go] Building docker image for ${MODULE}...\033[0m"
                 IMAGE_NAME="ghcr.io/shopee-clone/${MODULE_NAME}:latest"
                 
-                # Check if Dockerfile requires packages/go-shared
-                if grep -q "packages/go-shared" "$DOCKERFILE_PATH"; then
-                    echo "-> Module requires packages/go-shared. Creating temporary build context..."
-                    
-                    TEMP_CONTEXT_DIR="${SCRIPT_DIR}/temp_build_${MODULE_NAME}"
-                    rm -rf "$TEMP_CONTEXT_DIR"
-                    mkdir -p "$TEMP_CONTEXT_DIR"
-                    
-                    # Copy module and shared pkg into temp context
-                    cp -r "${FULL_PATH}/"* "$TEMP_CONTEXT_DIR/"
-                    mkdir -p "${TEMP_CONTEXT_DIR}/packages/go-shared"
-                    cp -r "${SHARED_PACKAGE_PATH}/"* "${TEMP_CONTEXT_DIR}/packages/go-shared/"
-                    
-                    # Create adjusted temp Dockerfile
-                    TEMP_DOCKERFILE="${TEMP_CONTEXT_DIR}/Dockerfile.build"
-                    sed -e 's|COPY \.\./\.\./packages/go-shared /app/packages/go-shared|COPY packages/go-shared /packages/go-shared|g' \
-                        -e 's|RUN go mod download|# RUN go mod download|g' \
-                        -e 's|COPY \. \.|COPY . .\nRUN go mod tidy|g' \
-                        "$DOCKERFILE_PATH" > "$TEMP_DOCKERFILE"
-                    
-                    docker build -t "$IMAGE_NAME" -f "$TEMP_DOCKERFILE" "$TEMP_CONTEXT_DIR"
-                    
-                    # Clean up
-                    rm -rf "$TEMP_CONTEXT_DIR"
-                else
-                    docker build -t "$IMAGE_NAME" -f "$DOCKERFILE_PATH" "$FULL_PATH"
+                echo "Creating temporary build context for ${MODULE_NAME}..."
+                
+                TEMP_CONTEXT_DIR="${SCRIPT_DIR}/temp_build_${MODULE_NAME}"
+                rm -rf "$TEMP_CONTEXT_DIR"
+                mkdir -p "$TEMP_CONTEXT_DIR"
+                
+                # Copy module and shared pkg into temp context
+                cp -r "${FULL_PATH}/"* "$TEMP_CONTEXT_DIR/"
+                mkdir -p "${TEMP_CONTEXT_DIR}/packages/go-shared"
+                cp -r "${SHARED_PACKAGE_PATH}/"* "${TEMP_CONTEXT_DIR}/packages/go-shared/"
+                
+                # Create adjusted temp Dockerfile
+                TEMP_DOCKERFILE="${TEMP_CONTEXT_DIR}/Dockerfile.build"
+                sed -e 's/; /\n/g' \
+                    -e 's|COPY \.\./\.\./packages/go-shared /app/packages/go-shared|COPY packages/go-shared /packages/go-shared|g' \
+                    -e 's|RUN go mod download|# RUN go mod download|g' \
+                    -e 's|COPY \. \.|COPY . .\nRUN go mod tidy|g' \
+                    "$DOCKERFILE_PATH" > "$TEMP_DOCKERFILE"
+                
+                # Check if packages/go-shared COPY is now present, if not, inject it
+                if ! grep -q "packages/go-shared" "$TEMP_DOCKERFILE"; then
+                    sed 's|COPY go.mod go.sum ./|COPY go.mod go.sum ./\nCOPY packages/go-shared /packages/go-shared|g' "$TEMP_DOCKERFILE" > "${TEMP_DOCKERFILE}.tmp"
+                    mv "${TEMP_DOCKERFILE}.tmp" "$TEMP_DOCKERFILE"
                 fi
+                
+                docker build -t "$IMAGE_NAME" -f "$TEMP_DOCKERFILE" "$TEMP_CONTEXT_DIR"
+                
+                # Clean up
+                rm -rf "$TEMP_CONTEXT_DIR"
                 echo -e "\033[0;32m[Go] Success: Built ${IMAGE_NAME}\033[0m"
             fi
         fi
