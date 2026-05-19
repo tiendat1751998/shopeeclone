@@ -99,6 +99,8 @@ if (-not $SkipGo) {
                     # Create a temporary Dockerfile adjusting the COPY path to be local
                     $TempDockerfilePath = Join-Path $TempContextDir "Dockerfile.build"
                     $TempDockerfileContent = $DockerfileContent -replace "COPY \.\./\.\./packages/go-shared /app/packages/go-shared", "COPY packages/go-shared /packages/go-shared"
+                    $TempDockerfileContent = $TempDockerfileContent -replace "RUN go mod download", "# RUN go mod download"
+                    $TempDockerfileContent = $TempDockerfileContent -replace "COPY \. \.", "COPY . .`nRUN go mod tidy"
                     Set-Content -Path $TempDockerfilePath -Value $TempDockerfileContent
                     
                     try {
