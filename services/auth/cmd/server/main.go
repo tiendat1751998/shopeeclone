@@ -57,7 +57,7 @@ func main() {
 
 	userRepo := mysql.NewUserRepository(db)
 	sessionRepo := mysql.NewSessionRepository(db)
-	auditRepo := mysql.NewAuditRepository(db, cfg.Audit)
+	auditRepo := mysql.NewAuditRepository(context.Background(), db, cfg.Audit)
 	defer auditRepo.Stop()
 
 	redisStore := redisinfra.NewStore(redisClient, cfg.Redis)
