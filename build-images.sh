@@ -70,7 +70,7 @@ if [ "$SKIP_GO" = false ]; then
                     
                     # Create adjusted temp Dockerfile
                     TEMP_DOCKERFILE="${TEMP_CONTEXT_DIR}/Dockerfile.build"
-                    sed 's|\.\./\.\./packages/go-shared|packages/go-shared|g' "$DOCKERFILE_PATH" > "$TEMP_DOCKERFILE"
+                    sed 's|COPY \.\./\.\./packages/go-shared /app/packages/go-shared|COPY packages/go-shared /packages/go-shared|g' "$DOCKERFILE_PATH" > "$TEMP_DOCKERFILE"
                     
                     docker build -t "$IMAGE_NAME" -f "$TEMP_DOCKERFILE" "$TEMP_CONTEXT_DIR"
                     
