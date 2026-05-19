@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,7 @@ type GRPCProxy struct {
 }
 
 type GRPCConnPool struct {
+	mu    sync.RWMutex
 	conns map[string]*grpc.ClientConn
 }
 
@@ -33,6 +35,14 @@ func NewGRPCConnPool() *GRPCConnPool {
 }
 
 func (p *GRPCConnPool) GetConn(target string) (*grpc.ClientConn, error) {
+	p.mu.RLock()
+	conn, ok := p.conns[target]
+	p.mu.RUnlock()
+	if ok {
+		return conn, nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if conn, ok := p.conns[target]; ok {
 		return conn, nil
 	}
@@ -53,6 +63,15 @@ func (p *GRPCConnPool) GetConn(target string) (*grpc.ClientConn, error) {
 
 	p.conns[target] = conn
 	return conn, nil
+}
+
+func (p *GRPCConnPool) Close() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for target, conn := range p.conns {
+		conn.Close()
+		delete(p.conns, target)
+	}
 }
 
 func NewGRPCProxy(svcDiscovery *discovery.ServiceDiscovery) *GRPCProxy {

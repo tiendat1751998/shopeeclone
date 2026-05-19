@@ -81,16 +81,6 @@ type UpstreamConfig struct {
 	DefaultTimeout      time.Duration
 	MaxIdleConns        int
 	IdleConnTimeout     time.Duration
-	MaxRetries          int
-	CircuitBreaker      CircuitBreakerConfig
-}
-
-type CircuitBreakerConfig struct {
-	MaxRequests  uint32
-	Interval     time.Duration
-	Timeout      time.Duration
-	FailureRatio float64
-	MinSamples   uint32
 }
 
 type CORSConfig struct {
@@ -173,14 +163,6 @@ func Load() *Config {
 			DefaultTimeout:       getEnvDuration("UPSTREAM_DEFAULT_TIMEOUT", 30*time.Second),
 			MaxIdleConns:         getEnvInt("UPSTREAM_MAX_IDLE_CONNS", 100),
 			IdleConnTimeout:      getEnvDuration("UPSTREAM_IDLE_CONN_TIMEOUT", 90*time.Second),
-			MaxRetries:           getEnvInt("UPSTREAM_MAX_RETRIES", 2),
-			CircuitBreaker: CircuitBreakerConfig{
-				MaxRequests:  uint32(getEnvInt("CB_MAX_REQUESTS", 5)),
-				Interval:     getEnvDuration("CB_INTERVAL", 60*time.Second),
-				Timeout:      getEnvDuration("CB_TIMEOUT", 30*time.Second),
-				FailureRatio: getEnvFloat("CB_FAILURE_RATIO", 0.6),
-				MinSamples:   uint32(getEnvInt("CB_MIN_SAMPLES", 5)),
-			},
 		},
 
 		CORS: CORSConfig{

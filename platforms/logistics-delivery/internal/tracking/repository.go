@@ -44,7 +44,7 @@ func (r *PostgresRepository) GetTimeline(ctx context.Context, shipmentID string)
 	rows, err := r.pool.Query(ctx, `SELECT
 		id, shipment_id, event_type, lat, lng, location_name, location_address,
 		description, courier_data, replay_id, occurred_at, created_at
-		FROM tracking_events WHERE shipment_id=$1 ORDER BY occurred_at ASC`, shipmentID)
+		FROM tracking_events WHERE shipment_id=$1 ORDER BY occurred_at ASC LIMIT 200`, shipmentID)
 	if err != nil {
 		return nil, err
 	}

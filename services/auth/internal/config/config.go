@@ -121,11 +121,12 @@ type OTELConfig struct {
 }
 
 type AuditConfig struct {
-	Enabled     bool
-	Driver      string
-	LogLevel    string
+	Enabled       bool
+	Driver        string
+	LogLevel      string
 	FlushInterval time.Duration
-	BatchSize   int
+	BatchSize     int
+	MaxBufferSize int
 }
 
 func Load() *Config {
@@ -225,6 +226,7 @@ func Load() *Config {
 			LogLevel:      getEnv("AUDIT_LOG_LEVEL", "info"),
 			FlushInterval: getEnvDuration("AUDIT_FLUSH_INTERVAL", 5*time.Second),
 			BatchSize:     getEnvInt("AUDIT_BATCH_SIZE", 100),
+			MaxBufferSize: getEnvInt("AUDIT_MAX_BUFFER_SIZE", 10000),
 		},
 	}
 }

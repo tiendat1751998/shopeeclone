@@ -14,13 +14,17 @@ import (
 type Cache struct {
 	client *redis.Client
 	prefix string
+	sem    chan struct{}
 }
+
+const maxConcurrentCacheWrites = 100
 
 // NewCache creates a new Redis cache
 func NewCache(client *redis.Client) *Cache {
 	return &Cache{
 		client: client,
 		prefix: "product:",
+		sem:    make(chan struct{}, maxConcurrentCacheWrites),
 	}
 }
 
@@ -75,12 +79,17 @@ func (c *Cache) GetOrFetch(ctx context.Context, key string, ttl time.Duration, f
 		return nil, nil
 	}
 
-	// Cache the result (fire and forget)
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		c.Set(ctx, key, product, ttl)
-	}()
+	// Cache the result (bounded concurrency)
+	select {
+	case c.sem <- struct{}{}:
+		go func() {
+			defer func() { <-c.sem }()
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			c.Set(ctx, key, product, ttl)
+		}()
+	default:
+	}
 
 	return product, nil
 }
@@ -106,13 +115,18 @@ func (c *Cache) GetOrFetchCategory(ctx context.Context, key string, ttl time.Dur
 		return nil, nil
 	}
 
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		if data, err := json.Marshal(category); err == nil {
-			c.client.Set(ctx, c.prefix+key, data, ttl)
-		}
-	}()
+	select {
+	case c.sem <- struct{}{}:
+		go func() {
+			defer func() { <-c.sem }()
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if data, err := json.Marshal(category); err == nil {
+				c.client.Set(ctx, c.prefix+key, data, ttl)
+			}
+		}()
+	default:
+	}
 
 	return category, nil
 }
@@ -138,13 +152,18 @@ func (c *Cache) GetOrFetchTree(ctx context.Context, key string, ttl time.Duratio
 		return nil, nil
 	}
 
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		if data, err := json.Marshal(tree); err == nil {
-			c.client.Set(ctx, c.prefix+key, data, ttl)
-		}
-	}()
+	select {
+	case c.sem <- struct{}{}:
+		go func() {
+			defer func() { <-c.sem }()
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if data, err := json.Marshal(tree); err == nil {
+				c.client.Set(ctx, c.prefix+key, data, ttl)
+			}
+		}()
+	default:
+	}
 
 	return tree, nil
 }
@@ -152,14 +171,21 @@ func (c *Cache) GetOrFetchTree(ctx context.Context, key string, ttl time.Duratio
 // DeleteTree invalidates the category tree cache
 func (c *Cache) DeleteTree(ctx context.Context) error {
 	iter := c.client.Scan(ctx, 0, c.prefix+"category:tree*", 100).Iterator()
-	var keys []string
+	batchSize := 100
+	keys := make([]string, 0, batchSize)
 	for iter.Next(ctx) {
 		keys = append(keys, iter.Val())
+		if len(keys) >= batchSize {
+			if err := c.client.Del(ctx, keys...).Err(); err != nil {
+				return err
+			}
+			keys = keys[:0]
+		}
 	}
 	if len(keys) > 0 {
 		return c.client.Del(ctx, keys...).Err()
 	}
-	return nil
+	return iter.Err()
 }
 
 // Ensure interfaces are satisfied

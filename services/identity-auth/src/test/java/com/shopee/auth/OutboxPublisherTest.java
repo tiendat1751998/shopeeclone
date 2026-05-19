@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -53,7 +54,7 @@ class OutboxPublisherTest {
     @Test
     void markProcessed_UpdatesEvent() {
         OutboxEvent event = OutboxEvent.builder()
-            .eventId(java.util.UUID.randomUUID())
+            .eventId(UUID.randomUUID())
             .processed(false)
             .retryCount(0)
             .build();
@@ -68,7 +69,7 @@ class OutboxPublisherTest {
     @Test
     void markFailed_IncrementsRetryCount() {
         OutboxEvent event = OutboxEvent.builder()
-            .eventId(java.util.UUID.randomUUID())
+            .eventId(UUID.randomUUID())
             .processed(false)
             .retryCount(0)
             .build();

@@ -27,12 +27,12 @@ export function Header() {
               Notifications
             </Link>
             <Link href="/help" className="hover:text-white">Help</Link>
-            {isAuthenticated ? (
+            {isAuthenticated && user ? (
               <Link href="/account" className="hover:text-white flex items-center gap-1">
                 <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold">
-                  {user?.display_name?.charAt(0)?.toUpperCase() || "U"}
+                  {(user.display_name?.charAt(0) ?? "U").toUpperCase()}
                 </div>
-                <span className="hidden sm:inline">{user?.display_name || "Account"}</span>
+                <span className="hidden sm:inline">{user.display_name ?? "Account"}</span>
               </Link>
             ) : (
               <div className="flex items-center gap-2">

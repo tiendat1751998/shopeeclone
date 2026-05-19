@@ -1,6 +1,7 @@
 package com.shopee.auth.grpc;
 
 import com.shopee.auth.service.AuthService;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +31,7 @@ public class AuthGrpcServer {
         } catch (Exception e) {
             log.error("gRPC validate token failed", e);
             responseObserver.onError(
-                io.grpc.Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException()
+                Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException()
             );
         }
     }

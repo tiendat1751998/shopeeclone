@@ -30,6 +30,7 @@ type CampaignRepository interface {
 
 type PricingRuleRepository interface {
 	FindByCampaign(ctx context.Context, campaignID string) ([]*PricingRule, error)
+	FindByCampaigns(ctx context.Context, campaignIDs []string) (map[string][]*PricingRule, error)
 	Create(ctx context.Context, rule *PricingRule) error
 	Update(ctx context.Context, rule *PricingRule) error
 }

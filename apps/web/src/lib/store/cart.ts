@@ -3,6 +3,16 @@ import { persist } from "zustand/middleware";
 import type { CartItem } from "@/lib/types";
 import { cartApi } from "@/lib/api/cart";
 
+const MAX_QUANTITY = 99;
+const MIN_QUANTITY = 1;
+
+function clampQuantity(qty: number, stock: number): number {
+  if (!Number.isFinite(qty) || qty < MIN_QUANTITY) return MIN_QUANTITY;
+  if (qty > stock) return Math.max(MIN_QUANTITY, stock);
+  if (qty > MAX_QUANTITY) return MAX_QUANTITY;
+  return qty;
+}
+
 interface CartState {
   items: CartItem[];
   isLoading: boolean;
@@ -27,41 +37,50 @@ export const useCartStore = create<CartState>()(
       error: null,
 
       fetchCart: async () => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
         try {
           const cart = await cartApi.get();
-          set({ items: cart.items, isLoading: false });
-        } catch {
-          set({ isLoading: false });
+          set({ items: cart.items || [], isLoading: false });
+        } catch (e: unknown) {
+          set({ isLoading: false, error: e instanceof Error ? e.message : "Failed to fetch cart" });
         }
       },
 
       addItem: async (productId, skuId, quantity) => {
+        const safeQty = clampQuantity(quantity, MAX_QUANTITY);
         set({ isLoading: true, error: null });
         try {
-          const cart = await cartApi.addItem(productId, skuId, quantity);
-          set({ items: cart.items, isLoading: false });
+          const cart = await cartApi.addItem(productId, skuId, safeQty);
+          set({ items: cart.items || [], isLoading: false });
         } catch (e: unknown) {
-          const msg = e instanceof Error ? e.message : "Failed to add item";
-          set({ isLoading: false, error: msg });
+          set({ isLoading: false, error: e instanceof Error ? e.message : "Failed to add item" });
         }
       },
 
       updateQuantity: async (itemId, quantity) => {
-        if (quantity < 1) { get().removeItem(itemId); return; }
-        set({ isLoading: true });
+        if (quantity < MIN_QUANTITY) {
+          await get().removeItem(itemId);
+          return;
+        }
+        const item = get().items.find((i) => i.id === itemId);
+        const safeQty = clampQuantity(quantity, item?.stock ?? MAX_QUANTITY);
+        set({ isLoading: true, error: null });
         try {
-          const cart = await cartApi.updateItem(itemId, quantity);
-          set({ items: cart.items, isLoading: false });
-        } catch { set({ isLoading: false }); }
+          const cart = await cartApi.updateItem(itemId, safeQty);
+          set({ items: cart.items || [], isLoading: false });
+        } catch (e: unknown) {
+          set({ isLoading: false, error: e instanceof Error ? e.message : "Failed to update quantity" });
+        }
       },
 
       removeItem: async (itemId) => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
         try {
           const cart = await cartApi.removeItem(itemId);
-          set({ items: cart.items, isLoading: false });
-        } catch { set({ isLoading: false }); }
+          set({ items: cart.items || [], isLoading: false });
+        } catch (e: unknown) {
+          set({ isLoading: false, error: e instanceof Error ? e.message : "Failed to remove item" });
+        }
       },
 
       toggleSelect: (itemId) => {
@@ -69,20 +88,31 @@ export const useCartStore = create<CartState>()(
       },
 
       toggleSelectAll: () => {
-        const allSelected = get().items.every((i) => i.is_selected);
+        const allSelected = get().items.length > 0 && get().items.every((i) => i.is_selected);
         set({ items: get().items.map((i) => ({ ...i, is_selected: !allSelected })) });
       },
 
       clearCart: async () => {
         try { await cartApi.clear(); } catch { /* ignore */ }
-        set({ items: [] });
+        set({ items: [], error: null });
       },
 
       selectedItems: () => get().items.filter((i) => i.is_selected),
 
-      subtotal: () => get().items.filter((i) => i.is_selected).reduce((sum, i) => sum + i.price * i.quantity, 0),
+      subtotal: () =>
+        get().items
+          .filter((i) => i.is_selected)
+          .reduce((sum, i) => {
+            const price = Number.isFinite(i.price) && i.price >= 0 ? i.price : 0;
+            const qty = Number.isFinite(i.quantity) && i.quantity > 0 ? i.quantity : 0;
+            return sum + price * qty;
+          }, 0),
 
-      totalItems: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
+      totalItems: () =>
+        get().items.reduce((sum, i) => {
+          const qty = Number.isFinite(i.quantity) && i.quantity > 0 ? i.quantity : 0;
+          return sum + qty;
+        }, 0),
     }),
     { name: "shopee-cart", partialize: (state) => ({ items: state.items }) }
   )

@@ -1,7 +1,10 @@
 package com.shopee.auth.config;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.baggage.propagation.W3CBaggagePropagator;
 import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.context.propagation.TextMapPropagator;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
@@ -47,10 +50,10 @@ public class OpenTelemetryConfig {
 
         return OpenTelemetrySdk.builder()
             .setTracerProvider(tracerProvider)
-            .setPropagators(io.opentelemetry.context.propagation.ContextPropagators.create(
+            .setPropagators(ContextPropagators.create(
                 TextMapPropagator.composite(
-                    io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator.getInstance(),
-                    io.opentelemetry.api.baggage.propagation.W3CBaggagePropagator.getInstance()
+                    W3CTraceContextPropagator.getInstance(),
+                    W3CBaggagePropagator.getInstance()
                 )
             ))
             .build();

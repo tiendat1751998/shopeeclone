@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -21,41 +22,41 @@ public class AuthMetrics {
 
     public AuthMetrics(MeterRegistry registry) {
         this.registrations = Counter.builder("shopee.auth.registrations")
-            .description("Total successful registrations")
-            .register(registry);
+                .description("Total successful registrations")
+                .register(registry);
 
         this.logins = Counter.builder("shopee.auth.logins")
-            .description("Total successful logins")
-            .register(registry);
+                .description("Total successful logins")
+                .register(registry);
 
         this.loginFailures = Counter.builder("shopee.auth.login.failures")
-            .description("Total failed login attempts")
-            .tag("reason", "unknown")
-            .register(registry);
+                .description("Total failed login attempts")
+                .tag("reason", "unknown")
+                .register(registry);
 
         this.registrationFailures = Counter.builder("shopee.auth.registration.failures")
-            .description("Total failed registrations")
-            .tag("reason", "unknown")
-            .register(registry);
+                .description("Total failed registrations")
+                .tag("reason", "unknown")
+                .register(registry);
 
         this.tokenRefreshes = Counter.builder("shopee.auth.token.refreshes")
-            .description("Total successful token refreshes")
-            .register(registry);
+                .description("Total successful token refreshes")
+                .register(registry);
 
         this.tokenRefreshFailures = Counter.builder("shopee.auth.token.refresh.failures")
-            .description("Total failed token refreshes")
-            .tag("reason", "unknown")
-            .register(registry);
+                .description("Total failed token refreshes")
+                .tag("reason", "unknown")
+                .register(registry);
 
         this.loginDuration = Timer.builder("shopee.auth.login.duration")
-            .description("Login request duration")
-            .publishPercentiles(0.5, 0.9, 0.95, 0.99)
-            .register(registry);
+                .description("Login request duration")
+                .publishPercentiles(0.5, 0.9, 0.95, 0.99)
+                .register(registry);
 
         this.registrationDuration = Timer.builder("shopee.auth.registration.duration")
-            .description("Registration request duration")
-            .publishPercentiles(0.5, 0.9, 0.95, 0.99)
-            .register(registry);
+                .description("Registration request duration")
+                .publishPercentiles(0.5, 0.9, 0.95, 0.99)
+                .register(registry);
     }
 
     public void incrementRegistrations() {
@@ -82,11 +83,25 @@ public class AuthMetrics {
         tokenRefreshFailures.increment();
     }
 
-    public <T> T recordLoginDuration(java.util.concurrent.Callable<T> callable) throws Exception {
-        return loginDuration.recordCallable(callable);
+    public <T> T recordLoginDuration(Callable<T> callable) {
+        try {
+            return loginDuration.recordCallable(callable);
+        } catch (Exception e) {
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            }
+            throw new RuntimeException(e);
+        }
     }
 
-    public <T> T recordRegistrationDuration(java.util.concurrent.Callable<T> callable) throws Exception {
-        return registrationDuration.recordCallable(callable);
+    public <T> T recordRegistrationDuration(Callable<T> callable) {
+        try {
+            return registrationDuration.recordCallable(callable);
+        } catch (Exception e) {
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            }
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -3,7 +3,7 @@ import ("context"; "encoding/json"; "time"; "github.com/segmentio/kafka-go"; "gi
 const TopicCatalogEvents = "catalog.events"
 type Producer struct { writer *kafka.Writer; service string }
 func NewProducer(brokers []string, service string) *Producer {
-	return &Producer{writer: &kafka.Writer{Addr: kafka.TCP(brokers...), Balancer: &kafka.Hash{}, BatchTimeout: 10 * time.Millisecond, BatchSize: 100, Async: false, RequiredAcks: kafka.RequireAll, MaxAttempts: 3}, service: service}
+	return &Producer{writer: &kafka.Writer{Addr: kafka.TCP(brokers...), Balancer: &kafka.Hash{}, BatchTimeout: 10 * time.Millisecond, WriteTimeout: 10 * time.Second, BatchSize: 100, Async: false, RequiredAcks: kafka.RequireAll, MaxAttempts: 3}, service: service}
 }
 func (p *Producer) Publish(ctx context.Context, event *domain.CatalogEvent) error {
 	data, _ := json.Marshal(event)

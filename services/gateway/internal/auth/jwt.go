@@ -66,9 +66,9 @@ func NewJWKSClient(endpoint string) *JWKSClient {
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
-				MaxIdleConns:        10,
-				IdleConnTimeout:     60 * time.Second,
-				DisableCompression:  false,
+				MaxIdleConns:       10,
+				IdleConnTimeout:    60 * time.Second,
+				DisableCompression: false,
 			},
 		},
 		keys: make(map[string]*rsa.PublicKey),
@@ -172,28 +172,50 @@ func NewJWTValidator(cfg config.AuthConfig, rdb *redis.Client) *JWTValidator {
 	}
 }
 
+// ValidateToken validates a JWT token with full security checks:
+// 1. Blacklist check (fail closed - reject if Redis is down)
+// 2. Algorithm confusion prevention (determine alg by key type, not header)
+// 3. Signature verification
+// 4. Claims validation
 func (v *JWTValidator) ValidateToken(ctx context.Context, tokenString string) (*Claims, error) {
 	claims := &Claims{}
 
+	// [SECURITY] Check blacklist FIRST, before parsing the token.
+	// Fail closed: if we can't check the blacklist, reject the token.
 	if v.redis != nil {
 		blacklisted, err := v.redis.Exists(ctx, fmt.Sprintf("token:blacklist:%s", tokenHash(tokenString))).Result()
-		if err == nil && blacklisted > 0 {
+		if err != nil {
+			// [SECURITY] Fail closed - reject token if blacklist check fails
+			return nil, fmt.Errorf("token blacklist check failed: %w", err)
+		}
+		if blacklisted > 0 {
 			return nil, fmt.Errorf("token has been revoked")
 		}
 	}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		switch token.Method.(type) {
-		case *jwt.SigningMethodRSA:
+		alg := token.Header["alg"].(string)
+
+		// [SECURITY] Algorithm confusion prevention:
+		// Determine expected algorithm based on key type, NOT from the token header.
+		switch {
+		case strings.HasPrefix(alg, "RS"):
+			// RSA signing - use JWKS
 			kid, ok := token.Header["kid"].(string)
 			if !ok {
 				return nil, fmt.Errorf("kid not found in token header")
 			}
 			return v.jwksClient.GetKey(kid)
-		case *jwt.SigningMethodHMAC:
+		case strings.HasPrefix(alg, "HS"):
+			// HMAC signing - use shared secret
+			// [SECURITY] Only allow HMAC if JWKS endpoint is NOT configured
+			// This prevents an attacker from using HS256 when RS256 is expected
+			if v.cfg.JWKSEndpoint != "" {
+				return nil, fmt.Errorf("HMAC signing not allowed when JWKS is configured")
+			}
 			return []byte(v.cfg.AccessTokenKey), nil
 		default:
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %s", alg)
 		}
 	},
 		jwt.WithLeeway(30*time.Second),

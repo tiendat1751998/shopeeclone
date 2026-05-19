@@ -1,6 +1,9 @@
 package com.shopee.auth.repository;
 
 import com.shopee.auth.entity.FailedLoginAttempt;
+
+import jakarta.transaction.Transactional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -16,4 +19,7 @@ public interface FailedLoginRepository extends JpaRepository<FailedLoginAttempt,
     int countByIpAddressAndAttemptedAtAfter(String ipAddress, LocalDateTime after);
 
     void deleteByAttemptedAtBefore(LocalDateTime before);
+
+    @Transactional
+    void deleteByEmail(String email);
 }

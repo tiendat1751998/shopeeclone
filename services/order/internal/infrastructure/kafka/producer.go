@@ -20,10 +20,11 @@ type Producer struct {
 
 func NewProducer(cfg config.KafkaConfig) *Producer {
 	writer := &kafka.Writer{
-		Addr:         kafka.TCP(cfg.Brokers...),
-		Balancer:     &kafka.LeastBytes{},
-		BatchTimeout: 10 * time.Millisecond,
-		Async:        false,
+		Addr:          kafka.TCP(cfg.Brokers...),
+		Balancer:      &kafka.LeastBytes{},
+		BatchTimeout:  10 * time.Millisecond,
+		WriteTimeout:  10 * time.Second,
+		Async:         false,
 	}
 	return &Producer{writer: writer, cfg: cfg}
 }

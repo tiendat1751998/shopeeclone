@@ -55,6 +55,6 @@ func (r *DeliveryLogRepository) Create(ctx context.Context, log *domain.Delivery
 	_, err := r.db.ExecContext(ctx, query, log.ID, log.NotificationID, log.Channel, log.Provider, log.Status, log.ErrorMsg, log.AttemptCount, log.CreatedAt); return err
 }
 func (r *DeliveryLogRepository) FindByNotificationID(ctx context.Context, notificationID string) ([]*domain.DeliveryLog, error) {
-	var logs []*domain.DeliveryLog; err := r.db.SelectContext(ctx, &logs, "SELECT * FROM delivery_logs WHERE notification_id = ? ORDER BY created_at DESC", notificationID)
+	var logs []*domain.DeliveryLog; err := r.db.SelectContext(ctx, &logs, "SELECT * FROM delivery_logs WHERE notification_id = ? ORDER BY created_at DESC LIMIT 100", notificationID)
 	return logs, err
 }

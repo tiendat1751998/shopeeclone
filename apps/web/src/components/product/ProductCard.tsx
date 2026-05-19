@@ -14,6 +14,9 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
     ? Math.min(...product.skus.map((s) => s.price))
     : 0;
   const hasDiscount = product.skus?.some((s) => s.compare_price > s.price);
+  const discountPercent = hasDiscount && product.skus
+    ? Math.round((1 - lowestPrice / (product.skus[0].compare_price || lowestPrice)) * 100)
+    : 0;
 
   return (
     <Link href={`/products/${product.id}`} className="card group hover:shadow-md transition-shadow duration-200 block">
@@ -26,7 +29,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
           className="object-cover group-hover:scale-105 transition-transform duration-300"
           priority={priority}
         />
-        {hasDiscount && <Badge variant="sale" className="absolute top-2 left-2">-{Math.round((1 - lowestPrice / (product.skus?.[0]?.compare_price || lowestPrice)) * 100)}%</Badge>}
+        {hasDiscount && discountPercent > 0 && <Badge variant="sale" className="absolute top-2 left-2">-{discountPercent}%</Badge>}
         {product.shop?.is_official && <Badge variant="official" className="absolute top-2 right-2">Official</Badge>}
       </div>
       <div className="p-3">
