@@ -91,8 +91,26 @@ if [ "$SKIP_GO" = false ]; then
                 sed -e 's/; /\n/g' \
                     -e 's|COPY \.\./\.\./packages/go-shared /app/packages/go-shared|COPY packages/go-shared /packages/go-shared|g' \
                     -e 's|RUN go mod download|# RUN go mod download|g' \
-                    -e 's|COPY \. \.|COPY . .\nRUN go mod tidy|g' \
-                    "$DOCKERFILE_PATH" > "$TEMP_DOCKERFILE"
+                    "$DOCKERFILE_PATH" > "${TEMP_DOCKERFILE}.tmp"
+                
+                # Safely inject the protoc builder step replacing COPY . .
+                awk '/COPY \. \./ {
+                    print "COPY . ."
+                    print "RUN apk add --no-cache protobuf-dev protoc git && \\"
+                    print "    go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \\"
+                    print "    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \\"
+                    print "    git clone --depth 1 https://github.com/bufbuild/protoc-gen-validate.git /tmp/validate && \\"
+                    print "    if [ -d \"/proto/shopee/catalog/v1\" ]; then \\"
+                    print "        mkdir -p /proto/catalog/v1 && \\"
+                    print "        protoc --proto_path=/proto/shopee --proto_path=/tmp/validate --proto_path=/usr/include --go_out=/proto --go_opt=module=github.com/shopee-clone/shopee/proto --go-grpc_out=/proto --go-grpc_opt=module=github.com/shopee-clone/shopee/proto /proto/shopee/catalog/v1/catalog.proto; \\"
+                    print "    fi && \\"
+                    print "    find . -name \"*.proto\" -type f | while read f; do \\"
+                    print "        protoc --proto_path=. --proto_path=/tmp/validate --proto_path=/usr/include --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \"$$f\"; \\"
+                    print "    done"
+                    print "RUN go mod tidy"
+                    next
+                }1' "${TEMP_DOCKERFILE}.tmp" > "$TEMP_DOCKERFILE"
+                rm -f "${TEMP_DOCKERFILE}.tmp"
                 
                 # Check if packages/go-shared COPY is now present, if not, inject it
                 if ! grep -q "packages/go-shared" "$TEMP_DOCKERFILE"; then
