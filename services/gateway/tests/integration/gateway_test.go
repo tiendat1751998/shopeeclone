@@ -75,7 +75,7 @@ func setupTestRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
-	router := routing.NewRouter(cfg, proxy, rateLimiter, authMiddleware, svcDiscovery, healthChecker)
+	router := routing.NewRouter(cfg, proxy, rateLimiter, authMiddleware, svcDiscovery, healthChecker, nil)
 	router.Setup(engine)
 
 	return engine

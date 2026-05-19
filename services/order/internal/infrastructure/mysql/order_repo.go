@@ -63,6 +63,12 @@ func (r *OrderRepository) FindByID(ctx context.Context, id string) (*domain.Orde
 	if err != nil {
 		return nil, fmt.Errorf("find order by id: %w", err)
 	}
+
+	items, err := r.FindItemsByOrderID(ctx, id)
+	if err == nil {
+		order.Items = items
+	}
+
 	return &order, nil
 }
 
@@ -84,16 +90,6 @@ func (r *OrderRepository) FindByIDs(ctx context.Context, ids []string) (map[stri
 		result[o.ID] = o
 	}
 	return result, nil
-}
-		return nil, fmt.Errorf("failed to find order: %w", err)
-	}
-
-	items, err := r.FindItemsByOrderID(ctx, id)
-	if err == nil {
-		order.Items = items
-	}
-
-	return &order, nil
 }
 
 func (r *OrderRepository) FindByOrderNumber(ctx context.Context, orderNumber string) (*domain.Order, error) {
