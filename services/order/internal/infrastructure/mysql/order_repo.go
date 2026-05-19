@@ -304,14 +304,14 @@ func (r *OrderRepository) SaveSellerSplit(ctx context.Context, split *domain.Sel
 
 // Idempotency methods
 func (r *OrderRepository) SaveIdempotencyKey(ctx context.Context, record *domain.IdempotencyRecord) error {
-	query := `INSERT INTO idempotency_keys (`key`, order_id, expires_at, created_at) VALUES (?, ?, ?, ?)`
+	query := "INSERT INTO idempotency_keys (`key`, order_id, expires_at, created_at) VALUES (?, ?, ?, ?)"
 	_, err := r.db.ExecContext(ctx, query, record.Key, record.OrderID, record.ExpiresAt, record.CreatedAt)
 	return err
 }
 
 func (r *OrderRepository) GetIdempotencyKey(ctx context.Context, key string) (*domain.IdempotencyRecord, error) {
 	var record domain.IdempotencyRecord
-	query := `SELECT * FROM idempotency_keys WHERE `key` = ?`
+	query := "SELECT * FROM idempotency_keys WHERE `key` = ?"
 	if err := r.db.GetContext(ctx, &record, query, key); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

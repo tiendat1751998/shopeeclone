@@ -20,7 +20,7 @@ import (
 	"github.com/shopee-clone/shopee/services/order/internal/infrastructure/mysql"
 	redisinfra "github.com/shopee-clone/shopee/services/order/internal/infrastructure/redis"
 	"github.com/shopee-clone/shopee/services/order/internal/tracing"
-	"github.com/shopee-clone/shopee/services/order/internal/transport/grpc"
+	orderGrpc "github.com/shopee-clone/shopee/services/order/internal/transport/grpc"
 	httptransport "github.com/shopee-clone/shopee/services/order/internal/transport/http"
 	"github.com/shopee-clone/shopee/services/order/internal/transport/http/middleware"
 	pb "github.com/shopee-clone/shopee/services/order/proto/order/v1"
@@ -93,7 +93,7 @@ func main() {
 
 	// Setup gRPC
 	grpcServer := grpc.NewServer()
-	grpcOrderServer := grpc.NewOrderGRPCServer(orderService)
+	grpcOrderServer := orderGrpc.NewOrderGRPCServer(orderService)
 	pb.RegisterOrderServiceServer(grpcServer, grpcOrderServer)
 	grpc_health_v1.RegisterHealthServer(grpcServer, &grpcHealthServer{})
 	reflection.Register(grpcServer)

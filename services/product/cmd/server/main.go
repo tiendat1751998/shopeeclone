@@ -14,7 +14,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
-	"github.com/segmentio/kafka-go"
+	segmentioKafka "github.com/segmentio/kafka-go"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
@@ -24,7 +24,7 @@ import (
 	catalogHttp "github.com/shopee-clone/shopee/services/product/internal/transport/http"
 	"github.com/shopee-clone/shopee/services/product/internal/infrastructure/kafka"
 	"github.com/shopee-clone/shopee/services/product/internal/infrastructure/mysql"
-	"github.com/shopee-clone/shopee/services/product/internal/infrastructure/redis"
+	redisinfra "github.com/shopee-clone/shopee/services/product/internal/infrastructure/redis"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -75,7 +75,7 @@ func main() {
 	moderationRepo := mysql.NewModerationRepo(db)
 
 	// Cache
-	cache := redis.NewCache(redisClient)
+	cache := redisinfra.NewCache(redisClient)
 
 	// Services
 	productService := application.NewProductService(productRepo, cache, kafkaProducer)
@@ -94,7 +94,7 @@ func main() {
 	// [RELIABILITY] Deep health check — verify Kafka connectivity
 	healthChecker.AddCheck("kafka", func(ctx context.Context) error {
 		// Try to read metadata from Kafka to verify connectivity
-		conn, err := kafka.DialContext(ctx, "tcp", cfg.Kafka.Brokers[0])
+		conn, err := segmentioKafka.DialContext(ctx, "tcp", cfg.Kafka.Brokers[0])
 		if err != nil {
 			return fmt.Errorf("kafka dial failed: %w", err)
 		}
