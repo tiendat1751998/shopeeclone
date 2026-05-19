@@ -117,7 +117,7 @@ func (r *PaymentRepository) SaveIdempotencyKey(ctx context.Context, record *doma
 
 func (r *PaymentRepository) GetIdempotencyKey(ctx context.Context, key string) (*domain.IdempotencyRecord, error) {
 	var record domain.IdempotencyRecord
-	if err := r.db.GetContext(ctx, &record, "SELECT * FROM idempotency_keys WHERE ` + "`key`" + ` = ?", key); err != nil {
+	if err := r.db.GetContext(ctx, &record, "SELECT * FROM idempotency_keys WHERE `key` = ?", key); err != nil {
 		if err == sql.ErrNoRows { return nil, nil }
 		return nil, err
 	}

@@ -1,5 +1,5 @@
 package application
-import ("context"; "encoding/json"; "fmt"; "time"; "github.com/shopee-clone/shopee/services/product-catalog/internal/domain"; "github.com/shopee-clone/shopee/services/product-catalog/internal/infrastructure/redis"; "github.com/shopee-clone/shopee/services/product-catalog/internal/metrics"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"; "go.opentelemetry.io/otel"; "go.opentelemetry.io/otel/attribute"; "go.uber.org/zap")
+import ("context"; "encoding/json"; "time"; "github.com/shopee-clone/shopee/services/product-catalog/internal/domain"; "github.com/shopee-clone/shopee/services/product-catalog/internal/infrastructure/redis"; "github.com/shopee-clone/shopee/services/product-catalog/internal/metrics"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"; "go.opentelemetry.io/otel"; "go.opentelemetry.io/otel/attribute"; "go.uber.org/zap")
 
 type CatalogService struct {
 	productRepo  domain.ProductRepository

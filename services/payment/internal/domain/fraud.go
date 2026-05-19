@@ -19,8 +19,7 @@ type FraudCheckResult struct {
 
 func NewFraudCheckResult(paymentID, userID string, riskScore int, isFraud bool) *FraudCheckResult {
 	level := "low"
-	if riskScore >= 80 { level = "high" }
-	else if riskScore >= 50 { level = "medium" }
+	if riskScore >= 80 { level = "high" } else if riskScore >= 50 { level = "medium" }
 	return &FraudCheckResult{
 		ID:        uuid.New().String(),
 		PaymentID: paymentID,
