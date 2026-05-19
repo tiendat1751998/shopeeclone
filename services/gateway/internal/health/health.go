@@ -1,10 +1,12 @@
 package health
 
 import (
+	"context"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/gateway/internal/discovery"
 	"go.uber.org/zap"
@@ -12,10 +14,11 @@ import (
 
 type GatewayHealth struct {
 	discovery *discovery.ServiceDiscovery
+	redis     *redis.Client
 }
 
-func NewGatewayHealth(d *discovery.ServiceDiscovery) *GatewayHealth {
-	return &GatewayHealth{discovery: d}
+func NewGatewayHealth(d *discovery.ServiceDiscovery, rdb *redis.Client) *GatewayHealth {
+	return &GatewayHealth{discovery: d, redis: rdb}
 }
 
 type UpstreamHealth struct {
@@ -61,9 +64,29 @@ func countHealthy(results []UpstreamHealth) int {
 	return count
 }
 
+// [FIX A5] RedisHealthCheck now actually checks Redis connectivity.
+// Previously it always returned nil (healthy), even when Redis was down.
+// This caused load balancers to never detect Redis failures.
 func RedisHealthCheck(addr string) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
-		// TODO: implement actual Redis health check using addr
+		if addr == "" {
+			return fmt.Errorf("redis address is empty")
+		}
+
+		// Create a temporary client for health check
+		client := redis.NewClient(&redis.Options{
+			Addr:     addr,
+			Timeout:  5 * time.Second,
+		})
+		defer client.Close()
+
+		// Actually ping Redis
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		if err := client.Ping(ctx).Err(); err != nil {
+			return fmt.Errorf("redis ping failed: %w", err)
+		}
 		return nil
 	}
 }

@@ -40,7 +40,7 @@ func JWTAuth(cfg config.JWTConfig) gin.HandlerFunc {
 			return []byte(cfg.AccessSecret), nil
 		},
 			jwt.WithValidMethods([]string{"HS256", "HS384", "HS512"}),
-			jwt.WithLeeway(30*24*3600), // 30 days leeway for clock skew
+			jwt.WithLeeway(30*time.Second), // 30 seconds leeway for clock skew
 		)
 
 		if err != nil || !token.Valid {

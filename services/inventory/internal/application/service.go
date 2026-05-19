@@ -206,10 +206,16 @@ func (s *InventoryService) ReleaseStock(ctx context.Context, reservationID strin
 	event := &domain.InventoryEvent{
 		SkuID: reservationID, EventType: domain.EventStockReleased, Timestamp: time.Now().UTC(),
 	}
-	payload, _ := json.Marshal(event)
-	s.invRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("inventory", reservationID, string(domain.EventStockReleased), payload))
+	payload, err := json.Marshal(event)
+	if err != nil {
+		observability.LogWithTrace(ctx).Error("failed to marshal release event", zap.Error(err))
+	} else {
+		s.invRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("inventory", reservationID, string(domain.EventStockReleased), payload))
+	}
 	if s.kafkaProducer != nil {
-		s.kafkaProducer.PublishEvent(ctx, event)
+		if err := s.kafkaProducer.PublishEvent(ctx, event); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish release event", zap.Error(err))
+		}
 	}
 
 	return nil

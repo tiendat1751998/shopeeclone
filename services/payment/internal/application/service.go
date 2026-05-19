@@ -12,6 +12,7 @@ import (
 	"github.com/shopee-clone/shopee/services/payment/internal/infrastructure/mysql"
 	redisinfra "github.com/shopee-clone/shopee/services/payment/internal/infrastructure/redis"
 	"github.com/shopee-clone/shopee/services/payment/internal/metrics"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -30,13 +31,13 @@ func NewPaymentService(cfg *config.Config, paymentRepo *mysql.PaymentRepository,
 }
 
 type AuthorizePaymentRequest struct {
-	OrderID       string              `json:"order_id" validate:"required"`
-	UserID        string              `json:"user_id" validate:"required"`
-	Amount        int64               `json:"amount" validate:"required"`
-	Currency      string              `json:"currency"`
-	PaymentMethod domain.PaymentMethod `json:"payment_method" validate:"required"`
-	IdempotencyKey string             `json:"idempotency_key" validate:"required"`
-	Metadata      json.RawMessage     `json:"metadata,omitempty"`
+	OrderID        string              `json:"order_id" validate:"required"`
+	UserID         string              `json:"user_id" validate:"required"`
+	Amount         int64               `json:"amount" validate:"required"`
+	Currency       string              `json:"currency"`
+	PaymentMethod  domain.PaymentMethod `json:"payment_method" validate:"required"`
+	IdempotencyKey string              `json:"idempotency_key" validate:"required"`
+	Metadata       json.RawMessage     `json:"metadata,omitempty"`
 }
 
 func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePaymentRequest) (*domain.Payment, error) {
@@ -61,7 +62,6 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 	}
 
 	// [SECURITY] Anti-double-charge: Use distributed lock BEFORE checking existing payment.
-	// This prevents race conditions where two concurrent requests both pass the check.
 	locked, err := s.redisStore.AcquirePaymentLock(ctx, req.OrderID, 30*time.Second)
 	if err != nil || !locked {
 		return nil, fmt.Errorf("failed to acquire payment lock")
@@ -81,9 +81,12 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 	payment := domain.NewPayment(req.OrderID, req.UserID, req.Amount, currency, req.PaymentMethod, s.cfg.Payment.DefaultPSP, req.IdempotencyKey)
 	payment.Metadata = req.Metadata
 
-	// Fraud check (async hook)
+	// [FIX A2] Fraud check - MUST handle error
 	fraudResult := domain.NewFraudCheckResult(payment.ID, req.UserID, 10, false)
-	s.paymentRepo.SaveFraudCheck(ctx, fraudResult)
+	if err := s.paymentRepo.SaveFraudCheck(ctx, fraudResult); err != nil {
+		observability.LogWithTrace(ctx).Error("failed to save fraud check", zap.Error(err))
+		// Don't fail the payment, but log for investigation
+	}
 
 	// Simulate PSP authorization
 	payment.PSPTransactionID = fmt.Sprintf("psp-tx-%s", payment.ID[:8])
@@ -95,20 +98,32 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 		return nil, fmt.Errorf("failed to create payment: %w", err)
 	}
 
-	// Store idempotency
+	// [FIX A2] Store idempotency - MUST handle error
 	if req.IdempotencyKey != "" {
 		rec := domain.NewIdempotencyRecord(payment.ID, s.cfg.Payment.IdempotencyTTL)
 		rec.Key = req.IdempotencyKey
-		s.paymentRepo.SaveIdempotencyKey(ctx, rec)
-		s.redisStore.StoreIdempotencyKey(ctx, req.IdempotencyKey, payment.ID, s.cfg.Payment.IdempotencyTTL)
+		if err := s.paymentRepo.SaveIdempotencyKey(ctx, rec); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to save idempotency key", zap.Error(err))
+		}
+		if err := s.redisStore.StoreIdempotencyKey(ctx, req.IdempotencyKey, payment.ID, s.cfg.Payment.IdempotencyTTL); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to store idempotency key in Redis", zap.Error(err))
+		}
 	}
 
-	// Publish event
+	// [FIX A2] Publish event - MUST handle error
 	event := domain.NewPaymentEvent(payment, domain.EventPaymentAuthorized, req.Metadata)
-	payload, _ := json.Marshal(event)
-	s.paymentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("payment", payment.ID, string(domain.EventPaymentAuthorized), payload))
+	payload, err := json.Marshal(event)
+	if err != nil {
+		observability.LogWithTrace(ctx).Error("failed to marshal payment event", zap.Error(err))
+	} else {
+		if err := s.paymentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("payment", payment.ID, string(domain.EventPaymentAuthorized), payload)); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to save outbox event", zap.Error(err))
+		}
+	}
 	if s.kafkaProducer != nil {
-		s.kafkaProducer.PublishEvent(ctx, event)
+		if err := s.kafkaProducer.PublishEvent(ctx, event); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish payment event to Kafka", zap.Error(err))
+		}
 	}
 
 	metrics.PaymentsAuthorizedTotal.WithLabelValues(s.cfg.Payment.DefaultPSP, string(req.PaymentMethod)).Inc()
@@ -138,9 +153,17 @@ func (s *PaymentService) CapturePayment(ctx context.Context, paymentID, actorID 
 	}
 
 	event := domain.NewPaymentEvent(payment, domain.EventPaymentCaptured, nil)
-	payload, _ := json.Marshal(event)
-	s.paymentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("payment", payment.ID, string(domain.EventPaymentCaptured), payload))
-	if s.kafkaProducer != nil { s.kafkaProducer.PublishEvent(ctx, event) }
+	payload, err := json.Marshal(event)
+	if err != nil {
+		observability.LogWithTrace(ctx).Error("failed to marshal capture event", zap.Error(err))
+	} else {
+		s.paymentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("payment", payment.ID, string(domain.EventPaymentCaptured), payload))
+	}
+	if s.kafkaProducer != nil {
+		if err := s.kafkaProducer.PublishEvent(ctx, event); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish capture event", zap.Error(err))
+		}
+	}
 
 	metrics.PaymentsCapturedTotal.WithLabelValues(s.cfg.Payment.DefaultPSP).Inc()
 	return payment, nil
@@ -157,7 +180,7 @@ func (s *PaymentService) RefundPayment(ctx context.Context, paymentID, reason, i
 		return nil, domain.ErrRefundNotAllowed
 	}
 
-	// [FIX BUG-9] Validate amount is positive and doesn't exceed remaining
+	// [FIX A4] Validate amount is positive and doesn't exceed remaining
 	if amount <= 0 {
 		return nil, fmt.Errorf("refund amount must be positive, got %d", amount)
 	}
@@ -175,13 +198,29 @@ func (s *PaymentService) RefundPayment(ctx context.Context, paymentID, reason, i
 	if payment.AmountRefunded >= payment.Amount {
 		newStatus = domain.PaymentStatusRefunded
 	}
-	payment.TransitionTo(newStatus)
-	s.paymentRepo.Update(ctx, payment)
+
+	// [FIX A4] MUST check TransitionTo error
+	if err := payment.TransitionTo(newStatus); err != nil {
+		return nil, fmt.Errorf("failed to transition payment status: %w", err)
+	}
+
+	// [FIX A4] MUST check Update error
+	if err := s.paymentRepo.Update(ctx, payment); err != nil {
+		return nil, fmt.Errorf("failed to update payment: %w", err)
+	}
 
 	event := domain.NewPaymentEvent(payment, domain.EventPaymentRefunded, nil)
-	payload, _ := json.Marshal(event)
-	s.paymentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("payment", payment.ID, string(domain.EventPaymentRefunded), payload))
-	if s.kafkaProducer != nil { s.kafkaProducer.PublishEvent(ctx, event) }
+	payload, err := json.Marshal(event)
+	if err != nil {
+		observability.LogWithTrace(ctx).Error("failed to marshal refund event", zap.Error(err))
+	} else {
+		s.paymentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("payment", payment.ID, string(domain.EventPaymentRefunded), payload))
+	}
+	if s.kafkaProducer != nil {
+		if err := s.kafkaProducer.PublishEvent(ctx, event); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish refund event", zap.Error(err))
+		}
+	}
 
 	metrics.RefundsProcessed.WithLabelValues("success").Inc()
 	return refund, nil
@@ -191,6 +230,7 @@ func (s *PaymentService) GetPayment(ctx context.Context, paymentID string) (*dom
 	return s.paymentRepo.FindByID(ctx, paymentID)
 }
 
+// [FIX A3] Webhook handler - now properly processes PSP events
 func (s *PaymentService) HandleWebhook(ctx context.Context, pspProvider, eventType string, payload []byte, signature, idempotencyKey string) error {
 	ctx, span := otel.Tracer("shopee-payment").Start(ctx, "PaymentService.HandleWebhook")
 	defer span.End()
@@ -217,28 +257,99 @@ func (s *PaymentService) HandleWebhook(ctx context.Context, pspProvider, eventTy
 	}
 	s.redisStore.MarkWebhookProcessed(ctx, idempotencyKey, 24*time.Hour)
 
-	// Process based on event type
+	// [FIX A3] Actually process the webhook event
 	switch eventType {
 	case "payment.authorized":
-		// Update payment status
+		var eventData map[string]interface{}
+		if err := json.Unmarshal(payload, &eventData); err != nil {
+			return fmt.Errorf("failed to unmarshal webhook payload: %w", err)
+		}
+		paymentID, _ := eventData["payment_id"].(string)
+		if paymentID != "" {
+			if err := s.markPaymentAuthorized(ctx, paymentID); err != nil {
+				return fmt.Errorf("failed to mark payment authorized: %w", err)
+			}
+		}
 	case "payment.captured":
-		// Update payment status
+		var eventData map[string]interface{}
+		if err := json.Unmarshal(payload, &eventData); err != nil {
+			return fmt.Errorf("failed to unmarshal webhook payload: %w", err)
+		}
+		paymentID, _ := eventData["payment_id"].(string)
+		if paymentID != "" {
+			if _, err := s.CapturePayment(ctx, paymentID, "psp_webhook"); err != nil {
+				return fmt.Errorf("failed to capture payment: %w", err)
+			}
+		}
 	case "payment.failed":
-		// Mark payment as failed
+		var eventData map[string]interface{}
+		if err := json.Unmarshal(payload, &eventData); err != nil {
+			return fmt.Errorf("failed to unmarshal webhook payload: %w", err)
+		}
+		paymentID, _ := eventData["payment_id"].(string)
+		if paymentID != "" {
+			if err := s.markPaymentFailed(ctx, paymentID); err != nil {
+				return fmt.Errorf("failed to mark payment failed: %w", err)
+			}
+		}
+	default:
+		observability.LogWithTrace(ctx).Warn("unknown webhook event type", zap.String("type", eventType))
 	}
 
 	metrics.WebhookProcessed.WithLabelValues(pspProvider, eventType).Inc()
 	return nil
 }
 
+// markPaymentAuthorized updates payment status from PSP webhook
+func (s *PaymentService) markPaymentAuthorized(ctx context.Context, paymentID string) error {
+	payment, err := s.paymentRepo.FindByID(ctx, paymentID)
+	if err != nil { return err }
+	if payment == nil { return fmt.Errorf("payment not found: %s", paymentID) }
+	if err := payment.TransitionTo(domain.PaymentStatusAuthorized); err != nil { return err }
+	return s.paymentRepo.UpdateStatus(ctx, paymentID, domain.PaymentStatusAuthorized, payment.Version-1)
+}
+
+// markPaymentFailed updates payment status from PSP webhook
+func (s *PaymentService) markPaymentFailed(ctx context.Context, paymentID string) error {
+	payment, err := s.paymentRepo.FindByID(ctx, paymentID)
+	if err != nil { return err }
+	if payment == nil { return fmt.Errorf("payment not found: %s", paymentID) }
+	if err := payment.TransitionTo(domain.PaymentStatusFailed); err != nil { return err }
+	return s.paymentRepo.UpdateStatus(ctx, paymentID, domain.PaymentStatusFailed, payment.Version-1)
+}
+
+// [FIX A1] ProcessOutboxEvents - now properly logs errors and tracks failed events
 func (s *PaymentService) ProcessOutboxEvents(ctx context.Context) error {
 	events, err := s.paymentRepo.GetUnprocessedOutboxEvents(ctx, 100)
 	if err != nil { return err }
+
 	for _, event := range events {
+		// Mark as processing first (prevents duplicate processing)
+		if err := s.paymentRepo.MarkOutboxEventProcessing(ctx, event.ID); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to mark outbox event as processing",
+				zap.String("event_id", event.ID), zap.Error(err))
+			continue
+		}
+
 		var paymentEvent domain.PaymentEvent
-		if err := json.Unmarshal(event.Payload, &paymentEvent); err != nil { continue }
-		if err := s.kafkaProducer.PublishEvent(ctx, &paymentEvent); err != nil { continue }
-		s.paymentRepo.MarkOutboxEventProcessed(ctx, event.ID)
+		if err := json.Unmarshal(event.Payload, &paymentEvent); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to unmarshal outbox event payload",
+				zap.String("event_id", event.ID), zap.Error(err))
+			s.paymentRepo.MarkOutboxEventFailed(ctx, event.ID, err.Error())
+			continue
+		}
+
+		if err := s.kafkaProducer.PublishEvent(ctx, &paymentEvent); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish outbox event to Kafka",
+				zap.String("event_id", event.ID), zap.Error(err))
+			s.paymentRepo.MarkOutboxEventFailed(ctx, event.ID, err.Error())
+			continue
+		}
+
+		if err := s.paymentRepo.MarkOutboxEventProcessed(ctx, event.ID); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to mark outbox event as processed",
+				zap.String("event_id", event.ID), zap.Error(err))
+		}
 	}
 	return nil
 }
