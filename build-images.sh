@@ -37,22 +37,9 @@ fi
 # 2. Build Go Images
 if [ "$SKIP_GO" = false ]; then
     SHARED_PACKAGE_PATH="${SCRIPT_DIR}/packages/go-shared"
-    
-    GO_MODULES=(
-        # Services
-        "services/auth" "services/cart" "services/catalog-product" "services/checkout"
-        "services/gateway" "services/inventory" "services/order" "services/payment"
-        "services/product" "services/product-catalog" "services/promotion" "services/shipment"
-        # Platforms
-        "platforms/advertising" "platforms/aiml" "platforms/analytics" "platforms/api-gateway"
-        "platforms/billing" "platforms/developer" "platforms/fraud" "platforms/fraud-risk"
-        "platforms/global-infra" "platforms/live-commerce" "platforms/live-scale" "platforms/logistics-delivery"
-        "platforms/notification" "platforms/notification-campaign" "platforms/oms-fulfillment"
-        "platforms/payment-ledger" "platforms/rec-vector" "platforms/recommendation" "platforms/search"
-        "platforms/search-indexing" "platforms/service-mesh" "platforms/sre" "platforms/user-behavior"
-    )
+    GO_MODULES="services/auth services/cart services/catalog-product services/checkout services/gateway services/inventory services/order services/payment services/product services/product-catalog services/promotion services/shipment platforms/advertising platforms/aiml platforms/analytics platforms/api-gateway platforms/billing platforms/developer platforms/fraud platforms/fraud-risk platforms/global-infra platforms/live-commerce platforms/live-scale platforms/logistics-delivery platforms/notification platforms/notification-campaign platforms/oms-fulfillment platforms/payment-ledger platforms/rec-vector platforms/recommendation platforms/search platforms/search-indexing platforms/service-mesh platforms/sre platforms/user-behavior"
 
-    for MODULE in "${GO_MODULES[@]}"; do
+    for MODULE in $GO_MODULES; do
         FULL_PATH="${SCRIPT_DIR}/${MODULE}"
         if [ -d "$FULL_PATH" ]; then
             MODULE_NAME=$(basename "${MODULE}")

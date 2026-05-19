@@ -36,13 +36,13 @@ if [ "$SKIP_JAVA" = false ]; then
         echo -e "\n\033[0;33m[Java] Building identity-auth service...\033[0m"
         cd "$JAVA_DIR"
         
-        MVN_ARGS=("clean" "package")
+        MVN_ARGS="clean package"
         if [ "$RUN_TESTS" = false ]; then
-            MVN_ARGS+=("-DskipTests=true" "-Dmaven.javadoc.skip=true")
+            MVN_ARGS="$MVN_ARGS -DskipTests=true -Dmaven.javadoc.skip=true"
             echo "-> Skipping Java tests (auto-bypass enabled)"
         fi
         
-        mvn "${MVN_ARGS[@]}"
+        mvn $MVN_ARGS
         
         # Copy jar to bin
         JAR_FILE=$(find target -maxdepth 1 -name "*.jar" ! -name "*original*" ! -name "*sources*" ! -name "*javadoc*" | head -n 1)
@@ -60,21 +60,9 @@ fi
 if [ "$SKIP_GO" = false ]; then
     echo -e "\n\033[0;33m[Go] Scanning workspace modules...\033[0m"
 
-    GO_MODULES=(
-        # Services
-        "services/auth" "services/cart" "services/catalog-product" "services/checkout"
-        "services/gateway" "services/inventory" "services/order" "services/payment"
-        "services/product" "services/product-catalog" "services/promotion" "services/shipment"
-        # Platforms
-        "platforms/advertising" "platforms/aiml" "platforms/analytics" "platforms/api-gateway"
-        "platforms/billing" "platforms/developer" "platforms/fraud" "platforms/fraud-risk"
-        "platforms/global-infra" "platforms/live-commerce" "platforms/live-scale" "platforms/logistics-delivery"
-        "platforms/notification" "platforms/notification-campaign" "platforms/oms-fulfillment"
-        "platforms/payment-ledger" "platforms/rec-vector" "platforms/recommendation" "platforms/search"
-        "platforms/search-indexing" "platforms/service-mesh" "platforms/sre"
-    )
+    GO_MODULES="services/auth services/cart services/catalog-product services/checkout services/gateway services/inventory services/order services/payment services/product services/product-catalog services/promotion services/shipment platforms/advertising platforms/aiml platforms/analytics platforms/api-gateway platforms/billing platforms/developer platforms/fraud platforms/fraud-risk platforms/global-infra platforms/live-commerce platforms/live-scale platforms/logistics-delivery platforms/notification platforms/notification-campaign platforms/oms-fulfillment platforms/payment-ledger platforms/rec-vector platforms/recommendation platforms/search platforms/search-indexing platforms/service-mesh platforms/sre"
 
-    for MODULE in "${GO_MODULES[@]}"; do
+    for MODULE in $GO_MODULES; do
         FULL_PATH="${SCRIPT_DIR}/${MODULE}"
         if [ -d "$FULL_PATH" ]; then
             MODULE_NAME=$(basename "${MODULE}")
