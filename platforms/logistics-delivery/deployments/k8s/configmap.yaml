@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logistics-delivery-config
+data:
+  APP_NAME: "logistics-delivery"
+  ENV: "production"
+  HTTP_PORT: "8080"
+  GRPC_PORT: "9090"
+  KAFKA_BROKERS: "kafka-cluster:9092"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"

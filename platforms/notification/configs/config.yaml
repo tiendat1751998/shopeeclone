@@ -1,0 +1,48 @@
+app:
+  name: notification
+  env: development
+  version: 0.0.1
+
+server:
+  http_port: 8080
+  grpc_port: 9090
+
+postgres:
+  dsn: postgres://notification:notification@localhost:5432/notification?sslmode=disable
+  max_conns: 25
+  min_conns: 5
+  max_conn_lifetime_min: 30
+
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - localhost:9092
+  notification_topic: notification.events
+  consumer_group: notification-consumer-group
+
+otel:
+  endpoint: localhost:4317
+  insecure: true
+
+smtp:
+  host: smtp.example.com
+  port: 587
+  username: ""
+  password: ""
+  from: noreply@shopee-clone.com
+
+twilio:
+  account_sid: ""
+  auth_token: ""
+  from_number: "+15005550006"
+
+fcm:
+  server_key: ""
+
+sendgrid:
+  api_key: ""
+  from: noreply@shopee-clone.com

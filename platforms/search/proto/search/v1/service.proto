@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package shopee.search.v1;
+
+option go_package = "github.com/shopee-clone/shopee/platforms/search/proto/search/v1;searchpb";
+
+import "google/protobuf/timestamp.proto";
+
+service SearchService {
+  rpc Search(SearchRequest) returns (SearchResponse);
+  rpc FacetedSearch(FacetedSearchRequest) returns (FacetedSearchResponse);
+  rpc Autocomplete(AutocompleteRequest) returns (AutocompleteResponse);
+  rpc IndexDocument(IndexDocumentRequest) returns (IndexDocumentResponse);
+  rpc BulkIndex(BulkIndexRequest) returns (BulkIndexResponse);
+  rpc GetIndexTask(GetIndexTaskRequest) returns (GetIndexTaskResponse);
+  rpc ListIndexTasks(ListIndexTasksRequest) returns (ListIndexTasksResponse);
+}
+
+message ProductDocument {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  string category = 4;
+  string seller_id = 5;
+  double price = 6;
+  double rating = 7;
+  int32 stock = 8;
+  repeated string tags = 9;
+  repeated string image_urls = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message SearchRequest {
+  string query = 1;
+  string category = 2;
+  string brand = 3;
+  double min_price = 4;
+  double max_price = 5;
+  double min_rating = 6;
+  string sort_by = 7;
+  int32 page = 8;
+  int32 limit = 9;
+}
+
+message SearchResponse {
+  repeated ProductDocument products = 1;
+  int64 total = 2;
+  int32 page = 3;
+  int32 limit = 4;
+  int64 took_ms = 5;
+  repeated Facet facets = 6;
+}
+
+message Facet {
+  string field = 1;
+  map<string, int64> values = 2;
+}
+
+message FacetedSearchRequest {
+  SearchRequest search_request = 1;
+}
+
+message FacetedSearchResponse {
+  SearchResponse search_response = 1;
+}
+
+message AutocompleteRequest {
+  string prefix = 1;
+  int32 limit = 2;
+}
+
+message Suggestion {
+  string text = 1;
+  double score = 2;
+  string type = 3;
+}
+
+message AutocompleteResponse {
+  repeated Suggestion suggestions = 1;
+  int64 took_ms = 2;
+}
+
+message IndexDocumentRequest {
+  ProductDocument document = 1;
+  string idempotency_key = 2;
+}
+
+message IndexTask {
+  string id = 1;
+  string document_id = 2;
+  string status = 3;
+  string idempotency_key = 4;
+  string error = 5;
+  int32 retry_count = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message IndexDocumentResponse {
+  string task_id = 1;
+  string status = 2;
+  string message = 3;
+}
+
+message BulkIndexRequest {
+  repeated ProductDocument documents = 1;
+}
+
+message BulkIndexResponse {
+  int32 total = 1;
+  int32 indexed = 2;
+  int32 failed = 3;
+  repeated string errors = 4;
+}
+
+message GetIndexTaskRequest {
+  string task_id = 1;
+}
+
+message GetIndexTaskResponse {
+  IndexTask task = 1;
+}
+
+message ListIndexTasksRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListIndexTasksResponse {
+  repeated IndexTask tasks = 1;
+}

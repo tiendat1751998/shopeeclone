@@ -1,11 +1,25 @@
 package health
-import ("context"; "github.com/gin-gonic/gin"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/health"; "github.com/redis/go-redis/v9")
-type Checker struct { db interface{ Ping(ctx context.Context) error }; redis *redis.Client; httpHealth *health.Checker }
-func NewChecker(s, v string, db interface{ Ping(ctx context.Context) error }, r *redis.Client) *Checker {
-	c := &Checker{db: db, redis: r, httpHealth: health.NewChecker(s, v)}
-	c.httpHealth.AddCheck("database", func(ctx context.Context) error { return db.Ping(ctx) })
-	if r != nil { c.httpHealth.AddCheck("redis", func(ctx context.Context) error { return r.Ping(ctx).Err() }) }
-	return c
+
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
+)
+
+type Checker struct {
+	svc string
+	ver string
 }
-func (c *Checker) LivenessHandler() gin.HandlerFunc { return c.httpHealth.LivenessHandler() }
-func (c *Checker) ReadinessHandler() gin.HandlerFunc { return c.httpHealth.ReadinessHandler() }
+
+func NewChecker(svc, version string) *Checker {
+	return &Checker{svc: svc, ver: version}
+}
+
+func (c *Checker) LivenessHandler() gin.HandlerFunc {
+	hc := health.NewChecker(c.svc, c.ver)
+	return hc.LivenessHandler()
+}
+
+func (c *Checker) ReadinessHandler() gin.HandlerFunc {
+	hc := health.NewChecker(c.svc, c.ver)
+	return hc.ReadinessHandler()
+}

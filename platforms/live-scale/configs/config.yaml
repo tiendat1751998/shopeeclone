@@ -1,0 +1,31 @@
+app_name: shopee-live-scale
+env: development
+version: "1.0.0"
+http_port: 8081
+grpc_port: 9091
+
+postgres:
+  dsn: "postgres://shopee:shopee_dev@localhost:5432/shopee_live_scale?sslmode=disable"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+kafka:
+  brokers: "localhost:9092"
+
+otel:
+  endpoint: "http://localhost:4318"
+  service_name: "shopee-live-scale"
+
+sfu:
+  heartbeat_interval: 10s
+  node_timeout: 30s
+
+stream_health:
+  bitrate_threshold: 500000
+  framerate_threshold: 24
+  latency_threshold_ms: 500
+  packet_loss_threshold: 0.05
+  check_interval: 15s

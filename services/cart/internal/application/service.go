@@ -3,29 +3,32 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopee-clone/shopee/services/cart/internal/domain"
 	"github.com/shopee-clone/shopee/services/cart/internal/infrastructure/redis"
 	"github.com/shopee-clone/shopee/services/cart/internal/metrics"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 )
 
 type CartService struct {
-	cartRepo     domain.CartRepository
-	itemRepo     domain.CartItemRepository
-	snapshotRepo domain.CartSnapshotRepository
-	mergeRepo    domain.CartMergeHistoryRepository
-	redis        *redis.Store
-	cartTTL      time.Duration
-	maxCartItems int
-	maxQuantity  int
-	publisher    EventPublisher
+	cartRepo           domain.CartRepository
+	itemRepo           domain.CartItemRepository
+	snapshotRepo       domain.CartSnapshotRepository
+	mergeRepo          domain.CartMergeHistoryRepository
+	redis              *redis.Store
+	cartTTL            time.Duration
+	checkoutPreviewTTL time.Duration
+	maxCartItems       int
+	maxQuantity        int
+	publisher          EventPublisher
 }
 
 type EventPublisher interface {
@@ -38,20 +41,21 @@ func NewCartService(
 	snapshotRepo domain.CartSnapshotRepository,
 	mergeRepo domain.CartMergeHistoryRepository,
 	redisStore *redis.Store,
-	cartTTL time.Duration,
+	cartTTL, checkoutPreviewTTL time.Duration,
 	maxCartItems, maxQuantity int,
 	publisher EventPublisher,
 ) *CartService {
 	return &CartService{
-		cartRepo:     cartRepo,
-		itemRepo:     itemRepo,
-		snapshotRepo: snapshotRepo,
-		mergeRepo:    mergeRepo,
-		redis:        redisStore,
-		cartTTL:      cartTTL,
-		maxCartItems: maxCartItems,
-		maxQuantity:  maxQuantity,
-		publisher:    publisher,
+		cartRepo:           cartRepo,
+		itemRepo:           itemRepo,
+		snapshotRepo:       snapshotRepo,
+		mergeRepo:          mergeRepo,
+		redis:              redisStore,
+		cartTTL:            cartTTL,
+		checkoutPreviewTTL: checkoutPreviewTTL,
+		maxCartItems:       maxCartItems,
+		maxQuantity:        maxQuantity,
+		publisher:          publisher,
 	}
 }
 
@@ -85,14 +89,27 @@ func (s *CartService) GetOrCreateCart(ctx context.Context, userID, sessionID, cu
 	// Create new cart
 	cart := domain.NewCart(userID, sessionID, currency, s.cartTTL)
 	if err := s.cartRepo.Create(ctx, cart); err != nil {
+		// Handle duplicate cart race condition
+		if isDuplicateEntry(err) {
+			if userID != "" {
+				if existing, findErr := s.cartRepo.FindByUserID(ctx, userID); findErr == nil && existing != nil && existing.IsActive() {
+					return existing, nil
+				}
+			}
+			if sessionID != "" {
+				if existing, findErr := s.cartRepo.FindBySessionID(ctx, sessionID); findErr == nil && existing != nil && existing.IsActive() {
+					return existing, nil
+				}
+			}
+		}
 		return nil, fmt.Errorf("create cart: %w", err)
 	}
 
 	// Cache cart reference
-	if userID != "" {
+	if userID != "" && s.redis != nil {
 		s.redis.SetUserCart(ctx, userID, cart.ID, s.cartTTL)
 	}
-	if sessionID != "" {
+	if sessionID != "" && s.redis != nil {
 		s.redis.SetSessionCart(ctx, sessionID, cart.ID, s.cartTTL)
 	}
 
@@ -147,8 +164,12 @@ func (s *CartService) AddItem(ctx context.Context, cartID string, req AddItemReq
 		if err := s.itemRepo.Update(ctx, existing); err != nil {
 			return nil, err
 		}
-		s.recalculateCart(ctx, cart)
-		s.redis.DeleteCart(ctx, cartID)
+		if err := s.recalculateCart(ctx, cart); err != nil {
+			return nil, err
+		}
+		if s.redis != nil {
+			s.redis.DeleteCart(ctx, cartID)
+		}
 		metrics.ItemsUpdated.Inc()
 		return existing, nil
 	}
@@ -164,8 +185,12 @@ func (s *CartService) AddItem(ctx context.Context, cartID string, req AddItemReq
 		return nil, fmt.Errorf("create cart item: %w", err)
 	}
 
-	s.recalculateCart(ctx, cart)
-	s.redis.DeleteCart(ctx, cartID)
+	if err := s.recalculateCart(ctx, cart); err != nil {
+		return nil, err
+	}
+	if s.redis != nil {
+		s.redis.DeleteCart(ctx, cartID)
+	}
 
 	metrics.ItemsAdded.Inc()
 
@@ -213,11 +238,18 @@ func (s *CartService) UpdateItemQuantity(ctx context.Context, cartID, itemID str
 		return err
 	}
 
-	cart, _ := s.cartRepo.FindByID(ctx, cartID)
-	if cart != nil {
-		s.recalculateCart(ctx, cart)
+	cart, err := s.cartRepo.FindByID(ctx, cartID)
+	if err != nil {
+		return fmt.Errorf("find cart after item update: %w", err)
 	}
-	s.redis.DeleteCart(ctx, cartID)
+	if cart != nil {
+		if err := s.recalculateCart(ctx, cart); err != nil {
+			return err
+		}
+	}
+	if s.redis != nil {
+		s.redis.DeleteCart(ctx, cartID)
+	}
 
 	metrics.ItemsUpdated.Inc()
 	return nil
@@ -240,11 +272,18 @@ func (s *CartService) RemoveItem(ctx context.Context, cartID, itemID string) err
 		return err
 	}
 
-	cart, _ := s.cartRepo.FindByID(ctx, cartID)
-	if cart != nil {
-		s.recalculateCart(ctx, cart)
+	cart, err := s.cartRepo.FindByID(ctx, cartID)
+	if err != nil {
+		return fmt.Errorf("find cart after item removal: %w", err)
 	}
-	s.redis.DeleteCart(ctx, cartID)
+	if cart != nil {
+		if err := s.recalculateCart(ctx, cart); err != nil {
+			return err
+		}
+	}
+	if s.redis != nil {
+		s.redis.DeleteCart(ctx, cartID)
+	}
 
 	metrics.ItemsRemoved.Inc()
 	return nil
@@ -259,12 +298,19 @@ func (s *CartService) ClearCart(ctx context.Context, cartID string) error {
 		return err
 	}
 
-	cart, _ := s.cartRepo.FindByID(ctx, cartID)
+	cart, err := s.cartRepo.FindByID(ctx, cartID)
+	if err != nil {
+		return fmt.Errorf("find cart after clear: %w", err)
+	}
 	if cart != nil {
 		cart.UpdateTotals(0, 0)
-		s.cartRepo.Update(ctx, cart)
+		if err := s.cartRepo.Update(ctx, cart); err != nil {
+			return fmt.Errorf("update cart after clear: %w", err)
+		}
 	}
-	s.redis.DeleteCart(ctx, cartID)
+	if s.redis != nil {
+		s.redis.DeleteCart(ctx, cartID)
+	}
 
 	if s.publisher != nil {
 		s.publisher.Publish(ctx, &domain.CartEvent{
@@ -288,35 +334,54 @@ func (s *CartService) MergeCarts(ctx context.Context, sourceCartID, targetCartID
 
 	merged := 0
 	for _, item := range sourceItems {
-		existing, _ := s.itemRepo.FindByCartAndSKU(ctx, targetCartID, item.SKU)
+		existing, err := s.itemRepo.FindByCartAndSKU(ctx, targetCartID, item.SKU)
+		if err != nil {
+			return fmt.Errorf("check existing item: %w", err)
+		}
 		if existing != nil {
 			newQty := existing.Quantity + item.Quantity
 			if newQty > s.maxQuantity {
 				newQty = s.maxQuantity
 			}
 			existing.UpdateQuantity(newQty)
-			s.itemRepo.Update(ctx, existing)
+			if err := s.itemRepo.Update(ctx, existing); err != nil {
+				return fmt.Errorf("update merged item: %w", err)
+			}
 		} else {
 			item.CartID = targetCartID
-			item.ID = ""
-			s.itemRepo.Create(ctx, item)
+			item.ID = uuid.New().String()
+			if err := s.itemRepo.Create(ctx, item); err != nil {
+				return fmt.Errorf("create merged item: %w", err)
+			}
 		}
 		merged++
 	}
 
 	// Mark source cart as merged
-	sourceCart, _ := s.cartRepo.FindByID(ctx, sourceCartID)
+	sourceCart, err := s.cartRepo.FindByID(ctx, sourceCartID)
+	if err != nil {
+		return fmt.Errorf("find source cart: %w", err)
+	}
 	if sourceCart != nil {
 		sourceCart.MarkMerged()
-		s.cartRepo.Update(ctx, sourceCart)
+		if err := s.cartRepo.Update(ctx, sourceCart); err != nil {
+			return fmt.Errorf("mark source cart merged: %w", err)
+		}
 	}
 
 	// Recalculate target cart
-	targetCart, _ := s.cartRepo.FindByID(ctx, targetCartID)
-	if targetCart != nil {
-		s.recalculateCart(ctx, targetCart)
+	targetCart, err := s.cartRepo.FindByID(ctx, targetCartID)
+	if err != nil {
+		return fmt.Errorf("find target cart: %w", err)
 	}
-	s.redis.DeleteCart(ctx, targetCartID)
+	if targetCart != nil {
+		if err := s.recalculateCart(ctx, targetCart); err != nil {
+			return fmt.Errorf("recalculate target cart: %w", err)
+		}
+	}
+	if s.redis != nil {
+		s.redis.DeleteCart(ctx, targetCartID)
+	}
 
 	// Record merge history
 	mergeHistory := &domain.CartMergeHistory{
@@ -328,7 +393,9 @@ func (s *CartService) MergeCarts(ctx context.Context, sourceCartID, targetCartID
 		ItemsMerged:  merged,
 		CreatedAt:    time.Now(),
 	}
-	s.mergeRepo.Create(ctx, mergeHistory)
+	if err := s.mergeRepo.Create(ctx, mergeHistory); err != nil {
+		observability.LogWithTrace(ctx).Error("failed to record merge history", zap.Error(err))
+	}
 
 	metrics.CartsMerged.Inc()
 
@@ -406,19 +473,32 @@ func (s *CartService) PrepareCheckout(ctx context.Context, cartID, userID, idemp
 		Subtotal:       cart.Subtotal,
 		Currency:       cart.Currency,
 		IdempotencyKey: idempotencyKey,
-		ExpiresAt:      time.Now().Add(15 * time.Minute),
+		ExpiresAt:      time.Now().Add(s.checkoutPreviewTTL),
 		CreatedAt:      time.Now(),
 	}
 
 	// Create snapshot
-	itemsJSON, _ := json.Marshal(selectedItems)
-	sellerGroupsJSON, _ := json.Marshal(sellerGroups)
-	snapshot := domain.NewCartSnapshot(cartID, userID, string(itemsJSON), string(sellerGroupsJSON), cart.Subtotal, len(selectedItems), cart.Currency, idempotencyKey, 15*time.Minute)
-	s.snapshotRepo.Create(ctx, snapshot)
+	itemsJSON, err := json.Marshal(selectedItems)
+	if err != nil {
+		return nil, fmt.Errorf("marshal checkout items: %w", err)
+	}
+	sellerGroupsJSON, err := json.Marshal(sellerGroups)
+	if err != nil {
+		return nil, fmt.Errorf("marshal seller groups: %w", err)
+	}
+	snapshot := domain.NewCartSnapshot(cartID, userID, string(itemsJSON), string(sellerGroupsJSON), cart.Subtotal, len(selectedItems), cart.Currency, idempotencyKey, s.checkoutPreviewTTL)
+	if err := s.snapshotRepo.Create(ctx, snapshot); err != nil {
+		return nil, fmt.Errorf("create checkout snapshot: %w", err)
+	}
 
 	// Cache preview
-	previewData, _ := json.Marshal(preview)
-	s.redis.SetCheckoutPreview(ctx, preview.ID, previewData, 15*time.Minute)
+	previewData, err := json.Marshal(preview)
+	if err != nil {
+		return nil, fmt.Errorf("marshal preview: %w", err)
+	}
+	if s.redis != nil {
+		s.redis.SetCheckoutPreview(ctx, preview.ID, previewData, s.checkoutPreviewTTL)
+	}
 
 	metrics.CheckoutPreviewsCreated.Inc()
 
@@ -455,23 +535,23 @@ func (s *CartService) GetCartWithItems(ctx context.Context, cartID string) (*dom
 }
 
 // recalculateCart updates cart totals based on items
-func (s *CartService) recalculateCart(ctx context.Context, cart *domain.Cart) {
+func (s *CartService) recalculateCart(ctx context.Context, cart *domain.Cart) error {
 	items, err := s.itemRepo.FindByCartID(ctx, cart.ID)
 	if err != nil {
-		observability.LogWithTrace(ctx).Warn("failed to recalculate cart", zap.Error(err))
-		return
+		return fmt.Errorf("find items for recalculation: %w", err)
 	}
 
 	total := int64(0)
-	count := 0
 	for _, item := range items {
 		if item.IsSelected {
 			total += item.TotalPrice
-			count += item.Quantity
 		}
 	}
 	cart.UpdateTotals(len(items), total)
-	s.cartRepo.Update(ctx, cart)
+	if err := s.cartRepo.Update(ctx, cart); err != nil {
+		return fmt.Errorf("update cart after recalculation: %w", err)
+	}
+	return nil
 }
 
 // buildPreviewFromSnapshot rebuilds a preview from a cached snapshot
@@ -534,4 +614,9 @@ type AddItemRequest struct {
 	UnitPrice   int64
 	ImageURL    string
 	Attributes  string
+}
+
+// isDuplicateEntry checks if the error is a MySQL duplicate entry error (1062)
+func isDuplicateEntry(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Duplicate entry")
 }

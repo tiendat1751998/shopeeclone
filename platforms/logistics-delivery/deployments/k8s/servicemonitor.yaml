@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: logistics-delivery-monitor
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: logistics-delivery
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s

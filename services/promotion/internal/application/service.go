@@ -10,7 +10,6 @@ import (
 	"github.com/shopee-clone/shopee/services/promotion/internal/metrics"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 )
 

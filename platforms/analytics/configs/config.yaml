@@ -1,0 +1,29 @@
+app:
+  name: shopee-analytics
+  env: development
+  version: 1.0.0
+
+server:
+  http_port: 8080
+  grpc_port: 9090
+
+postgres:
+  dsn: "postgres://shopee:shopee_dev@localhost:5432/shopee_analytics?sslmode=disable"
+
+redis:
+  addr: localhost:6379
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - localhost:9092
+
+analytics:
+  session_timeout_minutes: 30
+  default_page_size: 50
+  max_query_window_days: 365
+
+otel:
+  endpoint: http://localhost:4318
+  service_name: shopee-analytics

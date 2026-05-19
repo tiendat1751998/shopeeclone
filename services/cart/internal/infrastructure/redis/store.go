@@ -20,11 +20,21 @@ func NewStore(rdb *redis.Client, cfg config.RedisConfig) *Store {
 	return &Store{rdb: rdb, cfg: cfg}
 }
 
+func (s *Store) isAvailable() bool {
+	return s.rdb != nil
+}
+
 func (s *Store) Ping(ctx context.Context) error {
+	if !s.isAvailable() {
+		return nil
+	}
 	return s.rdb.Ping(ctx).Err()
 }
 
 func (s *Store) Close() error {
+	if !s.isAvailable() {
+		return nil
+	}
 	return s.rdb.Close()
 }
 
@@ -55,9 +65,13 @@ type CartItemCache struct {
 }
 
 func (s *Store) GetCart(ctx context.Context, cartID string) (*CartCache, error) {
+	if !s.isAvailable() {
+		return nil, nil
+	}
 	key := cartKey(cartID)
 	data, err := s.rdb.Get(ctx, key).Bytes()
 	if err == redis.Nil {
+		metrics.CacheMissesTotal.WithLabelValues("cart", "redis").Inc()
 		return nil, nil
 	}
 	if err != nil {
@@ -72,43 +86,63 @@ func (s *Store) GetCart(ctx context.Context, cartID string) (*CartCache, error) 
 }
 
 func (s *Store) SetCart(ctx context.Context, cartID string, cc *CartCache, ttl time.Duration) error {
+	if !s.isAvailable() {
+		return nil
+	}
 	key := cartKey(cartID)
 	data, err := json.Marshal(cc)
 	if err != nil {
 		return err
 	}
-	metrics.CacheMissesTotal.WithLabelValues("cart", "redis").Inc()
 	return s.rdb.Set(ctx, key, data, ttl).Err()
 }
 
 func (s *Store) DeleteCart(ctx context.Context, cartID string) error {
+	if !s.isAvailable() {
+		return nil
+	}
 	return s.rdb.Del(ctx, cartKey(cartID)).Err()
 }
 
 // === User Cart Index ===
 
 func (s *Store) SetUserCart(ctx context.Context, userID, cartID string, ttl time.Duration) error {
+	if !s.isAvailable() {
+		return nil
+	}
 	key := userCartKey(userID)
 	return s.rdb.Set(ctx, key, cartID, ttl).Err()
 }
 
 func (s *Store) GetUserCart(ctx context.Context, userID string) (string, error) {
+	if !s.isAvailable() {
+		return "", nil
+	}
 	key := userCartKey(userID)
 	return s.rdb.Get(ctx, key).Result()
 }
 
 func (s *Store) DeleteUserCart(ctx context.Context, userID string) error {
+	if !s.isAvailable() {
+		return nil
+	}
 	return s.rdb.Del(ctx, userCartKey(userID)).Err()
 }
 
 // === Session Cart ===
 
 func (s *Store) SetSessionCart(ctx context.Context, sessionID, cartID string, ttl time.Duration) error {
+	if !s.isAvailable() {
+		return nil
+	}
 	key := sessionCartKey(sessionID)
 	return s.rdb.Set(ctx, key, cartID, ttl).Err()
 }
 
 func (s *Store) GetSessionCart(ctx context.Context, sessionID string) (string, error) {
+	if !s.isAvailable() {
+		return "", nil
+	}
 	key := sessionCartKey(sessionID)
 	return s.rdb.Get(ctx, key).Result()
 }
@@ -116,11 +150,17 @@ func (s *Store) GetSessionCart(ctx context.Context, sessionID string) (string, e
 // === Checkout Preview Cache ===
 
 func (s *Store) SetCheckoutPreview(ctx context.Context, previewID string, data []byte, ttl time.Duration) error {
+	if !s.isAvailable() {
+		return nil
+	}
 	key := checkoutPreviewKey(previewID)
 	return s.rdb.Set(ctx, key, data, ttl).Err()
 }
 
 func (s *Store) GetCheckoutPreview(ctx context.Context, previewID string) ([]byte, error) {
+	if !s.isAvailable() {
+		return nil, nil
+	}
 	key := checkoutPreviewKey(previewID)
 	return s.rdb.Get(ctx, key).Bytes()
 }
@@ -128,16 +168,25 @@ func (s *Store) GetCheckoutPreview(ctx context.Context, previewID string) ([]byt
 // === Idempotency ===
 
 func (s *Store) CheckIdempotency(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	if !s.isAvailable() {
+		return false, nil
+	}
 	fullKey := "idempotency:" + key
 	return s.rdb.SetNX(ctx, fullKey, "1", ttl).Result()
 }
 
 func (s *Store) SetIdempotencyResult(ctx context.Context, key string, result []byte, ttl time.Duration) error {
+	if !s.isAvailable() {
+		return nil
+	}
 	fullKey := "idempotency_result:" + key
 	return s.rdb.Set(ctx, fullKey, result, ttl).Err()
 }
 
 func (s *Store) GetIdempotencyResult(ctx context.Context, key string) ([]byte, error) {
+	if !s.isAvailable() {
+		return nil, nil
+	}
 	fullKey := "idempotency_result:" + key
 	return s.rdb.Get(ctx, fullKey).Bytes()
 }

@@ -1,23 +1,118 @@
 package main
-import ("context"; "fmt"; "net/http"; "os"; "os/signal"; "syscall"; "time"; "github.com/gin-gonic/gin"; sharedRedis "github.com/shopee-clone/shopee/packages/go-shared/pkg/redis"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/health"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"; "github.com/shopee-clone/shopee/platforms/recommendation/internal/application"; "github.com/shopee-clone/shopee/platforms/recommendation/internal/config"; redisinfra "github.com/shopee-clone/shopee/platforms/recommendation/internal/infrastructure/redis"; httptransport "github.com/shopee-clone/shopee/platforms/recommendation/internal/transport/http"; kafkatransport "github.com/shopee-clone/shopee/platforms/recommendation/internal/transport/kafka"; "go.uber.org/zap")
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	sharedRedis "github.com/shopee-clone/shopee/packages/go-shared/pkg/redis"
+	"go.uber.org/zap"
+
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/collaborative"
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/config"
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/content"
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/events"
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/health"
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/logging"
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/personalization"
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/recommender"
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/reranker"
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/tracing"
+	"github.com/shopee-clone/shopee/platforms/recommendation/internal/trending"
+	httptransport "github.com/shopee-clone/shopee/platforms/recommendation/internal/transport/http"
+)
+
 var version = "1.0.0"
+
 func main() {
-	cfg := config.Load(); logger := observability.InitLogger(cfg.AppName, cfg.LogLevel)
-	shutdownTracer, _ := observability.InitTracer(cfg.OpenTelemetry.ServiceName, cfg.OpenTelemetry.Endpoint)
-	defer shutdownTracer(); defer observability.Sync()
+	cfg := config.Load()
+	logger := logging.Init(cfg.AppName, cfg.LogLevel)
+	defer logger.Sync()
+
+	shutdownTracer, err := tracing.Init(cfg.OpenTelemetry)
+	if err != nil {
+		logger.Fatal("failed to init tracer", zap.Error(err))
+	}
+	defer shutdownTracer()
+
 	redisClient, err := sharedRedis.NewClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
-	if err != nil { logger.Warn("redis not available", zap.Error(err)); redisClient = nil }
-	redisStore := redisinfra.NewStore(redisClient, cfg.Redis)
-	var pub application.EventPublisher
-	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" { p := kafkatransport.NewProducer(cfg.Kafka.Brokers, cfg.AppName); defer p.Close(); pub = p }
-	recService := application.NewRecommendationService(nil, nil, nil, redisStore, pub)
+	if err != nil {
+		logger.Warn("redis not available, running without cache", zap.Error(err))
+		redisClient = nil
+	}
+	if redisClient != nil {
+		defer redisClient.Close()
+	}
+
+	var pub events.Publisher
+	if len(cfg.Kafka.Brokers) > 0 && cfg.Kafka.Brokers[0] != "" {
+		p := events.NewKafkaProducer(cfg.Kafka.Brokers, cfg.AppName)
+		defer p.Close()
+		pub = p
+	} else {
+		pub = events.NewNoOpPublisher()
+	}
+
+	collabRepo := collaborative.NewInMemoryRepository()
+	collabSvc := collaborative.NewService(collabRepo)
+
+	contentRepo := content.NewInMemoryRepository()
+	contentSvc := content.NewService(contentRepo)
+
+	trendingRepo := trending.NewInMemoryRepository()
+	trendingSvc := trending.NewService(trendingRepo)
+
+	personalRepo := personalization.NewInMemoryRepository()
+	personalSvc := personalization.NewService(personalRepo)
+
+	rerankerRepo := reranker.NewInMemoryRepository()
+	rerankerSvc := reranker.NewService(rerankerRepo)
+
+	recRepo := recommender.NewInMemoryRepository()
+	recSvc := recommender.NewService(recRepo, collabSvc, contentSvc, trendingSvc, personalSvc, rerankerSvc)
+
 	hc := health.NewChecker(cfg.AppName, version, redisClient)
-	gin.SetMode(getGinMode(cfg.AppEnv)); engine := gin.New()
-	handler := httptransport.NewHandler(recService); router := httptransport.NewRouter(handler, hc); router.Setup(engine)
-	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HTTPPort), Handler: engine, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
-	quit := make(chan os.Signal, 1); signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	go func() { logger.Info("starting recommendation service", zap.Int("http_port", cfg.HTTPPort)); if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed { logger.Fatal("http server failed", zap.Error(err)) } }()
-	<-quit; logger.Info("shutting down..."); ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second); defer cancel()
-	httpServer.Shutdown(ctx); if redisClient != nil { redisClient.Close() }; logger.Info("stopped")
+
+	gin.SetMode(gin.ReleaseMode)
+	engine := gin.New()
+
+	handler := httptransport.NewHandler(recSvc, trendingSvc, collabSvc, pub)
+	router := httptransport.NewRouter(handler, hc)
+	router.Setup(engine)
+
+	httpServer := &http.Server{
+		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
+		Handler:      engine,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		logger.Info("starting recommendation service", zap.Int("http_port", cfg.HTTPPort))
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("http server failed", zap.Error(err))
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("shutting down...")
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	httpServer.Shutdown(shutdownCtx)
+	wg.Wait()
+	logger.Info("stopped")
 }
-func getGinMode(env string) string { if env == "production" || env == "staging" { return gin.ReleaseMode }; return gin.DebugMode }

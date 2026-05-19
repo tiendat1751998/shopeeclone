@@ -1,14 +1,106 @@
 package kafka
-import ("context"; "encoding/json"; "time"; "github.com/segmentio/kafka-go"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"; "go.uber.org/zap")
-const TopicLiveEvents = "live-commerce.events"
-type Producer struct { writer *kafka.Writer; service string }
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+	"github.com/segmentio/kafka-go"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
+	"go.uber.org/zap"
+)
+
+const (
+	TopicLiveEvents   = "live-commerce.events"
+	TopicChatMessages = "live-commerce.chat"
+	TopicAnalytics    = "live-commerce.analytics"
+)
+
+type Producer struct {
+	eventsWriter  *kafka.Writer
+	chatWriter    *kafka.Writer
+	analyticsWriter *kafka.Writer
+	service       string
+}
+
 func NewProducer(brokers []string, service string) *Producer {
-	return &Producer{writer: &kafka.Writer{Addr: kafka.TCP(brokers...), Balancer: &kafka.Hash{}, BatchTimeout: 10 * time.Millisecond, BatchSize: 100, Async: false, RequiredAcks: kafka.RequireAll, MaxAttempts: 3}, service: service}
+	return &Producer{
+		eventsWriter: newWriter(brokers, TopicLiveEvents),
+		chatWriter:   newWriter(brokers, TopicChatMessages),
+		analyticsWriter: newWriter(brokers, TopicAnalytics),
+		service:      service,
+	}
 }
+
+func newWriter(brokers []string, topic string) *kafka.Writer {
+	return &kafka.Writer{
+		Addr:         kafka.TCP(brokers...),
+		Topic:        topic,
+		Balancer:     &kafka.Hash{},
+		BatchTimeout: 10 * time.Millisecond,
+		BatchSize:    100,
+		Async:        false,
+		RequiredAcks: kafka.RequireAll,
+		MaxAttempts:  3,
+	}
+}
+
 func (p *Producer) Publish(ctx context.Context, eventType string, payload interface{}) error {
-	data, _ := json.Marshal(payload)
-	msg := kafka.Message{Topic: TopicLiveEvents, Key: []byte(eventType), Value: data, Headers: []kafka.Header{{Key: "service", Value: []byte(p.service)}}, Time: time.Now()}
-	if err := p.writer.WriteMessages(ctx, msg); err != nil { observability.LogWithTrace(ctx).Error("failed to publish", zap.Error(err)); return err }
-	observability.KafkaMessagesProduced.WithLabelValues(p.service, TopicLiveEvents).Inc(); return nil
+	body, err := json.Marshal(map[string]interface{}{
+		"type":    eventType,
+		"payload": payload,
+		"time":    time.Now().UnixMilli(),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	msg := kafka.Message{
+		Key:   []byte(eventType),
+		Value: body,
+		Headers: []kafka.Header{
+			{Key: "service", Value: []byte(p.service)},
+			{Key: "event_type", Value: []byte(eventType)},
+		},
+		Time: time.Now(),
+	}
+	var writer *kafka.Writer
+	switch eventType {
+	case "chat.message.sent", "chat.message.deleted":
+		writer = p.chatWriter
+	default:
+		writer = p.eventsWriter
+	}
+	if err := writer.WriteMessages(ctx, msg); err != nil {
+		observability.LogWithTrace(ctx).Error("kafka publish failed",
+			zap.String("event", eventType), zap.Error(err))
+		return err
+	}
+	observability.KafkaMessagesProduced.WithLabelValues(p.service, writer.Topic).Inc()
+	return nil
 }
-func (p *Producer) Close() error { return p.writer.Close() }
+
+func (p *Producer) PublishAnalytics(ctx context.Context, payload interface{}) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	msg := kafka.Message{
+		Key:   []byte("analytics"),
+		Value: body,
+		Headers: []kafka.Header{
+			{Key: "service", Value: []byte(p.service)},
+		},
+		Time: time.Now(),
+	}
+	return p.analyticsWriter.WriteMessages(ctx, msg)
+}
+
+func (p *Producer) Close() error {
+	if err := p.eventsWriter.Close(); err != nil {
+		return err
+	}
+	if err := p.chatWriter.Close(); err != nil {
+		return err
+	}
+	return p.analyticsWriter.Close()
+}

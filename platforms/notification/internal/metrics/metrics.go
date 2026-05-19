@@ -1,8 +1,64 @@
 package metrics
-import ("github.com/prometheus/client_golang/prometheus"; "github.com/prometheus/client_golang/prometheus/promauto")
+
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
 var (
-	NotificationsSent = promauto.NewCounter(prometheus.CounterOpts{Name: "shopee_notification_sent_total", Help: "Total notifications sent"})
-	RateLimitHits     = promauto.NewCounter(prometheus.CounterOpts{Name: "shopee_notification_rate_limit_hits_total", Help: "Rate limit hits"})
-	DeliveryErrors    = promauto.NewCounter(prometheus.CounterOpts{Name: "shopee_notification_delivery_errors_total", Help: "Delivery errors"})
-	NotificationLatency = promauto.NewHistogram(prometheus.HistogramOpts{Name: "shopee_notification_latency_seconds", Help: "Notification latency", Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1}})
+	NotificationsSentTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "notifications_sent_total",
+		Help: "Total notifications sent by channel",
+	}, []string{"channel"})
+
+	NotificationsFailedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "notifications_failed_total",
+		Help: "Total notifications failed by channel",
+	}, []string{"channel"})
+
+	PushSentTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "push_sent_total",
+		Help: "Total push notifications sent",
+	})
+
+	PushFailedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "push_failed_total",
+		Help: "Total push notifications failed",
+	})
+
+	EmailSentTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "email_sent_total",
+		Help: "Total emails sent",
+	})
+
+	EmailFailedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "email_failed_total",
+		Help: "Total emails failed",
+	})
+
+	EmailBouncedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "email_bounced_total",
+		Help: "Total emails bounced",
+	})
+
+	SMSSentTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "sms_sent_total",
+		Help: "Total SMS sent",
+	})
+
+	SMSFailedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "sms_failed_total",
+		Help: "Total SMS failed",
+	})
+
+	InAppSentTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "inapp_sent_total",
+		Help: "Total in-app notifications sent",
+	})
+
+	NotificationLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "notification_latency_seconds",
+		Help:    "Notification delivery latency",
+		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+	}, []string{"channel"})
 )

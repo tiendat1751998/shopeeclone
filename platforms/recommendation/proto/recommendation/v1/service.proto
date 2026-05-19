@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package shopee.recommendation.v1;
+
+option go_package = "github.com/shopee-clone/shopee/platforms/recommendation/proto/recommendation/v1;recpb";
+
+import "google/protobuf/timestamp.proto";
+
+service RecommendationService {
+  rpc GetRecommendations(GetRecommendationsRequest) returns (GetRecommendationsResponse);
+  rpc BatchRecommendations(BatchRecommendationsRequest) returns (BatchRecommendationsResponse);
+  rpc RecordFeedback(RecordFeedbackRequest) returns (RecordFeedbackResponse);
+  rpc GetTrending(GetTrendingRequest) returns (GetTrendingResponse);
+}
+
+message ProductRecommendation {
+  string product_id = 1;
+  string title = 2;
+  double score = 3;
+  string type = 4;
+  string reason = 5;
+  string category = 6;
+  double price = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message GetRecommendationsRequest {
+  string user_id = 1;
+  string type = 2;
+  string product_id = 3;
+  string session_id = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+message GetRecommendationsResponse {
+  repeated ProductRecommendation recommendations = 1;
+  int64 took_ms = 2;
+}
+
+message BatchRecommendationsRequest {
+  repeated GetRecommendationsRequest requests = 1;
+}
+
+message BatchRecommendationsResponse {
+  repeated GetRecommendationsResponse results = 1;
+}
+
+message RecordFeedbackRequest {
+  string user_id = 1;
+  string product_id = 2;
+  string event_type = 3;
+  string session_id = 4;
+}
+
+message RecordFeedbackResponse {
+  string message = 1;
+}
+
+message GetTrendingRequest {
+  int32 limit = 1;
+}
+
+message TrendingItem {
+  string product_id = 1;
+  double score = 2;
+  double velocity = 3;
+}
+
+message GetTrendingResponse {
+  repeated TrendingItem items = 1;
+  int64 took_ms = 2;
+}

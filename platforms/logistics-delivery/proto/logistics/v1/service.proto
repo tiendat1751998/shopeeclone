@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package logistics.v1;
+
+option go_package = "github.com/shopee-clone/shopee/platforms/logistics-delivery/proto/logistics/v1;logisticsv1";
+
+service LogisticsService {
+  rpc CreateShipment(CreateShipmentRequest) returns (ShipmentResponse);
+  rpc GetShipment(GetShipmentRequest) returns (ShipmentResponse);
+  rpc ListShipments(ListShipmentsRequest) returns (ListShipmentsResponse);
+  rpc UpdateShipmentStatus(UpdateShipmentStatusRequest) returns (StatusResponse);
+
+  rpc AppendTrackingEvent(AppendTrackingEventRequest) returns (TrackingEventResponse);
+  rpc GetTrackingTimeline(GetTrackingTimelineRequest) returns (TrackingTimelineResponse);
+
+  rpc AssignRoute(AssignRouteRequest) returns (RouteAssignmentResponse);
+  rpc CalculateEstimation(CalculateEstimationRequest) returns (EstimationResponse);
+}
+
+message Shipment {
+  string id = 1;
+  string order_id = 2;
+  string customer_id = 3;
+  string warehouse_id = 4;
+  string courier_id = 5;
+  string status = 6;
+  double total_weight = 7;
+  string origin_city = 8;
+  string dest_city = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+message CreateShipmentRequest {
+  string order_id = 1;
+  string customer_id = 2;
+  string warehouse_id = 3;
+  string origin_city = 4;
+  string dest_city = 5;
+  double total_weight = 6;
+}
+
+message GetShipmentRequest {
+  string id = 1;
+}
+
+message ShipmentResponse {
+  Shipment shipment = 1;
+}
+
+message ListShipmentsRequest {
+  string status = 1;
+  string courier_id = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ListShipmentsResponse {
+  repeated Shipment shipments = 1;
+  int64 total = 2;
+}
+
+message UpdateShipmentStatusRequest {
+  string id = 1;
+  string status = 2;
+  string reason = 3;
+}
+
+message StatusResponse {
+  string message = 1;
+}
+
+message TrackingEvent {
+  string id = 1;
+  string shipment_id = 2;
+  string event_type = 3;
+  string description = 4;
+  string occurred_at = 5;
+}
+
+message AppendTrackingEventRequest {
+  string shipment_id = 1;
+  string event_type = 2;
+  string description = 3;
+  double latitude = 4;
+  double longitude = 5;
+}
+
+message TrackingEventResponse {
+  TrackingEvent event = 1;
+}
+
+message GetTrackingTimelineRequest {
+  string shipment_id = 1;
+}
+
+message TrackingTimelineResponse {
+  repeated TrackingEvent events = 1;
+}
+
+message AssignRouteRequest {
+  string shipment_id = 1;
+  string city = 2;
+  string state = 3;
+}
+
+message RouteAssignmentResponse {
+  string zone_id = 1;
+  string warehouse_id = 2;
+}
+
+message CalculateEstimationRequest {
+  double origin_lat = 1;
+  double origin_lng = 2;
+  double dest_lat = 3;
+  double dest_lng = 4;
+  double package_weight = 5;
+  double distance_km = 6;
+}
+
+message EstimationResponse {
+  double distance_km = 1;
+  int32 total_duration_min = 2;
+  string eta = 3;
+  double confidence = 4;
+}

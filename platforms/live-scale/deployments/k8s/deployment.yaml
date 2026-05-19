@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: live-scale
+  labels:
+    app: live-scale
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: live-scale
+  template:
+    metadata:
+      labels:
+        app: live-scale
+    spec:
+      containers:
+      - name: live-scale
+        image: shopee-clone/live-scale:latest
+        ports:
+        - containerPort: 8081
+        - containerPort: 9091
+        env:
+        - name: APP_NAME
+          value: "shopee-live-scale"
+        - name: ENV
+          value: "production"
+        - name: HTTP_PORT
+          value: "8081"
+        - name: GRPC_PORT
+          value: "9091"
+        - name: REDIS_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: live-scale-config
+              key: redis_addr
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: live-scale-config
+              key: kafka_brokers
+        - name: DATABASE_DSN
+          valueFrom:
+            secretKeyRef:
+              name: live-scale-secret
+              key: database_dsn
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"

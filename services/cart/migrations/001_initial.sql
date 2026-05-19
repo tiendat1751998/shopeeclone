@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS carts (
     deleted_at TIMESTAMP NULL DEFAULT NULL,
     INDEX idx_carts_user (user_id, status, deleted_at),
     INDEX idx_carts_session (session_id, status, deleted_at),
-    INDEX idx_carts_expires (expires_at, status)
+    INDEX idx_carts_expires (expires_at, status),
+    UNIQUE INDEX idx_uq_active_user_cart (user_id) WHERE status = 'active' AND deleted_at IS NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS cart_items (
