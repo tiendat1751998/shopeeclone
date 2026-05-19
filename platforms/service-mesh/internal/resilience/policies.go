@@ -43,13 +43,10 @@ type CircuitBreaker struct {
 }
 
 type Bulkhead struct {
-	name                string
-	maxConcurrent       int64
-	queueSize           int64
-	currentConcurrent   atomic.Int64
-	queueCount          atomic.Int64
-	mu                  sync.Mutex
-	cond                *sync.Cond
+	name          string
+	maxConcurrent int64
+	queueSize     int64
+	sem           chan struct{}
 }
 
 func (cb *CircuitBreaker) Name() string {
@@ -134,57 +131,35 @@ func (cb *CircuitBreaker) Reset() {
 }
 
 func NewBulkhead(name string, maxConcurrent, queueSize int64) *Bulkhead {
-	b := &Bulkhead{
+	return &Bulkhead{
 		name:          name,
 		maxConcurrent: maxConcurrent,
 		queueSize:     queueSize,
+		sem:           make(chan struct{}, maxConcurrent+queueSize),
 	}
-	b.cond = sync.NewCond(&b.mu)
-	return b
 }
 
 func (b *Bulkhead) Acquire(ctx context.Context) error {
-	if b.currentConcurrent.Load() < b.maxConcurrent {
-		b.currentConcurrent.Add(1)
+	select {
+	case b.sem <- struct{}{}:
 		return nil
+	default:
 	}
 
-	if b.queueCount.Load() >= b.queueSize {
+	if int64(len(b.sem)) >= b.maxConcurrent+b.queueSize {
 		return errors.New("bulkhead queue full")
 	}
 
-	b.queueCount.Add(1)
-	defer b.queueCount.Add(-1)
-
-	done := make(chan struct{})
-	defer close(done)
-
-	go func() {
-		select {
-		case <-ctx.Done():
-			b.cond.Broadcast()
-		case <-done:
-		}
-	}()
-
-	b.mu.Lock()
-	for b.currentConcurrent.Load() >= b.maxConcurrent {
-		b.cond.Wait()
-		select {
-		case <-ctx.Done():
-			b.mu.Unlock()
-			return ctx.Err()
-		default:
-		}
+	select {
+	case b.sem <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-	b.currentConcurrent.Add(1)
-	b.mu.Unlock()
-	return nil
 }
 
 func (b *Bulkhead) Release() {
-	b.currentConcurrent.Add(-1)
-	b.cond.Signal()
+	<-b.sem
 }
 
 type Executor struct {

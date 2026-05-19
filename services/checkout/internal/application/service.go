@@ -86,6 +86,11 @@ func (s *CheckoutService) InitiateCheckout(ctx context.Context, req InitiateRequ
 	sagaCtx, sagaCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	go func() {
 		defer sagaCancel()
+		defer func() {
+			if r := recover(); r != nil {
+				zap.L().Error("panic in checkout saga", zap.Any("recover", r), zap.String("checkout_id", checkout.ID))
+			}
+		}()
 		s.executeSaga(sagaCtx, checkout.ID, req)
 	}()
 

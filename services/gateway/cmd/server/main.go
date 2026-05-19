@@ -18,7 +18,6 @@ import (
 	"github.com/shopee-clone/shopee/services/gateway/internal/config"
 	"github.com/shopee-clone/shopee/services/gateway/internal/discovery"
 	"github.com/shopee-clone/shopee/services/gateway/internal/ratelimit"
-	"github.com/shopee-clone/shopee/services/gateway/internal/resilience"
 	"github.com/shopee-clone/shopee/services/gateway/internal/routing"
 	"github.com/shopee-clone/shopee/services/gateway/internal/tracing"
 	"github.com/shopee-clone/shopee/services/gateway/internal/transport"
@@ -55,14 +54,7 @@ func main() {
 	svcDiscovery := discovery.NewServiceDiscovery()
 	registerUpstreams(cfg, svcDiscovery)
 
-	executor := resilience.NewProxyExecutor(
-		cfg.Upstreams.CircuitBreaker,
-		cfg.Upstreams.DefaultTimeout,
-		cfg.Upstreams.MaxRetries,
-	)
-
 	proxy := transport.NewProxy(
-		executor,
 		svcDiscovery,
 		cfg.Upstreams.MaxIdleConns,
 		cfg.Upstreams.IdleConnTimeout,

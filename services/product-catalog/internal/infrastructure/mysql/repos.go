@@ -36,7 +36,7 @@ func (r *SKURepository) FindByID(ctx context.Context, id string) (*domain.SKU, e
 	if err == sql.ErrNoRows { return nil, nil }; return &s, err
 }
 func (r *SKURepository) FindByProductID(ctx context.Context, productID string) ([]*domain.SKU, error) {
-	var skus []*domain.SKU; err := r.db.SelectContext(ctx, &skus, "SELECT * FROM skus WHERE product_id = ? ORDER BY sort_order", productID)
+	var skus []*domain.SKU; err := r.db.SelectContext(ctx, &skus, "SELECT * FROM skus WHERE product_id = ? ORDER BY sort_order LIMIT 500", productID)
 	return skus, err
 }
 func (r *SKURepository) Create(ctx context.Context, sku *domain.SKU) error {
@@ -62,7 +62,7 @@ func (r *CategoryRepository) FindByParentID(ctx context.Context, parentID string
 	return cats, err
 }
 func (r *CategoryRepository) GetTree(ctx context.Context) ([]*domain.Category, error) {
-	var cats []*domain.Category; err := r.db.SelectContext(ctx, &cats, "SELECT * FROM categories WHERE is_active = true ORDER BY level, sort_order")
+	var cats []*domain.Category; err := r.db.SelectContext(ctx, &cats, "SELECT * FROM categories WHERE is_active = true ORDER BY level, sort_order LIMIT 1000")
 	return cats, err
 }
 func (r *CategoryRepository) Create(ctx context.Context, c *domain.Category) error {
@@ -80,7 +80,7 @@ func (r *CategoryRepository) Delete(ctx context.Context, id string) error {
 type AttributeRepository struct{ db *sqlx.DB }
 func NewAttributeRepository(db *sqlx.DB) *AttributeRepository { return &AttributeRepository{db: db} }
 func (r *AttributeRepository) FindByCategoryID(ctx context.Context, categoryID string) ([]*domain.Attribute, error) {
-	var attrs []*domain.Attribute; err := r.db.SelectContext(ctx, &attrs, "SELECT * FROM attributes WHERE category_id = ? AND is_active = true ORDER BY sort_order", categoryID)
+	var attrs []*domain.Attribute; err := r.db.SelectContext(ctx, &attrs, "SELECT * FROM attributes WHERE category_id = ? AND is_active = true ORDER BY sort_order LIMIT 200", categoryID)
 	return attrs, err
 }
 func (r *AttributeRepository) Create(ctx context.Context, a *domain.Attribute) error {
@@ -95,7 +95,7 @@ func (r *AttributeRepository) Update(ctx context.Context, a *domain.Attribute) e
 type ProductMediaRepository struct{ db *sqlx.DB }
 func NewProductMediaRepository(db *sqlx.DB) *ProductMediaRepository { return &ProductMediaRepository{db: db} }
 func (r *ProductMediaRepository) FindByProductID(ctx context.Context, productID string) ([]*domain.ProductMedia, error) {
-	var media []*domain.ProductMedia; err := r.db.SelectContext(ctx, &media, "SELECT * FROM product_media WHERE product_id = ? ORDER BY sort_order", productID)
+	var media []*domain.ProductMedia; err := r.db.SelectContext(ctx, &media, "SELECT * FROM product_media WHERE product_id = ? ORDER BY sort_order LIMIT 100", productID)
 	return media, err
 }
 func (r *ProductMediaRepository) Create(ctx context.Context, m *domain.ProductMedia) error {

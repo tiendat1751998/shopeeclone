@@ -15,7 +15,6 @@ import (
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/gateway/internal/discovery"
 	"github.com/shopee-clone/shopee/services/gateway/internal/middleware"
-	"github.com/shopee-clone/shopee/services/gateway/internal/resilience"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -24,19 +23,16 @@ import (
 )
 
 type Proxy struct {
-	executor   *resilience.ProxyExecutor
-	discovery  *discovery.ServiceDiscovery
-	transport  *http.Transport
+	discovery *discovery.ServiceDiscovery
+	transport *http.Transport
 }
 
 func NewProxy(
-	executor *resilience.ProxyExecutor,
 	svcDiscovery *discovery.ServiceDiscovery,
 	maxIdleConns int,
 	idleConnTimeout time.Duration,
 ) *Proxy {
 	return &Proxy{
-		executor:  executor,
 		discovery: svcDiscovery,
 		transport: &http.Transport{
 			MaxIdleConns:        maxIdleConns,

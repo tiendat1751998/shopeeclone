@@ -21,12 +21,14 @@ type AuditRepository struct {
 	mu          sync.Mutex
 	buffer      []*domain.AuditLog
 	lastFlush   time.Time
+	ctx         context.Context
 	stopCh      chan struct{}
 	flushCh     chan struct{}
 }
 
-func NewAuditRepository(db *sqlx.DB, cfg config.AuditConfig) *AuditRepository {
+func NewAuditRepository(ctx context.Context, db *sqlx.DB, cfg config.AuditConfig) *AuditRepository {
 	r := &AuditRepository{
+		ctx:       ctx,
 		db:        db,
 		cfg:       cfg,
 		buffer:    make([]*domain.AuditLog, 0, cfg.BatchSize),
@@ -155,6 +157,9 @@ func (r *AuditRepository) flushLoop() {
 		case <-r.flushCh:
 			r.Flush()
 		case <-r.stopCh:
+			r.Flush()
+			return
+		case <-r.ctx.Done():
 			r.Flush()
 			return
 		}

@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/shopee-clone/shopee/services/order/internal/domain"
@@ -41,16 +42,30 @@ func (s *OrderService) RunReconciliation(ctx context.Context) error {
 		return err
 	}
 
+	// Batch-load all referenced orders to avoid N+1
+	orderIDs := make([]string, 0, len(recs))
+	orderMap := make(map[string]*domain.Order, len(recs))
+	for _, rec := range recs {
+		orderIDs = append(orderIDs, rec.OrderID)
+	}
+	if len(orderIDs) > 0 {
+		loaded, err := s.orderRepo.FindByIDs(ctx, orderIDs)
+		if err != nil {
+			return fmt.Errorf("batch load orders for reconciliation: %w", err)
+		}
+		orderMap = loaded
+	}
+
 	for _, rec := range recs {
 		start := time.Now()
-		s.reconcileOrder(ctx, rec)
+		s.reconcileOrder(ctx, rec, orderMap[rec.OrderID])
 		metrics.ReconciliationLatency.WithLabelValues(string(rec.ReconciliationType)).Observe(time.Since(start).Seconds())
 	}
 
 	return nil
 }
 
-func (s *OrderService) reconcileOrder(ctx context.Context, rec *domain.OrderReconciliation) {
+func (s *OrderService) reconcileOrder(ctx context.Context, rec *domain.OrderReconciliation, order *domain.Order) {
 	defer func() {
 		if r := recover(); r != nil {
 			zap.L().Error("panic in reconciliation", zap.Any("recover", r))
@@ -60,8 +75,8 @@ func (s *OrderService) reconcileOrder(ctx context.Context, rec *domain.OrderReco
 	rec.IncrementRetry()
 	rec.MarkChecked()
 
-	order, err := s.orderRepo.FindByID(ctx, rec.OrderID)
-	if err != nil {
+	if order == nil {
+		zap.L().Warn("order not found for reconciliation", zap.String("order_id", rec.OrderID))
 		s.orderRepo.UpdateReconciliationStatus(ctx, rec.ID, domain.ReconciliationStatusFailed, rec.RetryCount)
 		metrics.ReconciliationFailures.WithLabelValues(string(rec.ReconciliationType)).Inc()
 		return

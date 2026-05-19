@@ -55,12 +55,37 @@ func (r *OrderRepository) Create(ctx context.Context, order *domain.Order) error
 }
 
 func (r *OrderRepository) FindByID(ctx context.Context, id string) (*domain.Order, error) {
-	var order domain.Order
 	query := `SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL`
-	if err := r.db.GetContext(ctx, &order, query, id); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, domain.ErrOrderNotFound
-		}
+	var order domain.Order
+	err := r.db.GetContext(ctx, &order, query, id)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find order by id: %w", err)
+	}
+	return &order, nil
+}
+
+func (r *OrderRepository) FindByIDs(ctx context.Context, ids []string) (map[string]*domain.Order, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var orders []*domain.Order
+	query, args, err := sqlx.In("SELECT * FROM orders WHERE id IN (?) AND deleted_at IS NULL", ids)
+	if err != nil {
+		return nil, fmt.Errorf("build find by ids: %w", err)
+	}
+	query = r.db.Rebind(query)
+	if err := r.db.SelectContext(ctx, &orders, query, args...); err != nil {
+		return nil, fmt.Errorf("find orders by ids: %w", err)
+	}
+	result := make(map[string]*domain.Order, len(orders))
+	for _, o := range orders {
+		result[o.ID] = o
+	}
+	return result, nil
+}
 		return nil, fmt.Errorf("failed to find order: %w", err)
 	}
 
@@ -144,7 +169,7 @@ func (r *OrderRepository) FindByIdempotencyKey(ctx context.Context, key string) 
 
 func (r *OrderRepository) FindItemsByOrderID(ctx context.Context, orderID string) ([]domain.OrderItem, error) {
 	var items []domain.OrderItem
-	query := `SELECT * FROM order_items WHERE order_id = ?`
+	query := `SELECT * FROM order_items WHERE order_id = ? ORDER BY id ASC LIMIT 500`
 	if err := r.db.SelectContext(ctx, &items, query, orderID); err != nil {
 		return nil, fmt.Errorf("failed to find order items: %w", err)
 	}
@@ -200,7 +225,7 @@ func (r *OrderRepository) SaveLifecycleEvent(ctx context.Context, event *domain.
 
 func (r *OrderRepository) GetLifecycleHistory(ctx context.Context, orderID string) ([]*domain.LifecycleEvent, error) {
 	var events []*domain.LifecycleEvent
-	query := `SELECT * FROM order_lifecycle_history WHERE order_id = ? ORDER BY created_at ASC`
+	query := `SELECT * FROM order_lifecycle_history WHERE order_id = ? ORDER BY created_at ASC LIMIT 1000`
 	if err := r.db.SelectContext(ctx, &events, query, orderID); err != nil {
 		return nil, fmt.Errorf("failed to get lifecycle history: %w", err)
 	}

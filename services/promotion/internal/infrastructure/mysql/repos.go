@@ -46,6 +46,8 @@ func (r *VoucherRepository) IncrementUsage(ctx context.Context, id string) error
 }
 
 func (r *VoucherRepository) ListActive(ctx context.Context, offset, limit int) ([]*domain.Voucher, int64, error) {
+	if limit < 1 { limit = 20 }
+	if limit > 200 { limit = 200 }
 	var total int64
 	r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM vouchers WHERE status = 'active' AND end_time > NOW()")
 	var vouchers []*domain.Voucher
@@ -125,6 +127,8 @@ func (r *CampaignRepository) ListActive(ctx context.Context) ([]*domain.Campaign
 }
 
 func (r *CampaignRepository) ListByType(ctx context.Context, cType string, offset, limit int) ([]*domain.Campaign, int64, error) {
+	if limit < 1 { limit = 20 }
+	if limit > 200 { limit = 200 }
 	var total int64
 	r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM campaigns WHERE type = ?", cType)
 	var campaigns []*domain.Campaign
@@ -174,7 +178,7 @@ type EligibilityRuleRepository struct{ db *sqlx.DB }
 func NewEligibilityRuleRepository(db *sqlx.DB) *EligibilityRuleRepository { return &EligibilityRuleRepository{db: db} }
 func (r *EligibilityRuleRepository) FindByPromotion(ctx context.Context, promotionID string) ([]*domain.EligibilityRule, error) {
 	var rules []*domain.EligibilityRule
-	err := r.db.SelectContext(ctx, &rules, "SELECT * FROM eligibility_rules WHERE promotion_id = ? AND is_active = true", promotionID)
+	err := r.db.SelectContext(ctx, &rules, "SELECT * FROM eligibility_rules WHERE promotion_id = ? AND is_active = true ORDER BY id ASC LIMIT 100", promotionID)
 	return rules, err
 }
 func (r *EligibilityRuleRepository) Create(ctx context.Context, rule *domain.EligibilityRule) error {
@@ -187,7 +191,7 @@ type StackingRuleRepository struct{ db *sqlx.DB }
 func NewStackingRuleRepository(db *sqlx.DB) *StackingRuleRepository { return &StackingRuleRepository{db: db} }
 func (r *StackingRuleRepository) FindByPromotionType(ctx context.Context, pType string) ([]*domain.StackingRule, error) {
 	var rules []*domain.StackingRule
-	err := r.db.SelectContext(ctx, &rules, "SELECT * FROM stacking_rules WHERE promotion_type = ?", pType)
+	err := r.db.SelectContext(ctx, &rules, "SELECT * FROM stacking_rules WHERE promotion_type = ? ORDER BY id ASC LIMIT 100", pType)
 	return rules, err
 }
 func (r *StackingRuleRepository) Create(ctx context.Context, rule *domain.StackingRule) error {

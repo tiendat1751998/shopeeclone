@@ -13,7 +13,6 @@ import (
 	"github.com/shopee-clone/shopee/services/gateway/internal/config"
 	"github.com/shopee-clone/shopee/services/gateway/internal/discovery"
 	"github.com/shopee-clone/shopee/services/gateway/internal/ratelimit"
-	"github.com/shopee-clone/shopee/services/gateway/internal/resilience"
 	"github.com/shopee-clone/shopee/services/gateway/internal/routing"
 	"github.com/shopee-clone/shopee/services/gateway/internal/transport"
 )
@@ -52,11 +51,6 @@ func setupTestRouter() *gin.Engine {
 			DefaultTimeout:  5 * time.Second,
 			MaxIdleConns:    10,
 			IdleConnTimeout: 30 * time.Second,
-			MaxRetries:      1,
-			CircuitBreaker: config.CircuitBreakerConfig{
-				MaxRequests: 5,
-				MinSamples:  5,
-			},
 		},
 	}
 
@@ -70,14 +64,7 @@ func setupTestRouter() *gin.Engine {
 		{ID: "test-1", Name: "test-service", Address: "localhost", Port: 9999, Weight: 1},
 	})
 
-	executor := resilience.NewProxyExecutor(
-		cfg.Upstreams.CircuitBreaker,
-		cfg.Upstreams.DefaultTimeout,
-		cfg.Upstreams.MaxRetries,
-	)
-
 	proxy := transport.NewProxy(
-		executor,
 		svcDiscovery,
 		cfg.Upstreams.MaxIdleConns,
 		cfg.Upstreams.IdleConnTimeout,
