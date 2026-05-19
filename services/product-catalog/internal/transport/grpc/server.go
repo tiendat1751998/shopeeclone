@@ -47,8 +47,8 @@ func (s *CatalogGRPCServer) ListProducts(ctx context.Context, req *pb.ListProduc
 
 func toProductResponse(p *domain.Product) *pb.ProductResponse {
 	return &pb.ProductResponse{
-		Id: p.ID, ShopId: p.ShopId, Name: p.Name, Description: p.Description,
-		CategoryId: p.CategoryId, Brand: p.Brand, Status: string(p.Status),
+		Id: p.ID, ShopId: p.ShopID, Name: p.Name, Description: p.Description,
+		CategoryId: p.CategoryID, Brand: p.Brand, Status: string(p.Status),
 		CreatedAt: p.CreatedAt.String(),
 	}
 }

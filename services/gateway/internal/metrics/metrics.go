@@ -35,11 +35,6 @@ var (
 		Help: "Total number of authentication errors",
 	}, []string{"reason"})
 
-	GatewayCircuitBreakerState = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "shopee_gateway_circuit_breaker_state",
-		Help: "Circuit breaker state per upstream service (0=closed, 1=open, 2=half-open)",
-	}, []string{"service"})
-
 	GatewayActiveConnections = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "shopee_gateway_active_connections",
 		Help: "Current number of active connections",
@@ -54,11 +49,6 @@ var (
 		Name: "shopee_gateway_response_bytes_total",
 		Help: "Total bytes sent by the gateway",
 	}, []string{"service", "status"})
-
-	GatewayRetryCount = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "shopee_gateway_retries_total",
-		Help: "Total number of retry attempts",
-	}, []string{"service"})
 
 	GatewayUpstreamErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "shopee_gateway_upstream_errors_total",

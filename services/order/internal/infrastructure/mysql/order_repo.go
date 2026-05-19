@@ -63,6 +63,12 @@ func (r *OrderRepository) FindByID(ctx context.Context, id string) (*domain.Orde
 	if err != nil {
 		return nil, fmt.Errorf("find order by id: %w", err)
 	}
+
+	items, err := r.FindItemsByOrderID(ctx, id)
+	if err == nil {
+		order.Items = items
+	}
+
 	return &order, nil
 }
 
@@ -84,16 +90,6 @@ func (r *OrderRepository) FindByIDs(ctx context.Context, ids []string) (map[stri
 		result[o.ID] = o
 	}
 	return result, nil
-}
-		return nil, fmt.Errorf("failed to find order: %w", err)
-	}
-
-	items, err := r.FindItemsByOrderID(ctx, id)
-	if err == nil {
-		order.Items = items
-	}
-
-	return &order, nil
 }
 
 func (r *OrderRepository) FindByOrderNumber(ctx context.Context, orderNumber string) (*domain.Order, error) {
@@ -308,14 +304,14 @@ func (r *OrderRepository) SaveSellerSplit(ctx context.Context, split *domain.Sel
 
 // Idempotency methods
 func (r *OrderRepository) SaveIdempotencyKey(ctx context.Context, record *domain.IdempotencyRecord) error {
-	query := `INSERT INTO idempotency_keys (`key`, order_id, expires_at, created_at) VALUES (?, ?, ?, ?)`
+	query := "INSERT INTO idempotency_keys (`key`, order_id, expires_at, created_at) VALUES (?, ?, ?, ?)"
 	_, err := r.db.ExecContext(ctx, query, record.Key, record.OrderID, record.ExpiresAt, record.CreatedAt)
 	return err
 }
 
 func (r *OrderRepository) GetIdempotencyKey(ctx context.Context, key string) (*domain.IdempotencyRecord, error) {
 	var record domain.IdempotencyRecord
-	query := `SELECT * FROM idempotency_keys WHERE `key` = ?`
+	query := "SELECT * FROM idempotency_keys WHERE `key` = ?"
 	if err := r.db.GetContext(ctx, &record, query, key); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

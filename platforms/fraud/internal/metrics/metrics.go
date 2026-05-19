@@ -38,4 +38,12 @@ var (
 		Help:    "Distribution of risk scores",
 		Buckets: []float64{10, 25, 50, 75, 90, 100},
 	})
+
+	FraudScoresComputed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "shopee_fraud_scores_computed_total", Help: "Total fraud scores computed",
+	})
+
+	FraudCasesCreated = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "shopee_fraud_cases_created_total", Help: "Total fraud cases created",
+	})
 )

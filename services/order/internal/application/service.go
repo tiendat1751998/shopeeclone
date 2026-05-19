@@ -129,7 +129,6 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *CreateOrderRequest)
 	order.SnapshotID = snapshot.ID
 
 	// Persist in transaction
-	txStart := time.Now()
 	if err := s.orderRepo.Create(ctx, order); err != nil {
 		span.SetStatus(codes.Error, "order creation failed")
 		return nil, fmt.Errorf("failed to create order: %w", err)

@@ -56,7 +56,7 @@ func main() {
 	}
 
 	// [SECURITY] Pass db to service for transaction support
-	invService := application.NewInventoryService(cfg, db, invRepo, redisStore, kafkaProducer)
+	invService := application.NewInventoryService(cfg, db.DB, invRepo, redisStore, kafkaProducer)
 
 	gin.SetMode(getGinMode(cfg.AppEnv))
 	engine := gin.New()
@@ -68,7 +68,7 @@ func main() {
 	router := httptransport.NewRouter(handler, authMw)
 	router.Setup(engine)
 
-	healthChecker := health.NewChecker(cfg.AppName, version, db, redisClient)
+	healthChecker := health.NewChecker(cfg.AppName, version, db.DB, redisClient)
 	engine.GET("/health/live", healthChecker.LivenessHandler())
 	engine.GET("/health/ready", healthChecker.ReadinessHandler())
 

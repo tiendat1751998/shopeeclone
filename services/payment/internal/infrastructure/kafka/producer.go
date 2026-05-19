@@ -34,6 +34,7 @@ func (p *Producer) PublishEvent(ctx context.Context, event *domain.PaymentEvent)
 	if err != nil { return err }
 	topic := fmt.Sprintf("%s.%s", p.cfg.TopicPrefix, event.EventType)
 	msg := kafka.Message{
+		Topic:   topic,
 		Key:     []byte(event.PaymentID),
 		Value:   payload,
 		Headers: []kafka.Header{{Key: "event_type", Value: []byte(event.EventType)}},

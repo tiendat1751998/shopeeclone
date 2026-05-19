@@ -106,11 +106,11 @@ func (s *OrderGRPCServer) GetOrderHistory(ctx context.Context, req *pb.GetOrderH
 	pbEvents := make([]*pb.LifecycleEvent, 0, len(events))
 	for _, e := range events {
 		pbEvents = append(pbEvents, &pb.LifecycleEvent{
-			Id:               e.Id,
+			Id:               e.ID,
 			FromStatus:       string(e.FromStatus),
 			ToStatus:         string(e.ToStatus),
 			TransitionReason: e.TransitionReason,
-			ActorId:          e.ActorId,
+			ActorId:          e.ActorID,
 			ActorType:        e.ActorType,
 			CreatedAt:        e.CreatedAt.String(),
 		})

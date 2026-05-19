@@ -38,6 +38,7 @@ func (p *Producer) PublishCatalogEvent(ctx context.Context, event *domain.Catalo
 
 	topic := fmt.Sprintf("%s.%s", p.cfg.TopicPrefix, event.EventType)
 	msg := kafka.Message{
+		Topic:   topic,
 		Key:     []byte(event.ProductID),
 		Value:   payload,
 		Headers: []kafka.Header{{Key: "event_type", Value: []byte(event.EventType)}},
@@ -68,6 +69,7 @@ func (p *Producer) PublishIndexingEvent(ctx context.Context, event *domain.Index
 
 	topic := fmt.Sprintf("%s.indexing", p.cfg.TopicPrefix)
 	msg := kafka.Message{
+		Topic:   topic,
 		Key:     []byte(event.ProductID),
 		Value:   payload,
 		Headers: []kafka.Header{{Key: "event_type", Value: []byte("indexing")}},

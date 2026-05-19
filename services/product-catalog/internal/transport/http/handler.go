@@ -35,7 +35,7 @@ func (h *Handler) ArchiveProduct(c *gin.Context) {
 }
 
 func (h *Handler) GetCategories(c *gin.Context) {
-	ctx, _ := otel.Tracer("shopee-catalog").Start(c.Request.Context", "http.get_categories")
+	ctx, _ := otel.Tracer("shopee-catalog").Start(c.Request.Context(), "http.get_categories")
 	cats, err := h.service.GetCategoryTree(ctx)
 	if err != nil { handleError(c, err); return }
 	c.JSON(http.StatusOK, gin.H{"categories": cats})

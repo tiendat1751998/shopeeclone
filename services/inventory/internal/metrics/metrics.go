@@ -20,6 +20,10 @@ var (
 		Name: "shopee_inventory_reservation_failures_total", Help: "Reservation failures",
 	}, []string{"reason"})
 
+	IdempotentRequests = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "shopee_inventory_idempotent_requests_total", Help: "Idempotent request deduplication count",
+	})
+
 	OversellPreventionCount = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "shopee_inventory_oversell_prevention_total", Help: "Oversell prevention count",
 	})

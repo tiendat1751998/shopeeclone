@@ -28,7 +28,7 @@ type Router struct {
 	authMW      *auth.AuthMiddleware
 	discovery   *discovery.ServiceDiscovery
 	health      *health.Checker
-	redisClient *redis.Client
+	rdb         *redis.Client
 }
 
 func NewRouter(
@@ -38,7 +38,7 @@ func NewRouter(
 	authMW *auth.AuthMiddleware,
 	svcDiscovery *discovery.ServiceDiscovery,
 	healthChecker *health.Checker,
-	redisClient *redis.Client,
+	rdb *redis.Client,
 ) *Router {
 	return &Router{
 		cfg:         cfg,
@@ -47,7 +47,7 @@ func NewRouter(
 		authMW:      authMW,
 		discovery:   svcDiscovery,
 		health:      healthChecker,
-		redisClient: redisClient,
+		rdb:         rdb,
 	}
 }
 
@@ -88,7 +88,7 @@ func (r *Router) setupSystemEndpoints(engine *gin.Engine) {
 		})
 	})
 
-	gatewayHealth := gwHealth.NewGatewayHealth(r.discovery, r.redisClient)
+	gatewayHealth := gwHealth.NewGatewayHealth(r.discovery, r.rdb)
 	engine.GET("/health/upstreams", gatewayHealth.UpstreamsHandler())
 
 	if r.cfg.Server.EnablePprof {

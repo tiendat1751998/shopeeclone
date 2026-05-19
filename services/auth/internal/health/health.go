@@ -9,12 +9,12 @@ import (
 )
 
 type Checker struct {
-	db         interface{ Ping(ctx context.Context) error }
+	db         interface{ PingContext(ctx context.Context) error }
 	redis      *redis.Client
 	httpHealth *health.Checker
 }
 
-func NewChecker(service, version string, db interface{ Ping(ctx context.Context) error }, rdb *redis.Client) *Checker {
+func NewChecker(service, version string, db interface{ PingContext(ctx context.Context) error }, rdb *redis.Client) *Checker {
 	c := &Checker{
 		db:    db,
 		redis: rdb,
@@ -22,7 +22,7 @@ func NewChecker(service, version string, db interface{ Ping(ctx context.Context)
 	}
 
 	c.httpHealth.AddCheck("database", func(ctx context.Context) error {
-		return db.Ping(ctx)
+		return db.PingContext(ctx)
 	})
 
 	if rdb != nil {
@@ -43,7 +43,7 @@ func (c *Checker) ReadinessHandler() gin.HandlerFunc {
 }
 
 func (c *Checker) HealthCheck(ctx context.Context) error {
-	if err := c.db.Ping(ctx); err != nil {
+	if err := c.db.PingContext(ctx); err != nil {
 		return err
 	}
 	if c.redis != nil {
