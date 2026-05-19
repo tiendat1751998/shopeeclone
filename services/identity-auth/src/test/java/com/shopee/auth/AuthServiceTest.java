@@ -13,6 +13,7 @@ import com.shopee.auth.repository.RoleRepository;
 import com.shopee.auth.repository.UserRepository;
 import com.shopee.auth.repository.UserRoleRepository;
 import com.shopee.auth.security.AccountLockoutService;
+import com.shopee.auth.security.JwksProvider;
 import com.shopee.auth.security.JwtTokenProvider;
 import com.shopee.auth.security.RateLimiterService;
 import com.shopee.auth.service.AuthService;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -63,6 +65,9 @@ class AuthServiceTest {
     @Mock
     private OutboxEventRepository outboxEventRepository;
 
+    @Mock
+    private JwksProvider jwksProvider;
+
     private PasswordEncoder passwordEncoder;
     private JwtTokenProvider jwtTokenProvider;
     private SessionService sessionService;
@@ -72,7 +77,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         passwordEncoder = new BCryptPasswordEncoder();
-        jwtTokenProvider = new JwtTokenProvider();
+        jwtTokenProvider = new JwtTokenProvider(jwksProvider);
         jwtTokenProvider.init();
 
         setField(jwtTokenProvider, "accessSecret", "test-access-secret-key-must-be-at-least-256-bits");
@@ -213,6 +218,6 @@ class AuthServiceTest {
         when(userRepository.findById(any())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.getUserById(UUID.randomUUID().toString()))
-            .isInstanceOf(org.springframework.security.core.userdetails.UsernameNotFoundException.class);
+            .isInstanceOf(UsernameNotFoundException.class);
     }
 }

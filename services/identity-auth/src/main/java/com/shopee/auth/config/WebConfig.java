@@ -7,9 +7,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    private final com.shopee.auth.config.RequestLoggingInterceptor requestLoggingInterceptor;
+    private final RequestLoggingInterceptor requestLoggingInterceptor;
 
-    public WebConfig(com.shopee.auth.config.RequestLoggingInterceptor requestLoggingInterceptor) {
+    public WebConfig(RequestLoggingInterceptor requestLoggingInterceptor) {
         this.requestLoggingInterceptor = requestLoggingInterceptor;
     }
 

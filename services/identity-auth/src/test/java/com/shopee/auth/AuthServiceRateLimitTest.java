@@ -17,6 +17,7 @@ import com.shopee.auth.security.JwksProvider;
 import com.shopee.auth.security.RateLimiterService;
 import com.shopee.auth.service.AuthService;
 import com.shopee.auth.service.OutboxPublisher;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shopee.auth.service.rbac.RoleService;
 import com.shopee.auth.service.session.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.time.LocalDateTime;
@@ -71,7 +73,7 @@ class AuthServiceRateLimitTest {
         jwtTokenProvider = new JwtTokenProvider(jwksProvider);
         rateLimiterService = new RateLimiterService(redisTemplate);
         accountLockoutService = new AccountLockoutService(failedLoginRepository);
-        outboxPublisher = new OutboxPublisher(outboxEventRepository, new com.fasterxml.jackson.databind.ObjectMapper());
+        outboxPublisher = new OutboxPublisher(outboxEventRepository, new ObjectMapper());
         sessionService = new SessionService(refreshTokenRepository, jwtTokenProvider);
         roleService = new RoleService(roleRepository, userRoleRepository);
         authService = new AuthService(userRepository, passwordEncoder,
@@ -293,7 +295,7 @@ class AuthServiceRateLimitTest {
         when(userRepository.findById(any())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.getUserById(UUID.randomUUID().toString()))
-            .isInstanceOf(org.springframework.security.core.userdetails.UsernameNotFoundException.class)
+            .isInstanceOf(UsernameNotFoundException.class)
             .hasMessageContaining("User not found");
     }
 
