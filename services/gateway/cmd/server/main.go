@@ -66,7 +66,7 @@ func main() {
 	gin.SetMode(getGinMode(cfg.AppEnv))
 	engine := gin.New()
 
-	router := routing.NewRouter(cfg, proxy, rateLimiter, authMiddleware, svcDiscovery, healthChecker)
+	router := routing.NewRouter(cfg, proxy, rateLimiter, authMiddleware, svcDiscovery, healthChecker, redisClient)
 	router.Setup(engine)
 
 	httpServer := &http.Server{

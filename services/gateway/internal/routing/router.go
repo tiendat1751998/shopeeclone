@@ -18,6 +18,7 @@ import (
 	"github.com/shopee-clone/shopee/services/gateway/internal/transport"
 	sharedMiddleware "github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
+	"github.com/redis/go-redis/v9"
 )
 
 type Router struct {
@@ -27,6 +28,7 @@ type Router struct {
 	authMW      *auth.AuthMiddleware
 	discovery   *discovery.ServiceDiscovery
 	health      *health.Checker
+	rdb         *redis.Client
 }
 
 func NewRouter(
@@ -36,6 +38,7 @@ func NewRouter(
 	authMW *auth.AuthMiddleware,
 	svcDiscovery *discovery.ServiceDiscovery,
 	healthChecker *health.Checker,
+	rdb *redis.Client,
 ) *Router {
 	return &Router{
 		cfg:         cfg,
@@ -44,6 +47,7 @@ func NewRouter(
 		authMW:      authMW,
 		discovery:   svcDiscovery,
 		health:      healthChecker,
+		rdb:         rdb,
 	}
 }
 
@@ -84,7 +88,7 @@ func (r *Router) setupSystemEndpoints(engine *gin.Engine) {
 		})
 	})
 
-	gatewayHealth := gwHealth.NewGatewayHealth(r.discovery)
+	gatewayHealth := gwHealth.NewGatewayHealth(r.discovery, r.rdb)
 	engine.GET("/health/upstreams", gatewayHealth.UpstreamsHandler())
 
 	if r.cfg.Server.EnablePprof {
