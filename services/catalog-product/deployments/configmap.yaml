@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopee-catalog-product-config
+data:
+  APP_NAME: "shopee-catalog-product"
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  CATALOG_PRODUCT_HTTP_PORT: "8080"
+  CATALOG_PRODUCT_GRPC_PORT: "9080"
+  REDIS_ADDR: "redis-master.cache:6379"
+  KAFKA_BROKERS: "kafka-headless.kafka:9092"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.monitoring:4318"

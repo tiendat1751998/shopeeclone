@@ -60,14 +60,15 @@ func (sp *SearchParams) ToProductFilter() domain.ProductFilter {
 // -----------------------------------------------------------------------------
 
 type CreateProductRequest struct {
-	Title       string                `json:"title"       validate:"required,max=255"`
-	Description string                `json:"description" validate:"max=5000"`
-	CategoryID  string                `json:"category_id" validate:"required"`
-	BrandID     string                `json:"brand_id"    validate:"omitempty"`
-	SellerID    string                `json:"seller_id"   validate:"required"`
-	SKUs        []CreateSKURequest    `json:"skus"        validate:"required,min=1,dive"`
-	Images      []CreateImageRequest  `json:"images"      validate:"dive"`
-	Attributes  []SetAttributeRequest `json:"attributes"  validate:"dive"`
+	Title           string                `json:"title"             validate:"required,max=255"`
+	Description     string                `json:"description"       validate:"max=5000"`
+	CategoryID      string                `json:"category_id"       validate:"required"`
+	BrandID         string                `json:"brand_id"          validate:"omitempty"`
+	SellerID        string                `json:"seller_id"         validate:"required"`
+	SKUs            []CreateSKURequest    `json:"skus"              validate:"required,min=1,dive"`
+	Images          []CreateImageRequest  `json:"images"            validate:"dive"`
+	Attributes      []SetAttributeRequest `json:"attributes"        validate:"dive"`
+	IdempotencyKey  string                `json:"idempotency_key"   validate:"omitempty,max=128"`
 }
 
 type UpdateProductRequest struct {

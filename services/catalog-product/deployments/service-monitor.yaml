@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: shopee-catalog-product
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: shopee-catalog-product
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

@@ -14,6 +14,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
+	"github.com/segmentio/kafka-go"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
@@ -82,13 +83,27 @@ func main() {
 	_ = attributeRepo
 	_ = moderationRepo
 
-	// Health checker
+	// Health checker with deep checks
 	healthChecker := health.NewChecker(cfg.ServiceName, version)
 	healthChecker.AddCheck("mysql", func(ctx context.Context) error {
 		return db.PingContext(ctx)
 	})
 	healthChecker.AddCheck("redis", func(ctx context.Context) error {
 		return redisClient.Ping(ctx).Err()
+	})
+	// [RELIABILITY] Deep health check — verify Kafka connectivity
+	healthChecker.AddCheck("kafka", func(ctx context.Context) error {
+		// Try to read metadata from Kafka to verify connectivity
+		conn, err := kafka.DialContext(ctx, "tcp", cfg.Kafka.Brokers[0])
+		if err != nil {
+			return fmt.Errorf("kafka dial failed: %w", err)
+		}
+		defer conn.Close()
+		_, err = conn.Brokers()
+		if err != nil {
+			return fmt.Errorf("kafka brokers check failed: %w", err)
+		}
+		return nil
 	})
 
 	// HTTP server

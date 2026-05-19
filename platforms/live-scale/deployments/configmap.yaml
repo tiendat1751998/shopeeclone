@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopee-live-scale-config
+data:
+  APP_NAME: "shopee-live-scale"
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  LIVE_SCALE_HTTP_PORT: "8103"
+  LIVE_SCALE_GRPC_PORT: "9103"
+  REDIS_ADDR: "redis-master.cache:6379"
+  KAFKA_BROKERS: "kafka-headless.kafka:9092"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.monitoring:4318"

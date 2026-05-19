@@ -24,7 +24,8 @@ func NewProductRepo(db *sqlx.DB) *ProductRepo {
 
 // Create inserts a new product with its SKUs and images in a transaction
 func (r *ProductRepo) Create(ctx context.Context, product *domain.Product) error {
-	tx, err := r.db.BeginTxx(ctx, nil)
+	// [RELIABILITY] Use SERIALIZABLE isolation to prevent duplicate creation under concurrency
+	tx, err := r.db.BeginTxx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
@@ -167,8 +168,11 @@ func (r *ProductRepo) Search(ctx context.Context, query string, filter domain.Pr
 	args := []interface{}{}
 
 	if query != "" {
+		// Sanitize search input — remove SQL LIKE wildcards from user input
+		sanitize := strings.ReplaceAll(query, "%", "\\%")
+		sanitize = strings.ReplaceAll(sanitize, "_", "\\_")
 		where = append(where, "(title LIKE ? OR description LIKE ?)")
-		args = append(args, "%"+query+"%", "%"+query+"%")
+		args = append(args, "%"+sanitize+"%", "%"+sanitize+"%")
 	}
 	if filter.CategoryID != "" {
 		where = append(where, "category_id = ?")
@@ -181,6 +185,17 @@ func (r *ProductRepo) Search(ctx context.Context, query string, filter domain.Pr
 
 	whereClause := strings.Join(where, " AND ")
 
+	// [SECURITY] Validate sort column against whitelist to prevent SQL injection
+	sortColumn := "updated_at"
+	switch filter.SortBy {
+	case "relevance", "created_at", "updated_at", "price", "sales", "rating", "popularity", "name":
+		sortColumn = string(filter.SortBy)
+	}
+	sortOrder := "DESC"
+	if filter.SortOrder == "ASC" {
+		sortOrder = "ASC"
+	}
+
 	var total int64
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM products WHERE %s", whereClause)
 	if err := r.db.GetContext(ctx, &total, countQuery, args...); err != nil {
@@ -189,7 +204,7 @@ func (r *ProductRepo) Search(ctx context.Context, query string, filter domain.Pr
 
 	offset := (filter.Page - 1) * filter.Size
 	selectQuery := fmt.Sprintf(`SELECT id, spu_id, title, description, category_id, brand_id, seller_id, status, created_at, updated_at
-		FROM products WHERE %s ORDER BY updated_at DESC LIMIT ? OFFSET ?`, whereClause)
+		FROM products WHERE %s ORDER BY %s %s LIMIT ? OFFSET ?`, whereClause, sortColumn, sortOrder)
 	args = append(args, filter.Size, offset)
 
 	var products []domain.Product
@@ -433,7 +448,7 @@ func (r *CategoryRepo) GetBySlug(ctx context.Context, slug string) (*domain.Cate
 
 func (r *CategoryRepo) GetTree(ctx context.Context) (*domain.CategoryTree, error) {
 	query := `SELECT id, category_id, name, slug, parent_id, level, sort_order, image_url, is_active, created_at, updated_at
-		FROM categories WHERE is_active = true ORDER BY level ASC, sort_order ASC LIMIT 1000`
+		FROM categories WHERE is_active = true ORDER BY level ASC, sort_order ASC`
 	var categories []domain.Category
 	if err := r.db.SelectContext(ctx, &categories, query); err != nil {
 		return nil, fmt.Errorf("get categories: %w", err)

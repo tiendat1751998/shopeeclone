@@ -1,0 +1,9 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: shopee-analytics
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: shopee-analytics

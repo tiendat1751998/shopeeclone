@@ -59,7 +59,7 @@ func NewProductService(repo ProductRepository, cache ProductCache, publisher Eve
 	}
 }
 
-// CreateProduct creates a new product
+// CreateProduct creates a new product with idempotency support
 func (s *ProductService) CreateProduct(ctx context.Context, req CreateProductRequest) (*ProductResponse, error) {
 	ctx, span := otel.Tracer("product-service").Start(ctx, "application.product.create")
 	defer span.End()
@@ -75,6 +75,16 @@ func (s *ProductService) CreateProduct(ctx context.Context, req CreateProductReq
 	}
 	if len(req.SKUs) == 0 {
 		return nil, errors.NewValidation("at least one SKU is required")
+	}
+
+	// [SECURITY] Idempotency check — prevent duplicate creation on retries
+	if req.IdempotencyKey != "" {
+		exists, err := s.isDuplicateRequest(ctx, req.IdempotencyKey)
+		if err != nil {
+			observability.LogWithTrace(ctx).Warn("idempotency check failed", zap.Error(err))
+		} else if exists {
+			return nil, errors.NewConflict("duplicate request: product already created with this idempotency key")
+		}
 	}
 
 	skus := make([]domain.SKU, len(req.SKUs))
@@ -123,6 +133,11 @@ func (s *ProductService) CreateProduct(ctx context.Context, req CreateProductReq
 		return nil, errors.NewInternalError(err)
 	}
 
+	// Store idempotency key after successful creation
+	if req.IdempotencyKey != "" {
+		s.storeIdempotencyKey(ctx, req.IdempotencyKey, product.SPUID, 24*time.Hour)
+	}
+
 	event := domain.NewProductCreatedEvent(product)
 	if payload, err := event.Marshal(); err == nil {
 		if pubErr := s.publisher.Publish(ctx, "product.events", product.SPUID, payload); pubErr != nil {
@@ -136,6 +151,25 @@ func (s *ProductService) CreateProduct(ctx context.Context, req CreateProductReq
 		zap.String("spu_id", product.SPUID), zap.String("seller_id", product.SellerID))
 
 	return ToProductResponse(product), nil
+}
+
+// isDuplicateRequest checks if an idempotency key was already processed
+func (s *ProductService) isDuplicateRequest(ctx context.Context, key string) (bool, error) {
+	// Use cache (Redis) for fast idempotency check
+	cached, err := s.cache.Get(ctx, "idempotency:"+key)
+	if err != nil {
+		return false, err
+	}
+	return cached != nil, nil
+}
+
+// storeIdempotencyKey stores the idempotency key after successful creation
+func (s *ProductService) storeIdempotencyKey(ctx context.Context, key, spuID string, ttl time.Duration) {
+	// Store a minimal marker in cache
+	if err := s.cache.Set(ctx, "idempotency:"+key, &domain.Product{SPUID: spuID}, ttl); err != nil {
+		observability.LogWithTrace(ctx).Warn("failed to store idempotency key",
+			zap.String("key", key), zap.Error(err))
+	}
 }
 
 // GetProduct gets a product by SPU ID (cache-through)

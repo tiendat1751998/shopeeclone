@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: shopee-developer
+  labels:
+    app: shopee-developer
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8111
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 9111
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+  selector:
+    app: shopee-developer

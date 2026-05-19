@@ -1,48 +1,81 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: shopee-gateway-network-policy
+  name: shopee-gateway
   namespace: shopee-platform
 spec:
   podSelector:
     matchLabels:
       app: shopee-gateway
   policyTypes:
-  - Ingress
-  - Egress
+    - Ingress
+    - Egress
   ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          tier: infrastructure
-    - namespaceSelector:
-        matchLabels:
-          tier: services
-    ports:
-    - protocol: TCP
-      port: 8080
-    - protocol: TCP
-      port: 9090
+    # Allow traffic from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - port: 8080
+          protocol: TCP
+    # Allow traffic from other services in the same namespace
+    - from:
+        - podSelector:
+            matchLabels:
+              tier: platform
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 9090
+          protocol: TCP
+    # Allow Prometheus scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - port: 8080
+          protocol: TCP
   egress:
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          tier: services
-    - namespaceSelector:
-        matchLabels:
-          tier: data
-    - namespaceSelector:
-        matchLabels:
-          tier: observability
-    - namespaceSelector:
-        matchLabels:
-          name: shopee-platform
-    ports:
-    - protocol: TCP
-      port: 8080
-    - protocol: TCP
-      port: 9090
-    - protocol: TCP
-      port: 6379
-    - protocol: TCP
-      port: 4318
+    # Allow DNS
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    # Allow Kafka
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+          protocol: TCP
+    # Allow identity-auth service
+    - to:
+        - podSelector:
+            matchLabels:
+              app: identity-auth
+      ports:
+        - port: 8080
+          protocol: TCP
+    # Allow OTLP collector
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - port: 4318
+          protocol: TCP
+        - port: 4317
+          protocol: TCP

@@ -31,6 +31,13 @@ spec:
     spec:
       serviceAccountName: shopee-gateway
       terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -47,6 +54,12 @@ spec:
       - name: gateway
         image: shopee/gateway:latest
         imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
         ports:
         - containerPort: 8080
           name: http
@@ -94,8 +107,8 @@ spec:
             cpu: 500m
             memory: 512Mi
           limits:
-            cpu: 1000m
-            memory: 512Mi
+            cpu: "2"
+            memory: 1Gi
         livenessProbe:
           httpGet:
             path: /health
@@ -119,3 +132,9 @@ spec:
           initialDelaySeconds: 3
           periodSeconds: 5
           failureThreshold: 12
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}

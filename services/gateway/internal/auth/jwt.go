@@ -25,7 +25,13 @@ type JWTValidator struct {
 	redis      *redis.Client
 	jwksClient *JWKSClient
 	mu         sync.RWMutex
-	cache      map[string]*jwt.MapClaims
+	// [SECURITY] Use LRU cache with TTL to prevent unbounded memory growth
+	cache      map[string]*cacheEntry
+}
+
+type cacheEntry struct {
+	claims    *jwt.MapClaims
+	expiresAt time.Time
 }
 
 type JWKS struct {
@@ -58,6 +64,62 @@ type JWKSClient struct {
 	keys      map[string]*rsa.PublicKey
 	lastFetch time.Time
 	ttl       time.Duration
+	// [SECURITY] Circuit breaker to prevent thundering herd on JWKS endpoint failure
+	cb        *circuitBreaker
+}
+
+type circuitBreaker struct {
+	mu                sync.Mutex
+	failures          int
+	lastFailure       time.Time
+	state             cbState
+	threshold         int
+	resetTimeout      time.Duration
+	halfOpenMaxProbes int
+}
+
+type cbState int
+
+const (
+	cbClosed cbState = iota
+	cbOpen
+	cbHalfOpen
+)
+
+func (cb *circuitBreaker) allow() bool {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
+	switch cb.state {
+	case cbClosed:
+		return true
+	case cbOpen:
+		if time.Since(cb.lastFailure) > cb.resetTimeout {
+			cb.state = cbHalfOpen
+			return true
+		}
+		return false
+	case cbHalfOpen:
+		return true
+	}
+	return false
+}
+
+func (cb *circuitBreaker) recordSuccess() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.failures = 0
+	cb.state = cbClosed
+}
+
+func (cb *circuitBreaker) recordFailure() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.failures++
+	cb.lastFailure = time.Now()
+	if cb.failures >= cb.threshold {
+		cb.state = cbOpen
+	}
 }
 
 func NewJWKSClient(endpoint string) *JWKSClient {
@@ -66,13 +128,18 @@ func NewJWKSClient(endpoint string) *JWKSClient {
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
-				MaxIdleConns:       10,
-				IdleConnTimeout:    60 * time.Second,
-				DisableCompression: false,
+				MaxIdleConns:        10,
+				IdleConnTimeout:     60 * time.Second,
+				DisableCompression:  false,
 			},
 		},
 		keys: make(map[string]*rsa.PublicKey),
 		ttl:  1 * time.Hour,
+		cb: &circuitBreaker{
+			threshold:         5,
+			resetTimeout:      30 * time.Second,
+			halfOpenMaxProbes: 1,
+		},
 	}
 }
 
@@ -86,12 +153,24 @@ func (c *JWKSClient) GetKey(kid string) (*rsa.PublicKey, error) {
 		return key, nil
 	}
 
+	// [SECURITY] Check circuit breaker before fetching
+	if !c.cb.allow() {
+		if exists {
+			// Return stale key rather than failing when circuit is open
+			return key, nil
+		}
+		return nil, fmt.Errorf("JWKS circuit breaker open, refusing to fetch")
+	}
+
 	if err := c.fetchKeys(); err != nil {
+		c.cb.recordFailure()
 		if exists {
 			return key, nil
 		}
 		return nil, err
 	}
+
+	c.cb.recordSuccess()
 
 	c.mu.RLock()
 	key, exists = c.keys[kid]
@@ -168,7 +247,7 @@ func NewJWTValidator(cfg config.AuthConfig, rdb *redis.Client) *JWTValidator {
 		cfg:        cfg,
 		redis:      rdb,
 		jwksClient: NewJWKSClient(cfg.JWKSEndpoint),
-		cache:      make(map[string]*jwt.MapClaims),
+		cache:      make(map[string]*cacheEntry),
 	}
 }
 

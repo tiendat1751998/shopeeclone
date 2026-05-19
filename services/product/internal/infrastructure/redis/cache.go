@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -15,16 +16,70 @@ type Cache struct {
 	client *redis.Client
 	prefix string
 	sem    chan struct{}
+	// [SECURITY] In-memory LRU cache with max size to prevent unbounded growth
+	localCache   map[string]*cacheEntry
+	localCacheMu sync.RWMutex
+	maxLocalSize int
+}
+
+type cacheEntry struct {
+	data      []byte
+	expiresAt time.Time
 }
 
 const maxConcurrentCacheWrites = 100
+const maxLocalCacheSize = 10000
 
 // NewCache creates a new Redis cache
 func NewCache(client *redis.Client) *Cache {
-	return &Cache{
-		client: client,
-		prefix: "product:",
-		sem:    make(chan struct{}, maxConcurrentCacheWrites),
+	c := &Cache{
+		client:       client,
+		prefix:       "product:",
+		sem:          make(chan struct{}, maxConcurrentCacheWrites),
+		localCache:   make(map[string]*cacheEntry),
+		maxLocalSize: maxLocalCacheSize,
+	}
+	// Start cleanup goroutine for expired local cache entries
+	go c.cleanupLoop()
+	return c
+}
+
+// cleanupLoop periodically removes expired entries from local cache
+func (c *Cache) cleanupLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		c.cleanupExpired()
+	}
+}
+
+func (c *Cache) cleanupExpired() {
+	c.localCacheMu.Lock()
+	defer c.localCacheMu.Unlock()
+	now := time.Now()
+	for key, entry := range c.localCache {
+		if now.After(entry.expiresAt) {
+			delete(c.localCache, key)
+		}
+	}
+}
+
+// evictOldest removes oldest entries when cache exceeds max size
+func (c *Cache) evictOldest() {
+	c.localCacheMu.Lock()
+	defer c.localCacheMu.Unlock()
+	if len(c.localCache) <= c.maxLocalSize {
+		return
+	}
+	// Evict 20% of entries when over limit
+	evictCount := c.maxLocalSize / 5
+	count := 0
+	for key := range c.localCache {
+		delete(c.localCache, key)
+		count++
+		if count >= evictCount {
+			break
+		}
 	}
 }
 

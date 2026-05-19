@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: shopee-live-scale
+  labels:
+    app: shopee-live-scale
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8103
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 9103
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+  selector:
+    app: shopee-live-scale
