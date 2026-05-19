@@ -63,6 +63,10 @@ images:
 	@chmod +x build-images.sh 2>/dev/null || true
 	@./build-images.sh
 
+tidy:
+	@chmod +x tidy.sh 2>/dev/null || true
+	@./tidy.sh
+
 build-java:
 	@echo "========================================="
 	@echo "[Java] Building identity-auth service..."
