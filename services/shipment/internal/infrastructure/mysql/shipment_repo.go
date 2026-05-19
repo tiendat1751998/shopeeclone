@@ -3,7 +3,6 @@ package mysql
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	"github.com/jmoiron/sqlx"

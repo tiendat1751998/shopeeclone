@@ -10,7 +10,6 @@ import (
 	"github.com/shopee-clone/shopee/services/shipment/internal/config"
 	"github.com/shopee-clone/shopee/services/shipment/internal/domain"
 	"github.com/shopee-clone/shopee/services/shipment/internal/metrics"
-	"go.uber.org/zap"
 )
 
 type Producer struct {

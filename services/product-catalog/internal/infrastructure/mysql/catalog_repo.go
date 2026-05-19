@@ -8,9 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/shopee-clone/shopee/services/product-catalog/internal/config"
 	"github.com/shopee-clone/shopee/services/product-catalog/internal/domain"
-	"go.uber.org/zap"
 )
 
 type CatalogRepository struct {
