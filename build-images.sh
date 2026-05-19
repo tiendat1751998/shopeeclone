@@ -66,6 +66,21 @@ if [ "$SKIP_GO" = false ]; then
                 mkdir -p "${TEMP_CONTEXT_DIR}/packages/go-shared"
                 cp -r "${SHARED_PACKAGE_PATH}/"* "${TEMP_CONTEXT_DIR}/packages/go-shared/"
                 
+                # Copy central proto directory if needed
+                HAS_PROTO=0
+                if grep -q "github.com/shopee-clone/shopee/proto" "${FULL_PATH}/go.mod" 2>/dev/null || [ "${MODULE_NAME}" = "catalog-product" ]; then
+                    echo "-> Copying central proto module into build context..."
+                    mkdir -p "${TEMP_CONTEXT_DIR}/proto"
+                    cp -r "${SCRIPT_DIR}/proto/"* "${TEMP_CONTEXT_DIR}/proto/"
+                    HAS_PROTO=1
+                fi
+                
+                # Apply replacements to go.mod inside the temp context
+                if [ -f "${TEMP_CONTEXT_DIR}/go.mod" ]; then
+                    sed 's|replace github.com/shopee-clone/shopee/proto => ../../proto|replace github.com/shopee-clone/shopee/proto => /proto|g' "${TEMP_CONTEXT_DIR}/go.mod" > "${TEMP_CONTEXT_DIR}/go.mod.tmp"
+                    mv "${TEMP_CONTEXT_DIR}/go.mod.tmp" "${TEMP_CONTEXT_DIR}/go.mod"
+                fi
+                
                 # Create adjusted temp Dockerfile
                 TEMP_DOCKERFILE="${TEMP_CONTEXT_DIR}/Dockerfile.build"
                 sed -e 's/; /\n/g' \
@@ -77,6 +92,12 @@ if [ "$SKIP_GO" = false ]; then
                 # Check if packages/go-shared COPY is now present, if not, inject it
                 if ! grep -q "packages/go-shared" "$TEMP_DOCKERFILE"; then
                     sed 's|COPY go.mod go.sum ./|COPY go.mod go.sum ./\nCOPY packages/go-shared /packages/go-shared|g' "$TEMP_DOCKERFILE" > "${TEMP_DOCKERFILE}.tmp"
+                    mv "${TEMP_DOCKERFILE}.tmp" "$TEMP_DOCKERFILE"
+                fi
+                
+                # If proto directory was copied, inject COPY proto /proto into the Dockerfile
+                if [ "$HAS_PROTO" -eq 1 ]; then
+                    sed 's|COPY packages/go-shared /packages/go-shared|COPY packages/go-shared /packages/go-shared\nCOPY proto /proto|g' "$TEMP_DOCKERFILE" > "${TEMP_DOCKERFILE}.tmp"
                     mv "${TEMP_DOCKERFILE}.tmp" "$TEMP_DOCKERFILE"
                 fi
                 

@@ -36,4 +36,5 @@ use (
 	./services/product-catalog
 	./services/promotion
 	./services/shipment
+	./proto
 )

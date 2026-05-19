@@ -93,12 +93,38 @@ if (-not $SkipGo) {
                 
                 # Create a temporary Dockerfile adjusting the COPY path to be local
                 $TempDockerfilePath = Join-Path $TempContextDir "Dockerfile.build"
+                $DockerfileContent = Get-Content $DockerfilePath -Raw
+                
+                # Copy central proto directory if needed
+                $HasProto = $false
+                $GoModPath = Join-Path $FullModulePath "go.mod"
+                if ((Test-Path $GoModPath) -and ((Get-Content $GoModPath) -match "github.com/shopee-clone/shopee/proto") -or ($ModuleName -eq "catalog-product")) {
+                    Write-Host "-> Copying central proto module into build context..." -ForegroundColor Gray
+                    $TempProtoPath = Join-Path $TempContextDir "proto"
+                    New-Item -ItemType Directory -Path $TempProtoPath | Out-Null
+                    Copy-Item -Recurse -Force "${PSScriptRoot}\proto\*" $TempProtoPath
+                    $HasProto = $true
+                }
+                
+                # Apply replacements to go.mod inside the temp context
+                $TempGoModPath = Join-Path $TempContextDir "go.mod"
+                if (Test-Path $TempGoModPath) {
+                    $GoModContent = Get-Content $TempGoModPath -Raw
+                    $GoModContent = $GoModContent -replace "replace github\.com/shopee-clone/shopee/proto => \.\./\.\./proto", "replace github.com/shopee-clone/shopee/proto => /proto"
+                    Set-Content -Path $TempGoModPath -Value $GoModContent
+                }
+                
                 $TempDockerfileContent = $DockerfileContent -replace "; ", "`n"
                 
                 if ($TempDockerfileContent -match "packages/go-shared") {
                     $TempDockerfileContent = $TempDockerfileContent -replace "COPY \.\./\.\./packages/go-shared /app/packages/go-shared", "COPY packages/go-shared /packages/go-shared"
                 } else {
                     $TempDockerfileContent = $TempDockerfileContent -replace "COPY go\.mod go\.sum \./", "COPY go.mod go.sum ./`nCOPY packages/go-shared /packages/go-shared"
+                }
+                
+                # If proto directory was copied, inject COPY proto /proto into the Dockerfile
+                if ($HasProto) {
+                    $TempDockerfileContent = $TempDockerfileContent -replace "COPY packages/go-shared /packages/go-shared", "COPY packages/go-shared /packages/go-shared`nCOPY proto /proto"
                 }
                 
                 $TempDockerfileContent = $TempDockerfileContent -replace "RUN go mod download", "# RUN go mod download"
