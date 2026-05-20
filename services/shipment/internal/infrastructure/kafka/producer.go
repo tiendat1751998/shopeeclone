@@ -18,13 +18,13 @@ type Producer struct {
 }
 
 // [SECURITY] Whitelist of allowed event types to prevent topic injection attacks.
-var allowedEventTypes = map[string]bool{
-	"shipment.created":    true,
-	"shipment.picked_up":  true,
-	"shipment.in_transit": true,
-	"shipment.delivered":  true,
-	"shipment.failed":     true,
-	"shipment.returned":   true,
+var allowedEventTypes = map[domain.ShipmentEventType]bool{
+	domain.EventShipmentCreated:   true,
+	domain.EventShipmentPickedUp:  true,
+	domain.EventShipmentInTransit: true,
+	domain.EventShipmentDelivered: true,
+	domain.EventShipmentFailed:    true,
+	domain.EventShipmentReturned:  true,
 }
 
 func NewProducer(cfg config.KafkaConfig) *Producer {
@@ -49,14 +49,14 @@ func (p *Producer) PublishEvent(ctx context.Context, event *domain.ShipmentEvent
 	}
 
 	// [SECURITY] Use validated event type only
-	topic := fmt.Sprintf("%s.%s", p.cfg.TopicPrefix, event.EventType)
+	topic := fmt.Sprintf("%s.%s", p.cfg.TopicPrefix, string(event.EventType))
 
 	msg := kafka.Message{
 		Topic: topic,
 		Key:   []byte(event.ShipmentID),
 		Value: payload,
 		Headers: []kafka.Header{
-			{Key: "event_type", Value: []byte(event.EventType)},
+			{Key: "event_type", Value: []byte(string(event.EventType))},
 		},
 	}
 

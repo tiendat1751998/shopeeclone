@@ -124,7 +124,7 @@ func Load() *Config {
 		},
 
 		JWT: JWTConfig{
-			AccessSecret: getEnv("JWT_ACCESS_SECRET", "change-me-in-production"),
+			AccessSecret: requireEnv("JWT_ACCESS_SECRET"),
 			AccessTTL:    getEnvDuration("JWT_ACCESS_TTL", 15*time.Minute),
 			Issuer:       getEnv("JWT_ISSUER", "shopee-auth"),
 			Audience:     getEnv("JWT_AUDIENCE", "shopee-clone"),
@@ -135,7 +135,7 @@ func Load() *Config {
 			AuthorizationTTL: getEnvDuration("PAYMENT_AUTH_TTL", 7*24*time.Hour),
 			IdempotencyTTL:   getEnvDuration("PAYMENT_IDEMPOTENCY_TTL", 24*time.Hour),
 			MaxRetryAttempts: getEnvInt("PAYMENT_MAX_RETRY", 3),
-			WebhookSecret:    getEnv("WEBHOOK_SECRET", "whsec-change-me"),
+			WebhookSecret:    requireEnv("WEBHOOK_SECRET"),
 		},
 
 		Idempotency: IdempotencyConfig{
@@ -153,6 +153,11 @@ func Load() *Config {
 func getEnv(key, fallback string) string {
 	if val := os.Getenv(key); val != "" { return val }
 	return fallback
+}
+func requireEnv(key string) string {
+	if val := os.Getenv(key); val != "" { return val }
+	log.Fatalf("required environment variable %s is not set", key)
+	return ""
 }
 func getEnvInt(key string, fallback int) int {
 	if val := os.Getenv(key); val != "" {

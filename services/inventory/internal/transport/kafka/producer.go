@@ -68,7 +68,7 @@ func (p *Producer) Publish(ctx context.Context, event *domain.InventoryEvent) er
 
 	if err := p.writer.WriteMessages(ctx, msg); err != nil {
 		observability.LogWithTrace(ctx).Error("failed to publish event",
-			zap.String("event_type", event.EventType),
+			zap.String("event_type", string(event.EventType)),
 			zap.String("topic", topic),
 			zap.Error(err),
 		)

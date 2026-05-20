@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	sharedRedis "github.com/shopee-clone/shopee/packages/go-shared/pkg/redis"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
+	sharedRedis "github.com/shopee-clone/shopee/packages/go-shared/pkg/redis"
 	"github.com/shopee-clone/shopee/services/checkout/internal/application"
 	"github.com/shopee-clone/shopee/services/checkout/internal/config"
 	"github.com/shopee-clone/shopee/services/checkout/internal/infrastructure/mysql"
@@ -70,7 +70,7 @@ func main() {
 	gin.SetMode(getGinMode(cfg.AppEnv))
 	engine := gin.New()
 	handler := httptransport.NewHandler(checkoutService)
-	httpRouter := httptransport.NewRouter(handler, healthChecker)
+	httpRouter := httptransport.NewRouter(handler, healthChecker, cfg.JWTConfig.AccessSecret)
 	httpRouter.Setup(engine)
 
 	httpServer := &http.Server{
@@ -93,11 +93,15 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	httpServer.Shutdown(shutdownCtx)
-	if redisClient != nil { redisClient.Close() }
+	if redisClient != nil {
+		redisClient.Close()
+	}
 	logger.Info("checkout service stopped")
 }
 
 func getGinMode(env string) string {
-	if env == "production" || env == "staging" { return gin.ReleaseMode }
+	if env == "production" || env == "staging" {
+		return gin.ReleaseMode
+	}
 	return gin.DebugMode
 }

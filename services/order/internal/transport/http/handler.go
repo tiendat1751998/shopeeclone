@@ -27,11 +27,16 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 
 	// Get user ID from context (set by auth middleware)
 	userID, exists := c.Get("user_id")
-	if !exists || userID.(string) == "" {
+	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	req.UserID = userID.(string)
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	req.UserID = uid
 
 	order, err := h.orderService.CreateOrder(c.Request.Context(), &req)
 	if err != nil {
@@ -60,6 +65,8 @@ func (h *Handler) GetOrder(c *gin.Context) {
 	role, _ := c.Get("role")
 	uid, _ := userID.(string)
 	r, _ := role.(string)
+	_ = uid
+	_ = r
 	if order.UserID != uid && r != "admin" && r != "seller" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return
@@ -175,7 +182,7 @@ func (h *Handler) GetReconciliationStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"order_id":        orderID,
+		"order_id":       orderID,
 		"reconciliation": status,
 	})
 }

@@ -224,7 +224,7 @@ func (r *CatalogRepository) SaveIdempotencyKey(ctx context.Context, rec *domain.
 
 func (r *CatalogRepository) GetIdempotencyKey(ctx context.Context, key string) (*domain.IdempotencyRecord, error) {
 	var rec domain.IdempotencyRecord
-	if err := r.db.GetContext(ctx, &rec, "SELECT * FROM idempotency_keys WHERE `"+`key`+"` = ?", key); err != nil {
+	if err := r.db.GetContext(ctx, &rec, "SELECT * FROM idempotency_keys WHERE `key` = ?", key); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}

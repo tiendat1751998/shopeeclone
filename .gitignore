@@ -28,6 +28,20 @@ vendor/
 
 # Logs
 *.log
+
+# Binaries
+*.exe
+*.bin
+*.dll
+*.so
+*.dylib
+server.exe
+main.exe
+
+# Coverage
+*.out
+coverage.txt
+coverage.html
 /logs/
 **/logs/
 

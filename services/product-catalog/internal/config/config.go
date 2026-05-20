@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -13,12 +14,13 @@ type Config struct {
 	HTTPPort int
 	GRPCPort int
 
-	MySQL MySQLConfig
-	Redis RedisConfig
-	Kafka KafkaConfig
+	MySQL     MySQLConfig
+	Redis     RedisConfig
+	Kafka     KafkaConfig
+	JWTConfig JWTConfig
 
-	ProductCacheTTL   time.Duration
-	CategoryCacheTTL  time.Duration
+	ProductCacheTTL      time.Duration
+	CategoryCacheTTL     time.Duration
 	MaxProductsPerSeller int
 
 	OpenTelemetry OTELConfig
@@ -68,6 +70,10 @@ type OTELConfig struct {
 }
 
 func Load() *Config {
+	mysqlPassword := os.Getenv("MYSQL_PASSWORD")
+	if mysqlPassword == "" {
+		log.Fatal("MYSQL_PASSWORD is required")
+	}
 	return &Config{
 		AppName:  getEnv("APP_NAME", "shopee-product-catalog"),
 		AppEnv:   getEnv("APP_ENV", "development"),
@@ -79,13 +85,15 @@ func Load() *Config {
 			Host:         getEnv("MYSQL_HOST", "localhost"),
 			Port:         getEnvInt("MYSQL_PORT", 3306),
 			User:         getEnv("MYSQL_USER", "shopee"),
-			Password:     getEnv("MYSQL_PASSWORD", "shopee_dev"),
+			Password:     mysqlPassword,
 			Database:     getEnv("MYSQL_DATABASE", "shopee_catalog"),
 			MaxOpenConns: getEnvInt("MYSQL_MAX_OPEN_CONNS", 25),
 			MaxIdleConns: getEnvInt("MYSQL_MAX_IDLE_CONNS", 10),
 			MaxLifetime:  getEnvDuration("MYSQL_MAX_LIFETIME", 5*time.Minute),
 			Timeout:      getEnvDuration("MYSQL_TIMEOUT", 5*time.Second),
 		},
+
+		JWTConfig: JWTConfig{AccessSecret: os.Getenv("JWT_ACCESS_SECRET")},
 
 		Redis: RedisConfig{
 			Addr:         getEnv("REDIS_ADDR", "localhost:6379"),
@@ -103,8 +111,8 @@ func Load() *Config {
 			Brokers: []string{getEnv("KAFKA_BROKERS", "localhost:9092")},
 		},
 
-		ProductCacheTTL:     getEnvDuration("PRODUCT_CACHE_TTL", 1*time.Hour),
-		CategoryCacheTTL:    getEnvDuration("CATEGORY_CACHE_TTL", 30*time.Minute),
+		ProductCacheTTL:      getEnvDuration("PRODUCT_CACHE_TTL", 1*time.Hour),
+		CategoryCacheTTL:     getEnvDuration("CATEGORY_CACHE_TTL", 30*time.Minute),
 		MaxProductsPerSeller: getEnvInt("MAX_PRODUCTS_PER_SELLER", 100000),
 
 		OpenTelemetry: OTELConfig{
@@ -119,18 +127,32 @@ func (c *Config) IsDevelopment() bool { return c.AppEnv == "development" }
 func (c *Config) IsProduction() bool  { return c.AppEnv == "production" }
 
 func getEnv(key, fallback string) string {
-	if val := os.Getenv(key); val != "" { return val }
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
 	return fallback
 }
 func getEnvInt(key string, fallback int) int {
-	if val := os.Getenv(key); val != "" { if i, err := strconv.Atoi(val); err == nil { return i } }
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
 	return fallback
 }
 func getEnvDuration(key string, fallback time.Duration) time.Duration {
-	if val := os.Getenv(key); val != "" { if d, err := time.ParseDuration(val); err == nil { return d } }
+	if val := os.Getenv(key); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			return d
+		}
+	}
 	return fallback
 }
 func getEnvFloat(key string, fallback float64) float64 {
-	if val := os.Getenv(key); val != "" { if f, err := strconv.ParseFloat(val, 64); err == nil { return f } }
+	if val := os.Getenv(key); val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f
+		}
+	}
 	return fallback
 }

@@ -17,7 +17,7 @@ func (s *Store) SetUnreadCount(ctx context.Context, userID string, count int64) 
 	return s.rdb.Set(ctx, fmt.Sprintf("unread:%s", userID), count, 24*time.Hour).Err()
 }
 func (s *Store) CheckRateLimit(ctx context.Context, key string, maxPerMinute int) (bool, error) {
-	return s.rdb.EVAL(ctx, `
+	return s.rdb.Eval(ctx, `
 		local current = redis.call("INCR", KEYS[1])
 		if current == 1 then redis.call("EXPIRE", KEYS[1], 60) end
 		return current <= tonumber(ARGV[1])

@@ -1,7 +1,7 @@
-# Stage 1: Build
+# Build stage
 FROM golang:tip-trixie AS builder
 
-RUN apt-get update && apt-get install -y git ca-certificates
+RUN apt-get update && apt-get install -y git ca-certificates tzdata
 
 WORKDIR /app
 
@@ -10,20 +10,23 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-w -s -X main.version=$(git describe --tags --always || echo 'dev')" \
-    -o /app/server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-w -s" \
+    -o /app/bin/catalog-product \
+    ./cmd/server
 
-# Stage 2: Distroless Run
+# Runtime stage
 FROM gcr.io/distroless/static-debian12:nonroot
 
-COPY --from=builder /app/server /server
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
-USER nonroot:nonroot
+WORKDIR /app
 
-EXPOSE 8080
-EXPOSE 8081
+COPY --from=builder /app/bin/catalog-product /app/catalog-product
+COPY --from=builder /app/migrations /app/migrations
+COPY --from=builder /app/configs /app/configs
 
-ENTRYPOINT ["/server"]
+EXPOSE 8080 8081
 
+ENTRYPOINT ["/app/catalog-product"]

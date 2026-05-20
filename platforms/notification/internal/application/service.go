@@ -1,5 +1,5 @@
 package application
-import ("context"; "fmt"; "time"; "github.com/shopee-clone/shopee/platforms/notification/internal/domain"; "github.com/shopee-clone/shopee/platforms/notification/internal/infrastructure/redis"; "github.com/shopee-clone/shopee/platforms/notification/internal/metrics"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"; "go.opentelemetry.io/otel"; "go.opentelemetry.io/otel/attribute"; "go.uber.org/zap")
+import ("context"; "fmt"; "time"; "github.com/shopee-clone/shopee/platforms/notification/internal/domain"; "github.com/shopee-clone/shopee/platforms/notification/internal/infrastructure/redis"; "github.com/shopee-clone/shopee/platforms/notification/internal/metrics"; "go.opentelemetry.io/otel"; "go.opentelemetry.io/otel/attribute")
 
 type NotificationService struct { notifyRepo domain.NotificationRepository; templateRepo domain.TemplateRepository; prefRepo domain.PreferenceRepository; deliveryRepo domain.DeliveryLogRepository; redis *redis.Store; publisher EventPublisher }
 type EventPublisher interface { Publish(ctx context.Context, eventType string, payload interface{}) error }

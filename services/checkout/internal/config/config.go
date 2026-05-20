@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -17,16 +18,21 @@ type Config struct {
 	Redis RedisConfig
 	Kafka KafkaConfig
 
-	SnapshotTTL         time.Duration
-	ReservationTimeout  time.Duration
-	IdempotencyTTL      time.Duration
-	MaxRetries          int
+	SnapshotTTL        time.Duration
+	ReservationTimeout time.Duration
+	IdempotencyTTL     time.Duration
+	MaxRetries         int
 
-	InventoryServiceAddr  string
-	PromotionServiceAddr  string
-	OrderServiceAddr      string
+	InventoryServiceAddr string
+	PromotionServiceAddr string
+	OrderServiceAddr     string
 
+	JWTConfig     JWTConfig
 	OpenTelemetry OTELConfig
+}
+
+type JWTConfig struct {
+	AccessSecret string
 }
 
 type MySQLConfig struct {
@@ -103,6 +109,10 @@ func Load() *Config {
 			Brokers: []string{getEnv("KAFKA_BROKERS", "localhost:9092")},
 		},
 
+		JWTConfig: JWTConfig{
+			AccessSecret: requireEnv("JWT_ACCESS_SECRET"),
+		},
+
 		SnapshotTTL:        getEnvDuration("SNAPSHOT_TTL", 30*time.Minute),
 		ReservationTimeout: getEnvDuration("RESERVATION_TIMEOUT", 15*time.Minute),
 		IdempotencyTTL:     getEnvDuration("IDEMPOTENCY_TTL", 24*time.Hour),
@@ -124,18 +134,40 @@ func (c *Config) IsDevelopment() bool { return c.AppEnv == "development" }
 func (c *Config) IsProduction() bool  { return c.AppEnv == "production" }
 
 func getEnv(key, fallback string) string {
-	if val := os.Getenv(key); val != "" { return val }
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
 	return fallback
 }
 func getEnvInt(key string, fallback int) int {
-	if val := os.Getenv(key); val != "" { if i, err := strconv.Atoi(val); err == nil { return i } }
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
 	return fallback
 }
 func getEnvDuration(key string, fallback time.Duration) time.Duration {
-	if val := os.Getenv(key); val != "" { if d, err := time.ParseDuration(val); err == nil { return d } }
+	if val := os.Getenv(key); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			return d
+		}
+	}
 	return fallback
 }
 func getEnvFloat(key string, fallback float64) float64 {
-	if val := os.Getenv(key); val != "" { if f, err := strconv.ParseFloat(val, 64); err == nil { return f } }
+	if val := os.Getenv(key); val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f
+		}
+	}
 	return fallback
+}
+
+func requireEnv(key string) string {
+	val := os.Getenv(key)
+	if val == "" {
+		panic(fmt.Sprintf("required environment variable %s is not set", key))
+	}
+	return val
 }

@@ -1,5 +1,5 @@
 package application
-import ("context"; "fmt"; "time"; "github.com/shopee-clone/shopee/platforms/advertising/internal/domain"; "github.com/shopee-clone/shopee/platforms/advertising/internal/metrics"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"; "go.opentelemetry.io/otel"; "go.uber.org/zap")
+import ("context"; "fmt"; "time"; "github.com/shopee-clone/shopee/platforms/advertising/internal/domain"; "github.com/shopee-clone/shopee/platforms/advertising/internal/metrics")
 
 type AdvertisingService struct { publisher EventPublisher }
 type EventPublisher interface { Publish(ctx context.Context, eventType string, payload interface{}) error }

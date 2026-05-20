@@ -9,7 +9,7 @@ func (r *ProductRepository) FindByID(ctx context.Context, id string) (*domain.Pr
 }
 func (r *ProductRepository) FindByShopID(ctx context.Context, shopID string, offset, limit int) ([]*domain.Product, int64, error) {
 	var total int64; r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM products WHERE shop_id = ? AND deleted_at IS NULL", shopID)
-	var products []*domain.Product; err := r.db.SelectContext(ctx, &products, "SELECT * FROM products WHERE shop_id = ? AND deleted_at = NULL ORDER BY created_at DESC LIMIT ? OFFSET ?", shopID, limit, offset)
+	var products []*domain.Product; err := r.db.SelectContext(ctx, &products, "SELECT * FROM products WHERE shop_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?", shopID, limit, offset)
 	return products, total, err
 }
 func (r *ProductRepository) FindByCategory(ctx context.Context, categoryID string, offset, limit int) ([]*domain.Product, int64, error) {

@@ -7,12 +7,12 @@ on:
     branches: [main]
 
 env:
-  REGISTRY: shopee-clone
-  GO_VERSION: '1.22'
+  REGISTRY: ghcr.io
+  GO_VERSION: '1.24'
 
 jobs:
   # ============================================================
-  # Lint & Test
+  # Lint
   # ============================================================
   lint:
     runs-on: ubuntu-latest
@@ -25,11 +25,14 @@ jobs:
         run: |
           for svc in services/*/; do
             if [ -f "$svc/go.mod" ]; then
-              echo "Linting $svc..."
+              echo "Vetting $svc..."
               cd $svc && go vet ./... && cd ../..
             fi
           done
 
+  # ============================================================
+  # Test
+  # ============================================================
   test:
     runs-on: ubuntu-latest
     needs: lint
@@ -84,20 +87,39 @@ jobs:
     if: github.ref == 'refs/heads/main'
     strategy:
       matrix:
-        service: [inventory, payment, order, checkout, cart, product, product-catalog, promotion, shipment, auth, gateway]
+        service:
+          - auth
+          - cart
+          - catalog-product
+          - checkout
+          - gateway
+          - inventory
+          - order
+          - payment
+          - product
+          - product-catalog
+          - promotion
+          - shipment
     steps:
       - uses: actions/checkout@v4
-      - name: Build Docker image
-        run: |
-          docker build -t ${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }} \
-            -f services/${{ matrix.service }}/Dockerfile services/${{ matrix.service }}/
-      - name: Push to registry
-        if: github.ref == 'refs/heads/main'
-        run: |
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-          docker push ${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
-          docker tag ${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ matrix.service }}:latest
-          docker push ${{ env.REGISTRY }}/${{ matrix.service }}:latest
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: services/${{ matrix.service }}
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ env.REGISTRY }}/shopee-clone/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/shopee-clone/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # ============================================================
   # Deploy

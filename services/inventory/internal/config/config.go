@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -103,7 +104,7 @@ func Load() *Config {
 			ConsumerGroup: getEnv("KAFKA_CONSUMER_GROUP", "shopee-inventory-service"), DLQTopic: "shopee.inventory.dlq",
 		},
 		JWT: JWTConfig{
-			AccessSecret: getEnv("JWT_ACCESS_SECRET", "change-me-in-production"),
+			AccessSecret: requireEnv("JWT_ACCESS_SECRET"),
 			AccessTTL: getEnvDuration("JWT_ACCESS_TTL", 15*time.Minute), Issuer: "shopee-auth", Audience: "shopee-clone",
 		},
 		Inventory: InventoryConfig{
@@ -123,6 +124,7 @@ func Load() *Config {
 }
 
 func getEnv(key, fallback string) string { if v := os.Getenv(key); v != "" { return v }; return fallback }
+func requireEnv(key string) string { if v := os.Getenv(key); v != "" { return v }; log.Fatalf("required environment variable %s is not set", key); return "" }
 func getEnvInt(key string, fallback int) int { if v := os.Getenv(key); v != "" { if i, err := strconv.Atoi(v); err == nil { return i } }; return fallback }
 func getEnvDuration(key string, fallback time.Duration) time.Duration { if v := os.Getenv(key); v != "" { if d, err := time.ParseDuration(v); err == nil { return d } }; return fallback }
 func getEnvFloat(key string, fallback float64) float64 { if v := os.Getenv(key); v != "" { if f, err := strconv.ParseFloat(v, 64); err == nil { return f } }; return fallback }

@@ -55,7 +55,10 @@ func (r *InventoryRepository) UpdateStock(ctx context.Context, stock *domain.Sto
 	if err != nil {
 		return fmt.Errorf("update stock: %w", err)
 	}
-	rows, _ := result.RowsAffected()
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get rows affected: %w", err)
+	}
 	if rows == 0 {
 		return domain.ErrConcurrentModification
 	}
@@ -70,7 +73,10 @@ func (r *InventoryRepository) UpdateStockInTx(ctx context.Context, tx *sql.Tx, s
 	if err != nil {
 		return fmt.Errorf("update stock in tx: %w", err)
 	}
-	rows, _ := result.RowsAffected()
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get rows affected: %w", err)
+	}
 	if rows == 0 {
 		return domain.ErrConcurrentModification
 	}
@@ -124,7 +130,7 @@ func (r *InventoryRepository) GetReservation(ctx context.Context, id string) (*d
 // GetReservationForUpdate retrieves a reservation with a row-level lock.
 func (r *InventoryRepository) GetReservationForUpdate(ctx context.Context, tx *sql.Tx, id string) (*domain.Reservation, error) {
 	var res domain.Reservation
-	err := tx.QueryRowContext(ctx, "SELECT * FROM reservations WHERE id = ?", id).Scan(
+	err := tx.QueryRowContext(ctx, "SELECT * FROM reservations WHERE id = ? FOR UPDATE", id).Scan(
 		&res.ID, &res.OrderID, &res.UserID, &res.ProductID, &res.SkuID, &res.WarehouseID,
 		&res.Quantity, &res.Status, &res.ExpiresAt, &res.IdempotencyKey, &res.CreatedAt, &res.UpdatedAt,
 	)
@@ -214,13 +220,13 @@ func (r *InventoryRepository) MarkOutboxEventsProcessed(ctx context.Context, eve
 
 // MarkOutboxEventProcessing marks an event as being processed (prevents duplicate processing).
 func (r *InventoryRepository) MarkOutboxEventProcessing(ctx context.Context, eventID string) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET processed = processing WHERE event_id = ? AND processed = FALSE", eventID)
+	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET processed = TRUE, processing_at = NOW() WHERE event_id = ? AND processed = FALSE", eventID)
 	return err
 }
 
 // MarkOutboxEventFailed marks an event as failed with error message.
 func (r *InventoryRepository) MarkOutboxEventFailed(ctx context.Context, eventID, errorMsg string) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET last_error = ? WHERE event_id = ?", errorMsg, eventID)
+	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET error_message = ? WHERE event_id = ?", errorMsg, eventID)
 	return err
 }
 
