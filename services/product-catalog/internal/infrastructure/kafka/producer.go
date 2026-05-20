@@ -39,7 +39,7 @@ func (p *Producer) PublishCatalogEvent(ctx context.Context, event *domain.Catalo
 	topic := fmt.Sprintf("%s.%s", p.cfg.TopicPrefix, event.EventType)
 	msg := kafka.Message{
 		Topic:   topic,
-		Key:     []byte(event.ProductID),
+		Key:     []byte(event.AggregateID),
 		Value:   payload,
 		Headers: []kafka.Header{{Key: "event_type", Value: []byte(event.EventType)}},
 	}
@@ -56,33 +56,8 @@ func (p *Producer) PublishCatalogEvent(ctx context.Context, event *domain.Catalo
 	zap.L().Info("published catalog event",
 		zap.String("topic", topic),
 		zap.String("event_type", string(event.EventType)),
-		zap.String("product_id", event.ProductID),
+		zap.String("aggregate_id", event.AggregateID),
 	)
-	return nil
-}
-
-func (p *Producer) PublishIndexingEvent(ctx context.Context, event *domain.IndexingEvent) error {
-	payload, err := json.Marshal(event)
-	if err != nil {
-		return err
-	}
-
-	topic := fmt.Sprintf("%s.indexing", p.cfg.TopicPrefix)
-	msg := kafka.Message{
-		Topic:   topic,
-		Key:     []byte(event.ProductID),
-		Value:   payload,
-		Headers: []kafka.Header{{Key: "event_type", Value: []byte("indexing")}},
-	}
-
-	start := time.Now()
-	err = p.writer.WriteMessages(ctx, msg)
-	metrics.KafkaPublishLatency.WithLabelValues("indexing").Observe(time.Since(start).Seconds())
-
-	if err != nil {
-		metrics.KafkaPublishErrors.WithLabelValues("indexing").Inc()
-		return fmt.Errorf("failed to publish indexing event: %w", err)
-	}
 	return nil
 }
 

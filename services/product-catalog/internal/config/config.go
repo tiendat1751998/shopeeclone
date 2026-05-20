@@ -53,7 +53,12 @@ type RedisConfig struct {
 }
 
 type KafkaConfig struct {
-	Brokers []string
+	Brokers     []string
+	TopicPrefix string
+}
+
+type JWTConfig struct {
+	AccessSecret string
 }
 
 type OTELConfig struct {
