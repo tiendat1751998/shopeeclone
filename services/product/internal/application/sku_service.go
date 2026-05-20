@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -29,7 +30,7 @@ type SKUService struct {
 	cache     SKUCache
 	publisher EventPublisher
 	logger    *zap.Logger
-	tracer    otel.Tracer
+	tracer    trace.Tracer
 }
 
 // NewSKUService creates a new SKUService.

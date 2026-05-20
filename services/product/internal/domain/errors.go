@@ -76,6 +76,12 @@ var ErrProductLocked = &DomainError{
 	Message: "product is locked and cannot be modified",
 }
 
+// ErrConcurrentModification is returned when optimistic locking fails.
+var ErrConcurrentModification = &DomainError{
+	Code:    "CONCURRENT_MODIFICATION",
+	Message: "the resource was modified by another request, please try again",
+}
+
 // --- Validation errors ---
 
 // ErrInvalidPrice is returned when a price value is invalid.

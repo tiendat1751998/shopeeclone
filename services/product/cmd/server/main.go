@@ -79,7 +79,7 @@ func main() {
 
 	// Services
 	productService := application.NewProductService(productRepo, cache, kafkaProducer)
-	categoryService := application.NewCategoryService(categoryRepo, cache, kafkaProducer)
+	categoryService := application.NewCategoryService(categoryRepo, cache.AsCategoryCache(), kafkaProducer)
 	_ = attributeRepo
 	_ = moderationRepo
 
