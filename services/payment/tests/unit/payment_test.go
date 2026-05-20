@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"testing"
-	"time"
 
 	"github.com/shopee-clone/shopee/services/payment/internal/domain"
 )

@@ -54,6 +54,9 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 	ctx, span := otel.Tracer("product-service").Start(c.Request.Context(), "http.create_product")
 	defer span.End()
 
+	// [SECURITY] Limit request body size to prevent memory exhaustion
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20) // 1MB max
+
 	var req application.CreateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})

@@ -103,6 +103,16 @@ func (r *PaymentRepository) MarkOutboxEventProcessed(ctx context.Context, eventI
 	return err
 }
 
+func (r *PaymentRepository) MarkOutboxEventProcessing(ctx context.Context, eventID string) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET processed = 'processing' WHERE event_id = ? AND processed = FALSE", eventID)
+	return err
+}
+
+func (r *PaymentRepository) MarkOutboxEventFailed(ctx context.Context, eventID, reason string) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET last_error = ? WHERE event_id = ?", reason, eventID)
+	return err
+}
+
 func (r *PaymentRepository) SaveFraudCheck(ctx context.Context, result *domain.FraudCheckResult) error {
 	query := `INSERT INTO fraud_checks (id, payment_id, user_id, risk_score, risk_level, is_fraud, reasons, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 	_, err := r.db.ExecContext(ctx, query, result.ID, result.PaymentID, result.UserID, result.RiskScore, result.RiskLevel, result.IsFraud, result.Reasons, result.CreatedAt)
@@ -117,7 +127,7 @@ func (r *PaymentRepository) SaveIdempotencyKey(ctx context.Context, record *doma
 
 func (r *PaymentRepository) GetIdempotencyKey(ctx context.Context, key string) (*domain.IdempotencyRecord, error) {
 	var record domain.IdempotencyRecord
-	if err := r.db.GetContext(ctx, &record, "SELECT * FROM idempotency_keys WHERE ` + "`key`" + ` = ?", key); err != nil {
+	if err := r.db.GetContext(ctx, &record, "SELECT * FROM idempotency_keys WHERE `key` = ?", key); err != nil {
 		if err == sql.ErrNoRows { return nil, nil }
 		return nil, err
 	}

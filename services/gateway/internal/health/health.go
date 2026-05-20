@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -75,8 +76,8 @@ func RedisHealthCheck(addr string) func(ctx context.Context) error {
 
 		// Create a temporary client for health check
 		client := redis.NewClient(&redis.Options{
-			Addr:     addr,
-			Timeout:  5 * time.Second,
+			Addr:        addr,
+			DialTimeout: 5 * time.Second,
 		})
 		defer client.Close()
 

@@ -15,14 +15,13 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 type OrderService struct {
 	cfg            *config.Config
 	orderRepo      *mysql.OrderRepository
+	outboxRepo     *mysql.OutboxRepository
 	redisStore     *redisinfra.Store
 	kafkaProducer  *kafka.Producer
 	numberGen      *domain.OrderNumberGenerator
@@ -32,12 +31,14 @@ type OrderService struct {
 func NewOrderService(
 	cfg *config.Config,
 	orderRepo *mysql.OrderRepository,
+	outboxRepo *mysql.OutboxRepository,
 	redisStore *redisinfra.Store,
 	kafkaProducer *kafka.Producer,
 ) *OrderService {
 	return &OrderService{
 		cfg:           cfg,
 		orderRepo:     orderRepo,
+		outboxRepo:    outboxRepo,
 		redisStore:    redisStore,
 		kafkaProducer: kafkaProducer,
 		numberGen:     domain.NewOrderNumberGenerator(),
@@ -130,19 +131,23 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *CreateOrderRequest)
 	}
 	order.SnapshotID = snapshot.ID
 
-	// Persist in transaction
-	txStart := time.Now()
-	if err := s.orderRepo.Create(ctx, order); err != nil {
+	// Publish event via outbox (saved atomically with order creation)
+	orderEvent := domain.NewOrderEvent(order, domain.EventOrderCreated, req.Metadata)
+	eventPayload, _ := json.Marshal(orderEvent)
+	outboxEvent := domain.NewOutboxEvent("order", order.ID, string(domain.EventOrderCreated), eventPayload)
+
+	// Persist order + outbox in single transaction
+	if err := s.orderRepo.Create(ctx, order, outboxEvent); err != nil {
 		span.SetStatus(codes.Error, "order creation failed")
 		return nil, fmt.Errorf("failed to create order: %w", err)
 	}
 
-	// Save snapshot
+	// Save snapshot (best-effort after successful transaction)
 	if err := s.orderRepo.SaveSnapshot(ctx, snapshot); err != nil {
 		zap.L().Warn("failed to save snapshot", zap.Error(err))
 	}
 
-	// Save idempotency key
+	// Save idempotency key (best-effort after successful transaction)
 	if req.IdempotencyKey != "" {
 		rec := domain.NewIdempotencyRecord(order.ID, s.cfg.Order.IdempotencyKeyTTL)
 		rec.Key = req.IdempotencyKey
@@ -152,23 +157,15 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *CreateOrderRequest)
 		s.redisStore.StoreIdempotencyKey(ctx, req.IdempotencyKey, order.ID, s.cfg.Order.IdempotencyKeyTTL)
 	}
 
-	// Save lifecycle event
+	// Save lifecycle event (best-effort after successful transaction)
 	lifeEvent := domain.NewLifecycleEvent(order.ID, "", domain.OrderStatusPending, "order_created", req.UserID, "user")
 	if err := s.orderRepo.SaveLifecycleEvent(ctx, lifeEvent); err != nil {
 		zap.L().Warn("failed to save lifecycle event", zap.Error(err))
 	}
 
-	// Publish event via outbox
-	event := domain.NewOrderEvent(order, domain.EventOrderCreated, req.Metadata)
-	eventPayload, _ := json.Marshal(event)
-	outboxEvent := domain.NewOutboxEvent("order", order.ID, string(domain.EventOrderCreated), eventPayload)
-	if err := s.orderRepo.SaveOutboxEvent(ctx, outboxEvent); err != nil {
-		zap.L().Warn("failed to save outbox event", zap.Error(err))
-	}
-
-	// Also publish directly to Kafka
+	// Publish to Kafka (best-effort after successful transaction)
 	if s.kafkaProducer != nil {
-		if err := s.kafkaProducer.PublishEvent(ctx, event); err != nil {
+		if err := s.kafkaProducer.PublishEvent(ctx, orderEvent); err != nil {
 			zap.L().Warn("failed to publish kafka event", zap.Error(err))
 		}
 	}
@@ -296,14 +293,14 @@ func (s *OrderService) TransitionStatus(ctx context.Context, orderID string, tar
 	// Invalidate cache
 	s.redisStore.InvalidateOrderCache(ctx, orderID)
 
-	// Publish event
-	event := domain.NewOrderEvent(order, domain.EventType("order."+string(target)), nil)
-	eventPayload, _ := json.Marshal(event)
+	// Publish event via outbox
+	transitionEvent := domain.NewOrderEvent(order, domain.EventType("order."+string(target)), nil)
+	eventPayload, _ := json.Marshal(transitionEvent)
 	outboxEvent := domain.NewOutboxEvent("order", order.ID, string(domain.EventType("order."+string(target))), eventPayload)
-	s.orderRepo.SaveOutboxEvent(ctx, outboxEvent)
+	s.outboxRepo.SaveOutboxEvent(ctx, outboxEvent)
 
 	if s.kafkaProducer != nil {
-		s.kafkaProducer.PublishEvent(ctx, event)
+		s.kafkaProducer.PublishEvent(ctx, transitionEvent)
 	}
 
 	// Update metrics
@@ -329,31 +326,45 @@ func (s *OrderService) GetReconciliationStatus(ctx context.Context, orderID stri
 	return nil, nil
 }
 
-// ProcessOutboxEvents polls the outbox table and publishes to Kafka
+// ProcessOutboxEvents polls the outbox table and publishes to Kafka with the three-state pattern:
+// pending → processing → processed/failed. This prevents duplicate messages if the publish
+// succeeds but the DB update fails (event will retry from 'processing' state).
 func (s *OrderService) ProcessOutboxEvents(ctx context.Context) error {
 	if s.kafkaProducer == nil {
 		return nil
 	}
 
-	events, err := s.orderRepo.GetUnprocessedOutboxEvents(ctx, 100)
+	events, err := s.outboxRepo.GetUnprocessedOutboxEvents(ctx, 100)
 	if err != nil {
 		return err
 	}
 
+	var processedIDs []string
 	for _, event := range events {
+		if err := s.outboxRepo.MarkOutboxEventProcessing(ctx, event.ID); err != nil {
+			zap.L().Warn("failed to mark outbox event as processing", zap.Error(err), zap.String("event_id", event.ID))
+			continue
+		}
+
 		var orderEvent domain.OrderEvent
 		if err := json.Unmarshal(event.Payload, &orderEvent); err != nil {
-			zap.L().Warn("failed to unmarshal outbox event", zap.Error(err))
+			s.outboxRepo.MarkOutboxEventFailed(ctx, event.ID, err.Error())
+			zap.L().Warn("failed to unmarshal outbox event", zap.Error(err), zap.String("event_id", event.ID))
 			continue
 		}
 
 		if err := s.kafkaProducer.PublishEvent(ctx, &orderEvent); err != nil {
-			zap.L().Warn("failed to publish outbox event", zap.Error(err))
+			s.outboxRepo.MarkOutboxEventFailed(ctx, event.ID, err.Error())
+			zap.L().Warn("failed to publish outbox event", zap.Error(err), zap.String("event_id", event.ID))
 			continue
 		}
 
-		if err := s.orderRepo.MarkOutboxEventProcessed(ctx, event.ID); err != nil {
-			zap.L().Warn("failed to mark outbox event processed", zap.Error(err))
+		processedIDs = append(processedIDs, event.ID)
+	}
+
+	if len(processedIDs) > 0 {
+		if err := s.outboxRepo.MarkOutboxEventsProcessed(ctx, processedIDs); err != nil {
+			zap.L().Error("failed to batch mark outbox events processed", zap.Error(err))
 		}
 	}
 

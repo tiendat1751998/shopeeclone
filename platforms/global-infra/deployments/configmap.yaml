@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopee-global-infra-config
+data:
+  APP_NAME: "shopee-global-infra"
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  GLOBAL_INFRA_HTTP_PORT: "8112"
+  GLOBAL_INFRA_GRPC_PORT: "9112"
+  REDIS_ADDR: "redis-master.cache:6379"
+  KAFKA_BROKERS: "kafka-headless.kafka:9092"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.monitoring:4318"

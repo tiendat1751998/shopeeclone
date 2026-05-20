@@ -7,7 +7,7 @@ import (
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
+	otelCodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -52,7 +52,7 @@ func otelUnaryClientInterceptor() grpc.UnaryClientInterceptor {
 
 		if err != nil {
 			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
+			span.SetStatus(otelCodes.Error, err.Error())
 			observability.LogWithTrace(ctx).Error("grpc call failed",
 				zap.String("method", method),
 				zap.Error(err),

@@ -23,12 +23,12 @@ func NewInventoryGRPCServer(svc *application.InventoryService) *InventoryGRPCSer
 func (s *InventoryGRPCServer) ReserveStock(ctx context.Context, req *pb.ReserveStockRequest) (*pb.ReservationResponse, error) {
 	r := &application.ReserveStockRequest{
 		OrderID: req.OrderId, UserID: req.UserId, ProductID: req.ProductId,
-		SkuID: req.SkuId, WarehouseId: req.WarehouseId, Quantity: int(req.Quantity),
+		SkuID: req.SkuId, WarehouseID: req.WarehouseId, Quantity: int(req.Quantity),
 		IdempotencyKey: req.IdempotencyKey,
 	}
 	res, err := s.inventoryService.ReserveStock(ctx, r)
 	if err != nil { return nil, toGRPCError(err) }
-	return &pb.ReservationResponse{Id: res.ID, OrderId: res.OrderId, SkuId: res.SkuID, Quantity: int32(res.Quantity), Status: string(res.Status)}, nil
+	return &pb.ReservationResponse{Id: res.ID, OrderId: res.OrderID, SkuId: res.SkuID, Quantity: int32(res.Quantity), Status: string(res.Status)}, nil
 }
 
 func (s *InventoryGRPCServer) ReleaseStock(ctx context.Context, req *pb.ReleaseStockRequest) (*pb.ReleaseStockResponse, error) {

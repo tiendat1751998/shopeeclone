@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: shopee-catalog-product
+  labels:
+    app: shopee-catalog-product
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 9080
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+  selector:
+    app: shopee-catalog-product

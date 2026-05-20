@@ -10,7 +10,6 @@ import (
 	"github.com/shopee-clone/shopee/services/shipment/internal/config"
 	"github.com/shopee-clone/shopee/services/shipment/internal/domain"
 	"github.com/shopee-clone/shopee/services/shipment/internal/metrics"
-	"go.uber.org/zap"
 )
 
 type Producer struct {
@@ -53,6 +52,7 @@ func (p *Producer) PublishEvent(ctx context.Context, event *domain.ShipmentEvent
 	topic := fmt.Sprintf("%s.%s", p.cfg.TopicPrefix, event.EventType)
 
 	msg := kafka.Message{
+		Topic: topic,
 		Key:   []byte(event.ShipmentID),
 		Value: payload,
 		Headers: []kafka.Header{

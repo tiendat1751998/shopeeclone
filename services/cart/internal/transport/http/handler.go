@@ -126,17 +126,27 @@ func (h *Handler) MergeCarts(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.merge_carts")
 	defer span.End()
 
+	userID := c.GetString("user_id")
+
 	var req struct {
 		SourceCartID string `json:"source_cart_id" binding:"required"`
 		TargetCartID string `json:"target_cart_id" binding:"required"`
-		UserID       string `json:"user_id" binding:"required"`
+		UserID       string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": err.Error()})
 		return
 	}
 
-	if err := h.service.MergeCarts(ctx, req.SourceCartID, req.TargetCartID, req.UserID); err != nil {
+	if userID == "" {
+		userID = req.UserID
+	}
+	if userID == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": "user_id is required"})
+		return
+	}
+
+	if err := h.service.MergeCarts(ctx, req.SourceCartID, req.TargetCartID, userID); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -150,8 +160,10 @@ func (h *Handler) CheckoutPreview(c *gin.Context) {
 
 	cartID := c.Param("cart_id")
 
+	userID := c.GetString("user_id")
+
 	var req struct {
-		UserID         string `json:"user_id" binding:"required"`
+		UserID         string `json:"user_id"`
 		IdempotencyKey string `json:"idempotency_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -159,7 +171,15 @@ func (h *Handler) CheckoutPreview(c *gin.Context) {
 		return
 	}
 
-	preview, err := h.service.PrepareCheckout(ctx, cartID, req.UserID, req.IdempotencyKey)
+	if userID == "" {
+		userID = req.UserID
+	}
+	if userID == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": "user_id is required"})
+		return
+	}
+
+	preview, err := h.service.PrepareCheckout(ctx, cartID, userID, req.IdempotencyKey)
 	if err != nil {
 		handleError(c, err)
 		return

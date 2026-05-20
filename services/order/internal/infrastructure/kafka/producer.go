@@ -37,6 +37,7 @@ func (p *Producer) PublishEvent(ctx context.Context, event *domain.OrderEvent) e
 
 	topic := fmt.Sprintf("%s.%s", p.cfg.TopicPrefix, event.EventType)
 	msg := kafka.Message{
+		Topic: topic,
 		Key:   []byte(event.OrderID),
 		Value: payload,
 		Headers: []kafka.Header{

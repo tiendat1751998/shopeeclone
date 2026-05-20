@@ -46,8 +46,6 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
-        // Use RSA signing when JWKS provider has valid keys loaded
-        this.useRsa = jwksProvider.getPublicKey() != null && jwksProvider.getPrivateKey() != null;
         // Always initialize HMAC keys as fallback
         if (accessSecret != null && !accessSecret.isBlank()) {
             this.hmacAccessKey = Keys.hmacShaKeyFor(accessSecret.getBytes(StandardCharsets.UTF_8));
@@ -55,6 +53,15 @@ public class JwtTokenProvider {
         if (refreshSecret != null && !refreshSecret.isBlank()) {
             this.hmacRefreshKey = Keys.hmacShaKeyFor(refreshSecret.getBytes(StandardCharsets.UTF_8));
         }
+        // Use RSA only when JWKS provider has valid keys loaded
+        this.useRsa = jwksProvider.getPublicKey() != null && jwksProvider.getPrivateKey() != null;
+        // Fail fast if no signing key is configured
+        if (!this.useRsa && this.hmacAccessKey == null) {
+            throw new IllegalStateException(
+                "No signing key configured: provide either JWKS RSA keys or HMAC secrets"
+            );
+        }
+        log.info("JWT signing mode: {}", useRsa ? "RSA (JWKS)" : "HMAC");
     }
 
     public String generateAccessToken(User user) {

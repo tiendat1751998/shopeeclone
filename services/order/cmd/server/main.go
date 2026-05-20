@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -20,7 +20,7 @@ import (
 	"github.com/shopee-clone/shopee/services/order/internal/infrastructure/mysql"
 	redisinfra "github.com/shopee-clone/shopee/services/order/internal/infrastructure/redis"
 	"github.com/shopee-clone/shopee/services/order/internal/tracing"
-	"github.com/shopee-clone/shopee/services/order/internal/transport/grpc"
+	orderGrpc "github.com/shopee-clone/shopee/services/order/internal/transport/grpc"
 	httptransport "github.com/shopee-clone/shopee/services/order/internal/transport/http"
 	"github.com/shopee-clone/shopee/services/order/internal/transport/http/middleware"
 	pb "github.com/shopee-clone/shopee/services/order/proto/order/v1"
@@ -56,6 +56,7 @@ func main() {
 	}
 
 	orderRepo := mysql.NewOrderRepository(db)
+	outboxRepo := mysql.NewOutboxRepository(db)
 	redisStore := redisinfra.NewStore(redisClient, cfg.Redis)
 
 	var kafkaProducer *kafka.Producer
@@ -63,7 +64,7 @@ func main() {
 		kafkaProducer = kafka.NewProducer(cfg.Kafka)
 	}
 
-	orderService := application.NewOrderService(cfg, orderRepo, redisStore, kafkaProducer)
+	orderService := application.NewOrderService(cfg, orderRepo, outboxRepo, redisStore, kafkaProducer)
 
 	// Setup HTTP
 	gin.SetMode(getGinMode(cfg.AppEnv))
@@ -93,7 +94,7 @@ func main() {
 
 	// Setup gRPC
 	grpcServer := grpc.NewServer()
-	grpcOrderServer := grpc.NewOrderGRPCServer(orderService)
+	grpcOrderServer := orderGrpc.NewOrderGRPCServer(orderService)
 	pb.RegisterOrderServiceServer(grpcServer, grpcOrderServer)
 	grpc_health_v1.RegisterHealthServer(grpcServer, &grpcHealthServer{})
 	reflection.Register(grpcServer)
@@ -103,8 +104,10 @@ func main() {
 		logger.Fatal("failed to listen grpc", zap.Int("port", cfg.GRPCPort), zap.Error(err))
 	}
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	var bgWg sync.WaitGroup
 
 	go func() {
 		logger.Info("starting order service",
@@ -119,34 +122,36 @@ func main() {
 
 	go func() {
 		if err := grpcServer.Serve(grpcListener); err != nil {
-			logger.Fatal("grpc server failed", zap.Error(err))
+			logger.Warn("grpc server stopped", zap.Error(err))
 		}
 	}()
 
 	// Start outbox processor
+	bgWg.Add(1)
 	go func() {
+		defer bgWg.Done()
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
 				func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
-					if err := orderService.ProcessOutboxEvents(ctx); err != nil {
+					oCtx, oCancel := context.WithTimeout(ctx, 30*time.Second)
+					defer oCancel()
+					if err := orderService.ProcessOutboxEvents(oCtx); err != nil {
 						zap.L().Warn("outbox processing failed", zap.Error(err))
 					}
 				}()
-			case <-quit:
+			case <-ctx.Done():
 				return
 			}
 		}
 	}()
 
-	<-quit
+	<-ctx.Done()
 	logger.Info("shutting down order service...")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	grpcServer.GracefulStop()
@@ -154,6 +159,8 @@ func main() {
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error("http shutdown error", zap.Error(err))
 	}
+
+	bgWg.Wait()
 
 	if redisClient != nil {
 		redisClient.Close()

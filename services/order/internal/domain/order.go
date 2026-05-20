@@ -168,11 +168,13 @@ func (o *Order) IsCancellable() bool {
 	return o.Status != OrderStatusCancelled &&
 		o.Status != OrderStatusRefunded &&
 		o.Status != OrderStatusCompleted &&
-		o.Status != OrderStatusDelivered
+		o.Status != OrderStatusDelivered &&
+		o.Status != OrderStatusShipped
 }
 
 func (o *Order) IsTerminal() bool {
 	return o.Status == OrderStatusCancelled ||
 		o.Status == OrderStatusRefunded ||
-		o.Status == OrderStatusCompleted
+		o.Status == OrderStatusCompleted ||
+		o.Status == OrderStatusShipped
 }

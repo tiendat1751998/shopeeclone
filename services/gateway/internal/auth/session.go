@@ -128,10 +128,20 @@ func (v *SessionValidator) createEphemeralSession(claims *Claims) *SessionData {
 
 func SessionMiddleware(validator *SessionValidator) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sessionID := c.GetHeader("X-Session-ID")
 		userID, hasUser := c.Get(string(middleware.UserIDKey))
-		if !hasUser || sessionID == "" {
+		if !hasUser {
 			c.Next()
+			return
+		}
+
+		// [SECURITY] Require session ID for all authenticated requests
+		// Do not allow bypass when X-Session-ID is missing
+		sessionID := c.GetHeader("X-Session-ID")
+		if sessionID == "" {
+			c.AbortWithStatusJSON(401, gin.H{
+				"error_code": "SESSION_REQUIRED",
+				"message":    "X-Session-ID header is required for authenticated requests",
+			})
 			return
 		}
 

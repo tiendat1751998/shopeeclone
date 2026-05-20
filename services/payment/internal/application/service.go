@@ -47,7 +47,16 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 	start := time.Now()
 	defer func() { metrics.PaymentAuthorizationLatency.WithLabelValues(s.cfg.Payment.DefaultPSP).Observe(time.Since(start).Seconds()) }()
 
-	// Idempotency check
+	// [SECURITY] Acquire distributed lock BEFORE idempotency check and payment creation.
+	// This prevents race conditions where two concurrent requests with the same idempotency
+	// key both pass the idempotency check and attempt to create payments simultaneously.
+	locked, err := s.redisStore.AcquirePaymentLock(ctx, req.OrderID, 30*time.Second)
+	if err != nil || !locked {
+		return nil, fmt.Errorf("failed to acquire payment lock")
+	}
+	defer s.redisStore.ReleasePaymentLock(ctx, req.OrderID)
+
+	// Idempotency check (inside lock)
 	if req.IdempotencyKey != "" {
 		existingID, err := s.redisStore.CheckIdempotencyKey(ctx, req.IdempotencyKey)
 		if err == nil && existingID != "" {
@@ -60,13 +69,6 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 			return existing, nil
 		}
 	}
-
-	// [SECURITY] Anti-double-charge: Use distributed lock BEFORE checking existing payment.
-	locked, err := s.redisStore.AcquirePaymentLock(ctx, req.OrderID, 30*time.Second)
-	if err != nil || !locked {
-		return nil, fmt.Errorf("failed to acquire payment lock")
-	}
-	defer s.redisStore.ReleasePaymentLock(ctx, req.OrderID)
 
 	// Check if payment already exists for this order (inside lock)
 	existingPayment, err := s.paymentRepo.FindByOrderID(ctx, req.OrderID)

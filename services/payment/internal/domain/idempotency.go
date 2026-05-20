@@ -29,7 +29,7 @@ func GenerateIdempotencyKey(orderID, userID string, amount int64, timestamp time
 		"user_id":   userID,
 		"amount":    amount,
 		"timestamp": timestamp.Unix(),
-	}
+	})
 	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:])
 }

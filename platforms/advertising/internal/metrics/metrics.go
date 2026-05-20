@@ -45,4 +45,20 @@ var (
 		Name: "shopee_ad_campaigns_active",
 		Help: "Number of active campaigns",
 	})
+
+	CampaignsCreated = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "shopee_ad_campaigns_created_total", Help: "Total campaigns created",
+	})
+
+	AdRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "shopee_ad_requests_total", Help: "Total ad requests",
+	})
+
+	ImpressionsRecorded = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "shopee_ad_impressions_recorded_total", Help: "Total impressions recorded",
+	})
+
+	ClicksRecorded = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "shopee_ad_clicks_recorded_total", Help: "Total clicks recorded",
+	})
 )

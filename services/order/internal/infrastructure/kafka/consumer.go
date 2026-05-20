@@ -2,8 +2,6 @@ package kafka
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/segmentio/kafka-go"

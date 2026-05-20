@@ -22,7 +22,7 @@ func NewShipmentGRPCServer(svc *application.ShipmentService) *ShipmentGRPCServer
 
 func (s *ShipmentGRPCServer) CreateShipment(ctx context.Context, req *pb.CreateShipmentRequest) (*pb.ShipmentResponse, error) {
 	r := &application.CreateShipmentRequest{
-		OrderID: req.OrderId, UserID: req.UserId, CarrierId: req.CarrierId,
+		OrderID: req.OrderId, UserID: req.UserId, CarrierID: req.CarrierId,
 		IdempotencyKey: req.IdempotencyKey, Weight: req.Weight, Currency: req.Currency,
 	}
 	shipment, err := s.shipmentService.CreateShipment(ctx, r)

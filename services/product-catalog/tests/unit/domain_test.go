@@ -2,7 +2,6 @@ package domain
 
 import (
 	"testing"
-	"time"
 	"github.com/shopee-clone/shopee/services/product-catalog/internal/domain"
 )
 

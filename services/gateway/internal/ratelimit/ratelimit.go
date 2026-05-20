@@ -12,7 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis_rate/v10"
 	"github.com/redis/go-redis/v9"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/gateway/internal/config"
+	"go.uber.org/zap"
 )
 
 type RateLimiter struct {
@@ -67,7 +69,18 @@ func (l *RateLimiter) AllowN(ctx context.Context, key string, rate int, n int) (
 
 	res, err := l.limiter.AllowN(ctx, key, redis_rate.PerSecond(rate), n)
 	if err != nil {
-		return &LimitResult{Allowed: true, Remaining: rate, Limit: rate}, nil
+		// [SECURITY] Fail closed - reject on Redis error
+		// This prevents rate limit bypass when Redis is down
+		observability.GetLogger().Error("rate limiter Redis error, failing closed",
+			zap.String("key", key),
+			zap.Error(err),
+		)
+		return &LimitResult{
+			Allowed:    false,
+			Remaining:  0,
+			ResetAfter: l.cfg.WindowSize,
+			Limit:      rate,
+		}, err
 	}
 
 	return &LimitResult{

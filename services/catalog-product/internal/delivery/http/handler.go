@@ -6,11 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/errors"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/catalog-product/internal/domain"
 	"github.com/shopee-clone/shopee/services/catalog-product/internal/usecase"
 	"go.opentelemetry.io/otel"
-	"go.uber.org/zap"
 )
 
 type Handler struct {

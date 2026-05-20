@@ -9,7 +9,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/shopee-clone/shopee/services/order/internal/config"
 	"github.com/shopee-clone/shopee/services/order/internal/domain"
-	"go.uber.org/zap"
 )
 
 type Store struct {

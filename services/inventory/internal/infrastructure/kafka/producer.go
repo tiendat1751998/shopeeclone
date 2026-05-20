@@ -10,7 +10,6 @@ import (
 	"github.com/shopee-clone/shopee/services/inventory/internal/config"
 	"github.com/shopee-clone/shopee/services/inventory/internal/domain"
 	"github.com/shopee-clone/shopee/services/inventory/internal/metrics"
-	"go.uber.org/zap"
 )
 
 type Producer struct {
@@ -26,7 +25,7 @@ func (p *Producer) PublishEvent(ctx context.Context, event *domain.InventoryEven
 	payload, err := json.Marshal(event)
 	if err != nil { return err }
 	topic := fmt.Sprintf("%s.%s", p.cfg.TopicPrefix, event.EventType)
-	msg := kafka.Message{Key: []byte(event.SkuID), Value: payload, Headers: []kafka.Header{{Key: "event_type", Value: []byte(event.EventType)}}}
+	msg := kafka.Message{Topic: topic, Key: []byte(event.SkuID), Value: payload, Headers: []kafka.Header{{Key: "event_type", Value: []byte(event.EventType)}}}
 	start := time.Now()
 	err = p.writer.WriteMessages(ctx, msg)
 	metrics.KafkaPublishLatency.WithLabelValues(string(event.EventType)).Observe(time.Since(start).Seconds())

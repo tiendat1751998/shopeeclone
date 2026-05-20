@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"

@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shopee-oms-fulfillment
+  labels:
+    app: shopee-oms-fulfillment
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: shopee-oms-fulfillment
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: shopee-oms-fulfillment
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8105"
+    spec:
+      serviceAccountName: shopee-oms-fulfillment
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: shopee-oms-fulfillment
+          image: shopee-clone/shopee-oms-fulfillment:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8105
+            - name: grpc
+              containerPort: 9105
+          envFrom:
+            - configMapRef:
+                name: shopee-oms-fulfillment-config
+            - secretRef:
+                name: shopee-oms-fulfillment-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12

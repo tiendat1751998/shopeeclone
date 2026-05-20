@@ -41,4 +41,12 @@ var (
 	ViewerCountGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "shopee_live_viewer_count", Help: "Viewer count by room",
 	}, []string{"room_id"})
+
+	ConnectionsActive = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "shopee_live_ws_connections_active_by_room", Help: "Active WebSocket connections by room",
+	}, []string{"room_id"})
+
+	MessagesBroadcast = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "shopee_live_messages_broadcast_total", Help: "Messages broadcast by type",
+	}, []string{"type"})
 )
