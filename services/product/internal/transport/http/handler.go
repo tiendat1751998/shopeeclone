@@ -16,13 +16,15 @@ import (
 type Handler struct {
 	productService    *application.ProductService
 	categoryService   *application.CategoryService
+	attributeService  *application.AttributeService
 }
 
 // NewHandler creates a new HTTP handler
-func NewHandler(productService *application.ProductService, categoryService *application.CategoryService) *Handler {
+func NewHandler(productService *application.ProductService, categoryService *application.CategoryService, attributeService *application.AttributeService) *Handler {
 	return &Handler{
-		productService:  productService,
-		categoryService: categoryService,
+		productService:   productService,
+		categoryService:  categoryService,
+		attributeService: attributeService,
 	}
 }
 
@@ -46,6 +48,17 @@ func (h *Handler) RegisterRoutes(router *gin.RouterGroup) {
 		categories.GET("/:category_id", h.GetCategory)
 		categories.PUT("/:category_id", h.UpdateCategory)
 		categories.DELETE("/:category_id", h.DeleteCategory)
+	}
+
+	attributes := router.Group("/attributes")
+	{
+		attributes.POST("", h.CreateAttribute)
+		attributes.GET("/:attribute_id", h.GetAttribute)
+		attributes.GET("/by-category/:category_id", h.ListAttributesByCategory)
+		attributes.PUT("/:attribute_id", h.UpdateAttribute)
+		attributes.DELETE("/:attribute_id", h.DeleteAttribute)
+		attributes.POST("/values", h.CreateAttributeValue)
+		attributes.GET("/:attribute_id/values", h.ListAttributeValues)
 	}
 }
 
@@ -260,6 +273,131 @@ func (h *Handler) DeleteCategory(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "category deleted"})
 }
 
+// CreateAttribute handles POST /api/v1/attributes
+func (h *Handler) CreateAttribute(c *gin.Context) {
+	ctx, span := otel.Tracer("product-service").Start(c.Request.Context(), "http.create_attribute")
+	defer span.End()
+
+	var req application.CreateAttributeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp, err := h.attributeService.CreateAttribute(ctx, req)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	span.SetAttributes(attribute.String("attribute.id", resp.ID))
+	c.JSON(http.StatusCreated, resp)
+}
+
+// GetAttribute handles GET /api/v1/attributes/:attribute_id
+func (h *Handler) GetAttribute(c *gin.Context) {
+	ctx, span := otel.Tracer("product-service").Start(c.Request.Context(), "http.get_attribute")
+	defer span.End()
+
+	attributeID := c.Param("attribute_id")
+	resp, err := h.attributeService.GetAttribute(ctx, attributeID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	span.SetAttributes(attribute.String("attribute.id", resp.ID))
+	c.JSON(http.StatusOK, resp)
+}
+
+// ListAttributesByCategory handles GET /api/v1/attributes/by-category/:category_id
+func (h *Handler) ListAttributesByCategory(c *gin.Context) {
+	ctx, span := otel.Tracer("product-service").Start(c.Request.Context(), "http.list_attributes_by_category")
+	defer span.End()
+
+	categoryID := c.Param("category_id")
+	resp, err := h.attributeService.ListAttributesByCategory(ctx, categoryID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	span.SetAttributes(attribute.String("category.id", categoryID))
+	c.JSON(http.StatusOK, resp)
+}
+
+// UpdateAttribute handles PUT /api/v1/attributes/:attribute_id
+func (h *Handler) UpdateAttribute(c *gin.Context) {
+	ctx, span := otel.Tracer("product-service").Start(c.Request.Context(), "http.update_attribute")
+	defer span.End()
+
+	attributeID := c.Param("attribute_id")
+	var req application.UpdateAttributeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp, err := h.attributeService.UpdateAttribute(ctx, attributeID, req)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	span.SetAttributes(attribute.String("attribute.id", resp.ID))
+	c.JSON(http.StatusOK, resp)
+}
+
+// DeleteAttribute handles DELETE /api/v1/attributes/:attribute_id
+func (h *Handler) DeleteAttribute(c *gin.Context) {
+	ctx, span := otel.Tracer("product-service").Start(c.Request.Context(), "http.delete_attribute")
+	defer span.End()
+
+	attributeID := c.Param("attribute_id")
+	if err := h.attributeService.DeleteAttribute(ctx, attributeID); err != nil {
+		handleError(c, err)
+		return
+	}
+
+	span.SetAttributes(attribute.String("attribute.id", attributeID))
+	c.JSON(http.StatusOK, gin.H{"message": "attribute deleted"})
+}
+
+// CreateAttributeValue handles POST /api/v1/attributes/values
+func (h *Handler) CreateAttributeValue(c *gin.Context) {
+	ctx, span := otel.Tracer("product-service").Start(c.Request.Context(), "http.create_attribute_value")
+	defer span.End()
+
+	var req application.CreateAttributeValueRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp, err := h.attributeService.CreateAttributeValue(ctx, req)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, resp)
+}
+
+// ListAttributeValues handles GET /api/v1/attributes/:attribute_id/values
+func (h *Handler) ListAttributeValues(c *gin.Context) {
+	ctx, span := otel.Tracer("product-service").Start(c.Request.Context(), "http.list_attribute_values")
+	defer span.End()
+
+	attributeID := c.Param("attribute_id")
+	resp, err := h.attributeService.ListAttributeValues(ctx, attributeID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 // parseProductFilter parses query parameters into a ProductFilter
 func parseProductFilter(c *gin.Context) domain.ProductFilter {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -276,8 +414,8 @@ func parseProductFilter(c *gin.Context) domain.ProductFilter {
 		Status:     c.Query("status"),
 		MinPrice:   minPrice,
 		MaxPrice:   maxPrice,
-		SortBy:     c.DefaultQuery("sort_by", "created_at"),
-		SortOrder:  c.DefaultQuery("sort_order", "DESC"),
+		SortBy:     domain.SortField(c.DefaultQuery("sort_by", "created_at")),
+		SortOrder:  domain.SortDirection(c.DefaultQuery("sort_order", "DESC")),
 		Search:     c.Query("q"),
 	}
 }

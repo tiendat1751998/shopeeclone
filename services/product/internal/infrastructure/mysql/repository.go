@@ -625,7 +625,6 @@ func (r *ModerationRepo) Update(ctx context.Context, record *domain.ModerationRe
 
 // Ensure interfaces are satisfied
 var _ ProductRepository = (*ProductRepo)(nil)
-var _ CategoryRepository = (*CategoryRepo)(nil)
 
 // ProductRepository interface matching
 type ProductRepository interface {

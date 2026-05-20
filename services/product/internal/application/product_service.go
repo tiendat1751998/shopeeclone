@@ -242,7 +242,7 @@ func (s *ProductService) UpdateProduct(ctx context.Context, spuID string, req Up
 		existing.BrandID = req.BrandID
 	}
 	if req.Status != "" {
-		existing.Status = req.Status
+		existing.Status = domain.ProductStatus(req.Status)
 	}
 	existing.UpdatedAt = time.Now()
 
