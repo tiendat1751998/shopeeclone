@@ -1,21 +1,26 @@
 package http
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 )
 
 type Router struct {
 	handler *Handler
 	health  *health.Checker
+	redis   *redis.Client
 }
 
-func NewRouter(handler *Handler, healthChecker *health.Checker) *Router {
+func NewRouter(handler *Handler, healthChecker *health.Checker, redisClient *redis.Client) *Router {
 	return &Router{
 		handler: handler,
 		health:  healthChecker,
+		redis:   redisClient,
 	}
 }
 
@@ -36,7 +41,10 @@ func (r *Router) Setup(engine *gin.Engine) {
 	api := engine.Group("/api/v1/auth")
 	{
 		api.POST("/register", r.handler.Register)
-		api.POST("/login", r.handler.Login)
+		api.POST("/login",
+			middleware.RedisSlidingWindowLimiter(r.redis, 5, 5*time.Minute, "auth_login"),
+			r.handler.Login,
+		)
 		api.POST("/refresh", r.handler.RefreshToken)
 		api.POST("/logout", r.handler.Logout)
 		api.POST("/logout/all", r.handler.LogoutAll)

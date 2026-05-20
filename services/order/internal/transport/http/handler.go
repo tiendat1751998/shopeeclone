@@ -65,8 +65,6 @@ func (h *Handler) GetOrder(c *gin.Context) {
 	role, _ := c.Get("role")
 	uid, _ := userID.(string)
 	r, _ := role.(string)
-	_ = uid
-	_ = r
 	if order.UserID != uid && r != "admin" && r != "seller" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return
@@ -76,9 +74,17 @@ func (h *Handler) GetOrder(c *gin.Context) {
 }
 
 func (h *Handler) ListOrders(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	role, _ := c.Get("role")
-	uid, _ := userID.(string)
 	r, _ := role.(string)
 
 	// Admin can list all orders, users can only list their own

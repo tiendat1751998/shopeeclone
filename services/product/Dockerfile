@@ -29,4 +29,7 @@ COPY --from=builder /build/configs /app/configs
 
 EXPOSE 8080 9090
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["/app/product", "-health-check"]
+
 ENTRYPOINT ["/app/product"]

@@ -273,7 +273,10 @@ func (v *JWTValidator) ValidateToken(ctx context.Context, tokenString string) (*
 	}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		alg := token.Header["alg"].(string)
+		alg, ok := token.Header["alg"].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid alg header type")
+		}
 
 		// [SECURITY] Algorithm confusion prevention:
 		// Determine expected algorithm based on key type, NOT from the token header.

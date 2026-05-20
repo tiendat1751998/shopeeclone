@@ -70,7 +70,7 @@ func main() {
 	gin.SetMode(getGinMode(cfg.AppEnv))
 	engine := gin.New()
 	handler := httptransport.NewHandler(checkoutService)
-	httpRouter := httptransport.NewRouter(handler, healthChecker, cfg.JWTConfig.AccessSecret)
+	httpRouter := httptransport.NewRouter(handler, healthChecker, cfg.JWTConfig.AccessSecret, redisClient)
 	httpRouter.Setup(engine)
 
 	httpServer := &http.Server{

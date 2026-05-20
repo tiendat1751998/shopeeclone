@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/auth/internal/config"
 	"github.com/shopee-clone/shopee/services/auth/internal/domain"
 	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
 )
 
 type SessionRepository interface {
@@ -30,10 +32,10 @@ type CacheStore interface {
 }
 
 type Service struct {
-	repo       SessionRepository
-	cache      CacheStore
-	cfg        config.SessionConfig
-	jwtCfg     config.JWTConfig
+	repo   SessionRepository
+	cache  CacheStore
+	cfg    config.SessionConfig
+	jwtCfg config.JWTConfig
 }
 
 func NewService(repo SessionRepository, cache CacheStore, cfg config.SessionConfig, jwtCfg config.JWTConfig) *Service {
@@ -130,12 +132,20 @@ func (s *Service) HandleTokenReuse(ctx context.Context, userID, ip string) {
 	ctx, span := otel.Tracer("shopee-auth").Start(ctx, "session.handle_reuse")
 	defer span.End()
 
-	sessions, _ := s.repo.FindActiveByUserID(ctx, userID)
+	sessions, err := s.repo.FindActiveByUserID(ctx, userID)
+	if err != nil {
+		observability.LogWithTrace(ctx).Error("token reuse: failed to find active sessions", zap.String("user_id", userID), zap.Error(err))
+		return
+	}
 	for _, session := range sessions {
 		session.Revoke()
-		s.repo.Update(ctx, session)
+		if err := s.repo.Update(ctx, session); err != nil {
+			observability.LogWithTrace(ctx).Error("token reuse: failed to revoke session", zap.String("session_id", session.ID), zap.Error(err))
+		}
 		if s.cache != nil {
-			s.cache.BlacklistRefreshToken(ctx, session.RefreshTokenID, s.jwtCfg.RefreshTTL)
+			if err := s.cache.BlacklistRefreshToken(ctx, session.RefreshTokenID, s.jwtCfg.RefreshTTL); err != nil {
+				observability.LogWithTrace(ctx).Error("token reuse: failed to blacklist token", zap.Error(err))
+			}
 		}
 	}
 	if s.cache != nil {

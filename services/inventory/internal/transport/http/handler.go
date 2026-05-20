@@ -28,12 +28,17 @@ func (h *Handler) ReserveStock(c *gin.Context) {
 	}
 
 	// [SECURITY] Get user_id from JWT context, not from request body
-	userID, exists := c.Get("user_id")
-	if !exists {
+	userID, ok := c.Get("user_id")
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	req.UserID = userID.(string)
+	userIDStr, ok := userID.(string)
+	if !ok || userIDStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user identity"})
+		return
+	}
+	req.UserID = userIDStr
 
 	reservation, err := h.inventoryService.ReserveStock(c.Request.Context(), &req)
 	if err != nil {

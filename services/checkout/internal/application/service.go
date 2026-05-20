@@ -355,13 +355,16 @@ func (s *CheckoutService) GetCheckoutStatus(ctx context.Context, checkoutID stri
 }
 
 // RetryCheckout retries a failed checkout
-func (s *CheckoutService) RetryCheckout(ctx context.Context, checkoutID string) error {
+func (s *CheckoutService) RetryCheckout(ctx context.Context, checkoutID, requestingUserID string) error {
 	checkout, err := s.checkoutRepo.FindByID(ctx, checkoutID)
 	if err != nil {
 		return err
 	}
 	if checkout == nil {
 		return domain.ErrCheckoutNotFound
+	}
+	if checkout.UserID != requestingUserID {
+		return domain.ErrUnauthorized
 	}
 	if !checkout.CanRetry() {
 		return fmt.Errorf("%w: status=%s attempts=%d", domain.ErrMaxRetriesExceeded, checkout.Status, checkout.AttemptCount)

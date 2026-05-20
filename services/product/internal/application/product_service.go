@@ -106,12 +106,12 @@ func (s *ProductService) CreateProduct(ctx context.Context, req CreateProductReq
 		Title:       req.Title,
 		Description: req.Description,
 		CategoryID:  req.CategoryID,
-		BrandID:    req.BrandID,
-		SellerID:   req.SellerID,
-		Status:     domain.ProductStatusDraft,
-		SKUs:       skus,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		BrandID:     req.BrandID,
+		SellerID:    req.SellerID,
+		Status:      domain.ProductStatusDraft,
+		SKUs:        skus,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 
 	if len(req.Images) > 0 {
@@ -294,8 +294,13 @@ func (s *ProductService) DeleteProduct(ctx context.Context, spuID string) error 
 	s.cache.Delete(ctx, "product:"+spuID)
 
 	event := domain.NewProductDeletedEvent(existing)
-	if payload, err := event.Marshal(); err == nil {
-		s.publisher.Publish(ctx, "product.events", spuID, payload)
+	payload, err := event.Marshal()
+	if err != nil {
+		observability.LogWithTrace(ctx).Error("failed to marshal delete event", zap.Error(err))
+	} else if s.publisher != nil {
+		if err := s.publisher.Publish(ctx, "product.events", spuID, payload); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish delete event", zap.Error(err))
+		}
 	}
 
 	span.SetAttributes(attribute.String("spu_id", spuID))

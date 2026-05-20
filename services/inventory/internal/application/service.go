@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 type InventoryService struct {
@@ -242,28 +243,35 @@ func (s *InventoryService) GetStock(ctx context.Context, skuID, warehouseID stri
 }
 
 // ExpireReservations processes expired reservations with per-reservation timeout.
+// Uses errgroup for bounded concurrency and proper goroutine lifecycle management.
 func (s *InventoryService) ExpireReservations(ctx context.Context) error {
 	reservations, err := s.invRepo.GetExpiredReservations(ctx, 100)
 	if err != nil {
 		return err
 	}
 
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(10) // Limit concurrent goroutines to prevent resource exhaustion
+
 	for _, res := range reservations {
-		func() {
+		res := res // capture range variable
+		g.Go(func() error {
 			defer func() {
 				if r := recover(); r != nil {
 					zap.L().Error("panic in ExpireReservations", zap.Any("recover", r), zap.String("id", res.ID))
 				}
 			}()
-			resCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			resCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
 			if err := s.ReleaseStock(resCtx, res.ID); err != nil {
 				zap.L().Warn("failed to expire reservation",
 					zap.String("id", res.ID), zap.Error(err))
+				return nil // Don't fail entire batch for single reservation failure
 			}
-		}()
+			return nil
+		})
 	}
-	return nil
+	return g.Wait()
 }
 
 // ProcessOutboxEvents publishes pending outbox events to Kafka with idempotency.
