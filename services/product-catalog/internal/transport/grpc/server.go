@@ -21,12 +21,7 @@ func NewCatalogGRPCServer(svc *application.CatalogService) *CatalogGRPCServer {
 }
 
 func (s *CatalogGRPCServer) CreateProduct(ctx context.Context, req *pb.CreateProductRequest) (*pb.ProductResponse, error) {
-	r := &application.CreateProductRequest{
-		ShopID: req.ShopId, Name: req.Name, Description: req.Description,
-		CategoryID: req.CategoryId, Brand: req.Brand, Condition: req.Condition,
-		IdempotencyKey: req.IdempotencyKey,
-	}
-	product, err := s.catalogService.CreateProduct(ctx, r)
+	product, err := s.catalogService.CreateProduct(ctx, req.ShopId, req.Name, req.Description, req.CategoryId, "", req.IdempotencyKey)
 	if err != nil { return nil, toGRPCError(err) }
 	return toProductResponse(product), nil
 }
@@ -38,7 +33,9 @@ func (s *CatalogGRPCServer) GetProduct(ctx context.Context, req *pb.GetProductRe
 }
 
 func (s *CatalogGRPCServer) ListProducts(ctx context.Context, req *pb.ListProductsRequest) (*pb.ListProductsResponse, error) {
-	products, total, err := s.catalogService.ListProducts(ctx, req.ShopId, req.Status, int(req.Page), int(req.PageSize))
+	offset := int((req.Page - 1) * req.PageSize)
+	limit := int(req.PageSize)
+	products, total, err := s.catalogService.ListProductsByShop(ctx, req.ShopId, offset, limit)
 	if err != nil { return nil, toGRPCError(err) }
 	pbProducts := make([]*pb.ProductResponse, 0, len(products))
 	for _, p := range products { pbProducts = append(pbProducts, toProductResponse(p)) }

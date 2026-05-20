@@ -40,12 +40,12 @@ func (r *SKURepository) FindByProductID(ctx context.Context, productID string) (
 	return skus, err
 }
 func (r *SKURepository) Create(ctx context.Context, sku *domain.SKU) error {
-	query := `INSERT INTO skus (id, product_id, sku_code, attributes, price, sale_price, stock, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, sku.ID, sku.ProductID, sku.SKUCode, sku.Attributes, sku.Price, sku.SalePrice, sku.Stock, sku.Status, sku.CreatedAt, sku.UpdatedAt); return err
+	query := `INSERT INTO skus (id, product_id, sku_code, attributes, price, compare_price, stock, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, sku.ID, sku.ProductID, sku.SkuCode, sku.Attributes, sku.Price, sku.ComparePrice, sku.Stock, sku.Status, sku.CreatedAt, sku.UpdatedAt); return err
 }
 func (r *SKURepository) Update(ctx context.Context, sku *domain.SKU) error {
-	query := `UPDATE skus SET attributes = ?, price = ?, sale_price = ?, stock = ?, status = ?, updated_at = ? WHERE id = ?`
-	_, err := r.db.ExecContext(ctx, query, sku.Attributes, sku.Price, sku.SalePrice, sku.Stock, sku.Status, sku.UpdatedAt, sku.ID); return err
+	query := `UPDATE skus SET attributes = ?, price = ?, compare_price = ?, stock = ?, status = ?, updated_at = ? WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, query, sku.Attributes, sku.Price, sku.ComparePrice, sku.Stock, sku.Status, sku.UpdatedAt, sku.ID); return err
 }
 func (r *SKURepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, "DELETE FROM skus WHERE id = ?", id); return err
@@ -62,12 +62,12 @@ func (r *CategoryRepository) FindByParentID(ctx context.Context, parentID string
 	return cats, err
 }
 func (r *CategoryRepository) GetTree(ctx context.Context) ([]*domain.Category, error) {
-	var cats []*domain.Category; err := r.db.SelectContext(ctx, &cats, "SELECT * FROM categories WHERE is_active = true ORDER BY level, sort_order LIMIT 1000")
+	var cats []*domain.Category; err := r.db.SelectContext(ctx, &cats, "SELECT * FROM categories WHERE is_active = true ORDER BY depth, sort_order LIMIT 1000")
 	return cats, err
 }
 func (r *CategoryRepository) Create(ctx context.Context, c *domain.Category) error {
-	query := `INSERT INTO categories (id, parent_id, name, slug, level, sort_order, is_active, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, c.ID, c.ParentID, c.Name, c.Slug, c.Level, c.SortOrder, c.IsActive, c.Metadata, c.CreatedAt, c.UpdatedAt); return err
+	query := `INSERT INTO categories (id, parent_id, name, slug, description, image_url, depth, sort_order, is_active, path, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, c.ID, c.ParentID, c.Name, c.Slug, c.Description, c.ImageURL, c.Depth, c.SortOrder, c.IsActive, c.Path, c.Version, c.CreatedAt, c.UpdatedAt); return err
 }
 func (r *CategoryRepository) Update(ctx context.Context, c *domain.Category) error {
 	query := `UPDATE categories SET name = ?, slug = ?, sort_order = ?, is_active = ?, updated_at = ? WHERE id = ?`
@@ -84,12 +84,12 @@ func (r *AttributeRepository) FindByCategoryID(ctx context.Context, categoryID s
 	return attrs, err
 }
 func (r *AttributeRepository) Create(ctx context.Context, a *domain.Attribute) error {
-	query := `INSERT INTO attributes (id, category_id, name, display_name, type, required, options, sort_order, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, a.ID, a.CategoryID, a.Name, a.DisplayName, a.AttrType, a.Required, a.Options, a.SortOrder, a.IsActive); return err
+	query := `INSERT INTO attributes (id, category_id, name, slug, type, is_required, is_filterable, is_searchable, options, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, a.ID, a.CategoryID, a.Name, a.Slug, a.Type, a.IsRequired, a.IsFilterable, a.IsSearchable, a.Options, a.SortOrder, a.CreatedAt, a.UpdatedAt); return err
 }
 func (r *AttributeRepository) Update(ctx context.Context, a *domain.Attribute) error {
-	query := `UPDATE attributes SET name = ?, display_name = ?, required = ?, options = ?, sort_order = ?, is_active = ? WHERE id = ?`
-	_, err := r.db.ExecContext(ctx, query, a.Name, a.DisplayName, a.Required, a.Options, a.SortOrder, a.IsActive, a.ID); return err
+	query := `UPDATE attributes SET name = ?, slug = ?, type = ?, is_required = ?, is_filterable = ?, is_searchable = ?, options = ?, sort_order = ?, updated_at = ? WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, query, a.Name, a.Slug, a.Type, a.IsRequired, a.IsFilterable, a.IsSearchable, a.Options, a.SortOrder, a.UpdatedAt, a.ID); return err
 }
 
 type ProductMediaRepository struct{ db *sqlx.DB }

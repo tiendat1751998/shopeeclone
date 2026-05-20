@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -8,17 +9,22 @@ import (
 )
 
 type Product struct {
-	ID          string    `db:"id" json:"id"`
-	ShopID      string    `db:"shop_id" json:"shop_id"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description,omitempty"`
-	CategoryID  string    `db:"category_id" json:"category_id"`
-	Status      string    `db:"status" json:"status"`
-	Currency    string    `db:"currency" json:"currency"`
-	Version     int64     `db:"version" json:"version"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	DeletedAt   *time.Time `db:"deleted_at" json:"deleted_at,omitempty"`
+	ID          string           `db:"id" json:"id"`
+	ShopID      string           `db:"shop_id" json:"shop_id"`
+	Name        string           `db:"name" json:"name"`
+	Description string           `db:"description" json:"description,omitempty"`
+	CategoryID  string           `db:"category_id" json:"category_id"`
+	Brand       string           `db:"brand" json:"brand,omitempty"`
+	Status      string           `db:"status" json:"status"`
+	Condition   string           `db:"condition" json:"condition,omitempty"`
+	Weight      float64          `db:"weight" json:"weight,omitempty"`
+	Dimensions  string           `db:"dimensions" json:"dimensions,omitempty"`
+	Metadata    json.RawMessage  `db:"metadata" json:"metadata,omitempty"`
+	Currency    string           `db:"currency" json:"currency"`
+	Version     int64            `db:"version" json:"version"`
+	CreatedAt   time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time        `db:"updated_at" json:"updated_at"`
+	DeletedAt   *time.Time       `db:"deleted_at" json:"deleted_at,omitempty"`
 }
 
 const (
