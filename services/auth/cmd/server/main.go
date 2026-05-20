@@ -84,7 +84,7 @@ func main() {
 	handler := httptransport.NewHandler(authService)
 
 	hc := health.NewChecker(cfg.AppName, version)
-	httpRouter := httptransport.NewRouter(handler, hc)
+	httpRouter := httptransport.NewRouter(handler, hc, redisClient)
 	httpRouter.Setup(engine)
 
 	httpServer := &http.Server{

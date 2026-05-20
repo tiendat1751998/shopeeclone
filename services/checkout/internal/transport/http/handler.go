@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/checkout/internal/application"
 	"github.com/shopee-clone/shopee/services/checkout/internal/domain"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
@@ -54,7 +54,17 @@ func (h *Handler) RetryCheckout(c *gin.Context) {
 	ctx, _ := otel.Tracer("shopee-checkout").Start(c.Request.Context(), "http.retry_checkout")
 
 	checkoutID := c.Param("checkout_id")
-	if err := h.service.RetryCheckout(ctx, checkoutID); err != nil {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	if err := h.service.RetryCheckout(ctx, checkoutID, uid); err != nil {
 		handleError(c, err)
 		return
 	}

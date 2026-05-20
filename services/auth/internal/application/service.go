@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/auth/internal/config"
 	"github.com/shopee-clone/shopee/services/auth/internal/domain"
 	"github.com/shopee-clone/shopee/services/auth/internal/infrastructure/hash"
@@ -13,7 +14,6 @@ import (
 	redisinfra "github.com/shopee-clone/shopee/services/auth/internal/infrastructure/redis"
 	"github.com/shopee-clone/shopee/services/auth/internal/metrics"
 	"github.com/shopee-clone/shopee/services/auth/internal/security"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,15 +22,15 @@ import (
 )
 
 type AuthService struct {
-	cfg          *config.Config
-	userRepo     *mysql.UserRepository
-	sessionRepo  *mysql.SessionRepository
-	auditRepo    *mysql.AuditRepository
-	redisStore   *redisinfra.Store
-	rateLimiter  *security.RateLimiter
-	suspicious   *security.SuspiciousDetector
-	jwtService   *jwt.Service
-	hashService  *hash.Service
+	cfg         *config.Config
+	userRepo    *mysql.UserRepository
+	sessionRepo *mysql.SessionRepository
+	auditRepo   *mysql.AuditRepository
+	redisStore  *redisinfra.Store
+	rateLimiter *security.RateLimiter
+	suspicious  *security.SuspiciousDetector
+	jwtService  *jwt.Service
+	hashService *hash.Service
 }
 
 func NewAuthService(
@@ -282,12 +282,18 @@ func (s *AuthService) Logout(ctx context.Context, accessToken, refreshToken stri
 
 	if allDevices {
 		sessions, err := s.sessionRepo.FindActiveByUserID(ctx, claims.UserID)
-		if err == nil {
+		if err != nil {
+			observability.LogWithTrace(ctx).Error("failed to find active sessions for logout-all", zap.Error(err))
+		} else {
 			for _, session := range sessions {
 				session.Revoke()
-				s.sessionRepo.Update(ctx, session)
-				if s.cfg.JWT.BlacklistEnabled {
-					s.redisStore.BlacklistRefreshToken(ctx, session.RefreshTokenID, s.cfg.JWT.RefreshTTL)
+				if err := s.sessionRepo.Update(ctx, session); err != nil {
+					observability.LogWithTrace(ctx).Error("failed to revoke session", zap.String("session_id", session.ID), zap.Error(err))
+				}
+				if s.cfg.JWT.BlacklistEnabled && s.redisStore != nil {
+					if err := s.redisStore.BlacklistRefreshToken(ctx, session.RefreshTokenID, s.cfg.JWT.RefreshTTL); err != nil {
+						observability.LogWithTrace(ctx).Error("failed to blacklist refresh token", zap.Error(err))
+					}
 				}
 			}
 		}
@@ -296,13 +302,17 @@ func (s *AuthService) Logout(ctx context.Context, accessToken, refreshToken stri
 		}
 	} else {
 		session, err := s.sessionRepo.FindByID(ctx, claims.SessionID)
-		if err == nil {
+		if err != nil {
+			observability.LogWithTrace(ctx).Error("failed to find session for logout", zap.Error(err))
+		} else {
 			session.Revoke()
-			s.sessionRepo.Update(ctx, session)
+			if err := s.sessionRepo.Update(ctx, session); err != nil {
+				observability.LogWithTrace(ctx).Error("failed to revoke session", zap.String("session_id", session.ID), zap.Error(err))
+			}
 		}
 		if s.cfg.JWT.BlacklistEnabled && s.redisStore != nil {
 			s.redisStore.BlacklistAccessToken(ctx, accessToken, s.cfg.JWT.AccessTTL)
-			s.redisStore.BlacklistRefreshToken(ctx, refreshToken, s.cfg.JWT.RefreshTTL)
+			s.redisStore.BlacklistRefreshToken(ctx, session.RefreshTokenID, s.cfg.JWT.RefreshTTL)
 		}
 	}
 

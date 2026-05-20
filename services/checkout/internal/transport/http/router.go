@@ -1,7 +1,10 @@
 package http
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/auth"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
@@ -12,10 +15,11 @@ type Router struct {
 	handler   *Handler
 	health    *health.Checker
 	jwtSecret string
+	redis     *redis.Client
 }
 
-func NewRouter(handler *Handler, healthChecker *health.Checker, jwtSecret string) *Router {
-	return &Router{handler: handler, health: healthChecker, jwtSecret: jwtSecret}
+func NewRouter(handler *Handler, healthChecker *health.Checker, jwtSecret string, redisClient *redis.Client) *Router {
+	return &Router{handler: handler, health: healthChecker, jwtSecret: jwtSecret, redis: redisClient}
 }
 
 func (r *Router) Setup(engine *gin.Engine) {
@@ -35,7 +39,10 @@ func (r *Router) Setup(engine *gin.Engine) {
 		api.Use(auth.GinJWTAuth(r.jwtSecret))
 	}
 	{
-		api.POST("/checkout", r.handler.InitiateCheckout)
+		api.POST("/checkout",
+			middleware.RedisSlidingWindowLimiter(r.redis, 1, 5*time.Second, "checkout"),
+			r.handler.InitiateCheckout,
+		)
 		api.GET("/checkout/:checkout_id/status", r.handler.GetCheckoutStatus)
 		api.POST("/checkout/:checkout_id/retry", r.handler.RetryCheckout)
 	}
