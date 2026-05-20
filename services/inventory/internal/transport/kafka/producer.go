@@ -14,7 +14,6 @@ import (
 const (
 	TopicInventoryEvents = "inventory.events"
 	TopicStockMovements  = "inventory.stock-movements"
-	TopicFlashSaleEvents = "inventory.flashsale-events"
 )
 
 type Producer struct {
@@ -49,16 +48,15 @@ func (p *Producer) Publish(ctx context.Context, event *domain.InventoryEvent) er
 	topic := TopicInventoryEvents
 	switch event.EventType {
 	case domain.EventStockReserved, domain.EventStockReleased, domain.EventStockDeducted,
-		domain.EventReservationCreated, domain.EventReservationConfirmed,
-		domain.EventReservationReleased, domain.EventReservationExpired:
+		domain.EventReservationExpired:
 		topic = TopicInventoryEvents
-	case domain.EventFlashSaleStarted, domain.EventFlashSaleEnded, domain.EventFlashSaleStockSold:
-		topic = TopicFlashSaleEvents
+	case domain.EventStockReplenished, domain.EventReconciliationTriggered:
+		topic = TopicStockMovements
 	}
 
 	msg := kafka.Message{
 		Topic: topic,
-		Key:   []byte(event.AggregateID),
+		Key:   []byte(event.SkuID),
 		Value: payload,
 		Headers: []kafka.Header{
 			{Key: "service", Value: []byte(p.service)},
