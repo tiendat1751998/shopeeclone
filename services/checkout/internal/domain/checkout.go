@@ -8,27 +8,27 @@ import (
 
 // Checkout represents the checkout orchestration state
 type Checkout struct {
-	ID              string    `db:"id" json:"id"`
-	UserID          string    `db:"user_id" json:"user_id"`
-	CartID          string    `db:"cart_id" json:"cart_id"`
-	OrderID         string    `db:"order_id" json:"order_id,omitempty"`
-	Status          string    `db:"status" json:"status"`
-	IdempotencyKey  string    `db:"idempotency_key" json:"idempotency_key"`
-	CurrentStep     string    `db:"current_step" json:"current_step"`
-	FailureReason   string    `db:"failure_reason" json:"failure_reason,omitempty"`
-	AttemptCount    int       `db:"attempt_count" json:"attempt_count"`
-	ReservationKeys string   `db:"reservation_keys" json:"reservation_keys"`
-	PricingSnapshot string    `db:"pricing_snapshot" json:"pricing_snapshot"`
-	PromotionResults string   `db:"promotion_results" json:"promotion_results"`
-	Subtotal        int64     `db:"subtotal" json:"subtotal"`
-	DiscountTotal   int64     `db:"discount_total" json:"discount_total"`
-	ShippingTotal   int64     `db:"shipping_total" json:"shipping_total"`
-	GrandTotal      int64     `db:"grand_total" json:"grand_total"`
-	Currency        string    `db:"currency" json:"currency"`
-	ExpiresAt       time.Time `db:"expires_at" json:"expires_at"`
-	CompletedAt     *time.Time `db:"completed_at" json:"completed_at,omitempty"`
-	CreatedAt       time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+	ID               string     `db:"id" json:"id"`
+	UserID           string     `db:"user_id" json:"user_id"`
+	CartID           string     `db:"cart_id" json:"cart_id"`
+	OrderID          string     `db:"order_id" json:"order_id,omitempty"`
+	Status           string     `db:"status" json:"status"`
+	IdempotencyKey   string     `db:"idempotency_key" json:"idempotency_key"`
+	CurrentStep      string     `db:"current_step" json:"current_step"`
+	FailureReason    string     `db:"failure_reason" json:"failure_reason,omitempty"`
+	AttemptCount     int        `db:"attempt_count" json:"attempt_count"`
+	ReservationKeys  string     `db:"reservation_keys" json:"reservation_keys"`
+	PricingSnapshot  string     `db:"pricing_snapshot" json:"pricing_snapshot"`
+	PromotionResults string     `db:"promotion_results" json:"promotion_results"`
+	Subtotal         int64      `db:"subtotal" json:"subtotal"`
+	DiscountTotal    int64      `db:"discount_total" json:"discount_total"`
+	ShippingTotal    int64      `db:"shipping_total" json:"shipping_total"`
+	GrandTotal       int64      `db:"grand_total" json:"grand_total"`
+	Currency         string     `db:"currency" json:"currency"`
+	ExpiresAt        time.Time  `db:"expires_at" json:"expires_at"`
+	CompletedAt      *time.Time `db:"completed_at" json:"completed_at,omitempty"`
+	CreatedAt        time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 // Checkout states
@@ -48,13 +48,13 @@ const (
 
 // Checkout steps
 const (
-	StepInit         = "init"
-	StepValidate     = "validate"
+	StepInit          = "init"
+	StepValidate      = "validate"
 	StepFreezePricing = "freeze_pricing"
-	StepReserve      = "reserve_inventory"
-	StepProcess      = "process_payment"
-	StepComplete     = "complete"
-	StepRollback     = "rollback"
+	StepReserve       = "reserve_inventory"
+	StepProcess       = "process_payment"
+	StepComplete      = "complete"
+	StepRollback      = "rollback"
 )
 
 func NewCheckout(userID, cartID, idempotencyKey string, ttl time.Duration) *Checkout {
@@ -144,35 +144,35 @@ func NewCheckoutStepLog(checkoutID, step, status string, durationMs int64, errMs
 
 // PricingSnapshot stores frozen pricing at checkout time
 type PricingSnapshot struct {
-	ID              string    `db:"id" json:"id"`
-	CheckoutID      string    `db:"checkout_id" json:"checkout_id"`
-	Items           string    `db:"items" json:"items"`
-	SellerGroups    string    `db:"seller_groups" json:"seller_groups"`
-	Subtotal        int64     `db:"subtotal" json:"subtotal"`
-	DiscountTotal   int64     `db:"discount_total" json:"discount_total"`
-	ShippingTotal   int64     `db:"shipping_total" json:"shipping_total"`
-	GrandTotal      int64     `db:"grand_total" json:"grand_total"`
-	Currency        string    `db:"currency" json:"currency"`
-	PromotionsApplied string  `db:"promotions_applied" json:"promotions_applied"`
-	CreatedAt       time.Time `db:"created_at" json:"created_at"`
+	ID                string    `db:"id" json:"id"`
+	CheckoutID        string    `db:"checkout_id" json:"checkout_id"`
+	Items             string    `db:"items" json:"items"`
+	SellerGroups      string    `db:"seller_groups" json:"seller_groups"`
+	Subtotal          int64     `db:"subtotal" json:"subtotal"`
+	DiscountTotal     int64     `db:"discount_total" json:"discount_total"`
+	ShippingTotal     int64     `db:"shipping_total" json:"shipping_total"`
+	GrandTotal        int64     `db:"grand_total" json:"grand_total"`
+	Currency          string    `db:"currency" json:"currency"`
+	PromotionsApplied string    `db:"promotions_applied" json:"promotions_applied"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 }
 
 // ReservationOrchestration tracks inventory reservations for a checkout
 type ReservationOrchestration struct {
-	ID              string    `db:"id" json:"id"`
-	CheckoutID      string    `db:"checkout_id" json:"checkout_id"`
-	ReservationKey  string    `db:"reservation_key" json:"reservation_key"`
-	SKU             string    `db:"sku" json:"sku"`
-	WarehouseID     string    `db:"warehouse_id" json:"warehouse_id"`
-	Quantity        int64     `db:"quantity" json:"quantity"`
-	Status          string    `db:"status" json:"status"`
-	ErrorMessage    string    `db:"error_message" json:"error_message,omitempty"`
-	CreatedAt       time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+	ID             string    `db:"id" json:"id"`
+	CheckoutID     string    `db:"checkout_id" json:"checkout_id"`
+	ReservationKey string    `db:"reservation_key" json:"reservation_key"`
+	SKU            string    `db:"sku" json:"sku"`
+	WarehouseID    string    `db:"warehouse_id" json:"warehouse_id"`
+	Quantity       int64     `db:"quantity" json:"quantity"`
+	Status         string    `db:"status" json:"status"`
+	ErrorMessage   string    `db:"error_message" json:"error_message,omitempty"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
 
 const (
-	ReservationStatusPending   = "pending"
+	ReservationStatusPending  = "pending"
 	ReservationStatusReserved = "reserved"
 	ReservationStatusReleased = "released"
 	ReservationStatusFailed   = "failed"
@@ -197,23 +197,24 @@ const (
 	JobTypeConfirmReservation = "confirm_reservation"
 	JobTypeUpdateOrderStatus  = "update_order_status"
 
-	JobStatusPending  = "pending"
-	JobStatusRunning  = "running"
+	JobStatusPending   = "pending"
+	JobStatusRunning   = "running"
 	JobStatusCompleted = "completed"
-	JobStatusFailed   = "failed"
+	JobStatusFailed    = "failed"
 )
 
 // Domain errors
 var (
-	ErrCheckoutNotFound     = ErrCheckout("checkout_not_found")
-	ErrCheckoutExpired      = ErrCheckout("checkout_expired")
-	ErrCheckoutCompleted    = ErrCheckout("checkout_already_completed")
-	ErrIdempotencyConflict  = ErrCheckout("idempotency_conflict")
-	ErrValidationFailed     = ErrCheckout("validation_failed")
-	ErrPricingChanged       = ErrCheckout("pricing_changed")
-	ErrReservationFailed    = ErrCheckout("reservation_failed")
-	ErrRollbackFailed       = ErrCheckout("rollback_failed")
-	ErrMaxRetriesExceeded   = ErrCheckout("max_retries_exceeded")
+	ErrCheckoutNotFound    = ErrCheckout("checkout_not_found")
+	ErrCheckoutExpired     = ErrCheckout("checkout_expired")
+	ErrCheckoutCompleted   = ErrCheckout("checkout_already_completed")
+	ErrIdempotencyConflict = ErrCheckout("idempotency_conflict")
+	ErrValidationFailed    = ErrCheckout("validation_failed")
+	ErrPricingChanged      = ErrCheckout("pricing_changed")
+	ErrReservationFailed   = ErrCheckout("reservation_failed")
+	ErrRollbackFailed      = ErrCheckout("rollback_failed")
+	ErrMaxRetriesExceeded  = ErrCheckout("max_retries_exceeded")
+	ErrUnauthorized        = ErrCheckout("unauthorized")
 )
 
 type ErrCheckout string
