@@ -264,6 +264,7 @@ func (s *AttributeService) CreateAttributeValue(ctx context.Context, req CreateA
 	s.cache.Delete(ctx, req.AttributeID)
 
 	return &AttributeValueResponse{
+		ID:           value.ID,
 		AttributeID:  value.AttributeID,
 		Value:        value.Value,
 		DisplayValue: value.DisplayValue,
@@ -289,6 +290,7 @@ func (s *AttributeService) ListAttributeValues(ctx context.Context, attributeID 
 	responses := make([]AttributeValueResponse, 0, len(values))
 	for i := range values {
 		responses = append(responses, AttributeValueResponse{
+			ID:           values[i].ID,
 			AttributeID:  values[i].AttributeID,
 			Value:        values[i].Value,
 			DisplayValue: values[i].DisplayValue,

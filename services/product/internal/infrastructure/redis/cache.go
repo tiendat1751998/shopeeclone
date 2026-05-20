@@ -277,9 +277,63 @@ func (c *CategoryRedisCache) Set(ctx context.Context, key string, category *doma
 	return c.client.Set(ctx, c.prefix+key, data, ttl).Err()
 }
 
+// AsAttributeCache returns an AttributeCache implementation
+func (c *Cache) AsAttributeCache() AttributeCache {
+	return &AttributeRedisCache{Cache: c}
+}
+
+// AttributeRedisCache wraps Cache to implement AttributeCache
+type AttributeRedisCache struct {
+	*Cache
+}
+
+func (c *AttributeRedisCache) Get(ctx context.Context, key string) (*domain.Attribute, error) {
+	data, err := c.client.Get(ctx, c.prefix+key).Bytes()
+	if err == redis.Nil {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("redis get: %w", err)
+	}
+
+	var attr domain.Attribute
+	if err := json.Unmarshal(data, &attr); err != nil {
+		return nil, fmt.Errorf("unmarshal attribute: %w", err)
+	}
+	return &attr, nil
+}
+
+func (c *AttributeRedisCache) Set(ctx context.Context, key string, attr *domain.Attribute, ttl time.Duration) error {
+	data, err := json.Marshal(attr)
+	if err != nil {
+		return fmt.Errorf("marshal attribute: %w", err)
+	}
+	return c.client.Set(ctx, c.prefix+key, data, ttl).Err()
+}
+
+func (c *AttributeRedisCache) InvalidateByCategory(ctx context.Context, categoryID string) error {
+	iter := c.client.Scan(ctx, 0, c.prefix+"attr:category:"+categoryID+":*", 100).Iterator()
+	batchSize := 100
+	keys := make([]string, 0, batchSize)
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+		if len(keys) >= batchSize {
+			if err := c.client.Del(ctx, keys...).Err(); err != nil {
+				return err
+			}
+			keys = keys[:0]
+		}
+	}
+	if len(keys) > 0 {
+		return c.client.Del(ctx, keys...).Err()
+	}
+	return iter.Err()
+}
+
 // Ensure interfaces are satisfied
 var _ ProductCache = (*Cache)(nil)
 var _ CategoryCache = (*CategoryRedisCache)(nil)
+var _ AttributeCache = (*AttributeRedisCache)(nil)
 
 // ProductCache interface
 type ProductCache interface {
@@ -295,4 +349,12 @@ type CategoryCache interface {
 	Set(ctx context.Context, key string, category *domain.Category, ttl time.Duration) error
 	Delete(ctx context.Context, key string) error
 	DeleteTree(ctx context.Context) error
+}
+
+// AttributeCache interface
+type AttributeCache interface {
+	Get(ctx context.Context, key string) (*domain.Attribute, error)
+	Set(ctx context.Context, key string, attr *domain.Attribute, ttl time.Duration) error
+	Delete(ctx context.Context, key string) error
+	InvalidateByCategory(ctx context.Context, categoryID string) error
 }

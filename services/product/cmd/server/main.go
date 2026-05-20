@@ -80,7 +80,7 @@ func main() {
 	// Services
 	productService := application.NewProductService(productRepo, cache, kafkaProducer)
 	categoryService := application.NewCategoryService(categoryRepo, cache.AsCategoryCache(), kafkaProducer)
-	_ = attributeRepo
+	attributeService := application.NewAttributeService(attributeRepo, cache.AsAttributeCache(), kafkaProducer)
 	_ = moderationRepo
 
 	// Health checker with deep checks
@@ -122,7 +122,7 @@ func main() {
 	router.GET("/metrics", observability.MetricsHandler())
 
 	api := router.Group("/api/v1")
-	httpHandler := catalogHttp.NewHandler(productService, categoryService)
+	httpHandler := catalogHttp.NewHandler(productService, categoryService, attributeService)
 	httpHandler.RegisterRoutes(api)
 
 	httpServer := &http.Server{

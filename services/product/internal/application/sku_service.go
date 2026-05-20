@@ -149,8 +149,8 @@ func (s *SKUService) UpdateSKUPrice(ctx context.Context, skuID string, price flo
 
 	span.SetAttributes(
 		attribute.String("sku.id", skuID),
-		attribute.Int64("sku.price", price),
-		attribute.Int64("sku.sale_price", salePrice),
+		attribute.Float64("sku.price", price),
+		attribute.Float64("sku.sale_price", salePrice),
 	)
 
 	// Fetch existing SKU
@@ -190,6 +190,9 @@ func (s *SKUService) UpdateSKUPrice(ctx context.Context, skuID string, price flo
 			zap.Error(err),
 			zap.String("sku_id", skuID),
 		)
+		if domain.IsDomainError(err, "CONCURRENT_MODIFICATION") {
+			return nil, errors.NewConflict("sku was modified by another request")
+		}
 		return nil, errors.NewInternalError(err)
 	}
 
@@ -202,10 +205,8 @@ func (s *SKUService) UpdateSKUPrice(ctx context.Context, skuID string, price flo
 	}
 
 	// Publish event
-	event := domain.NewSKUUpdatedEvent(existing.SPUID, existing.SKUID)
-	event.Price = &price
-	event.SalePrice = &salePrice
-	event.Status = string(existing.Status)
+	event := domain.NewSKUUpdatedEvent(existing.SPUID, existing.SKUID, price, existing.Stock, string(existing.Status))
+	event.SalePrice = salePrice
 	if payload, err := json.Marshal(event); err == nil {
 		if pubErr := s.publisher.Publish(ctx, "sku.events", skuID, payload); pubErr != nil {
 			log.Warn("failed to publish SKUUpdatedEvent",
@@ -217,8 +218,8 @@ func (s *SKUService) UpdateSKUPrice(ctx context.Context, skuID string, price flo
 
 	log.Info("SKU price updated",
 		zap.String("sku_id", skuID),
-		zap.Int64("price", price),
-		zap.Int64("sale_price", salePrice),
+		zap.Float64("price", price),
+		zap.Float64("sale_price", salePrice),
 	)
 
 	return ToSKUResponse(existing), nil
@@ -240,7 +241,7 @@ func (s *SKUService) UpdateSKUStock(ctx context.Context, skuID string, stock int
 
 	span.SetAttributes(
 		attribute.String("sku.id", skuID),
-		attribute.Int64("sku.stock", stock),
+		attribute.Int("sku.stock", int(stock)),
 	)
 
 	// Fetch existing SKU
@@ -279,6 +280,9 @@ func (s *SKUService) UpdateSKUStock(ctx context.Context, skuID string, stock int
 			zap.Error(err),
 			zap.String("sku_id", skuID),
 		)
+		if domain.IsDomainError(err, "CONCURRENT_MODIFICATION") {
+			return nil, errors.NewConflict("sku was modified by another request")
+		}
 		return nil, errors.NewInternalError(err)
 	}
 
@@ -291,9 +295,7 @@ func (s *SKUService) UpdateSKUStock(ctx context.Context, skuID string, stock int
 	}
 
 	// Publish event
-	event := domain.NewSKUUpdatedEvent(existing.SPUID, existing.SKUID)
-	event.Stock = &stock
-	event.Status = string(existing.Status)
+	event := domain.NewSKUUpdatedEvent(existing.SPUID, existing.SKUID, existing.Price, stock, string(existing.Status))
 	if payload, err := json.Marshal(event); err == nil {
 		if pubErr := s.publisher.Publish(ctx, "sku.events", skuID, payload); pubErr != nil {
 			log.Warn("failed to publish SKUUpdatedEvent",
@@ -305,7 +307,7 @@ func (s *SKUService) UpdateSKUStock(ctx context.Context, skuID string, stock int
 
 	log.Info("SKU stock updated",
 		zap.String("sku_id", skuID),
-		zap.Int64("stock", stock),
+		zap.Int32("stock", stock),
 		zap.String("status", string(existing.Status)),
 	)
 
@@ -331,7 +333,7 @@ func (s *SKUService) CreateSKU(ctx context.Context, spuID string, req CreateSKUR
 
 	span.SetAttributes(
 		attribute.String("spu.id", spuID),
-		attribute.Int64("sku.price", req.Price),
+		attribute.Float64("sku.price", req.Price),
 	)
 
 	// Verify product exists
@@ -359,7 +361,7 @@ func (s *SKUService) CreateSKU(ctx context.Context, spuID string, req CreateSKUR
 
 	sku := &domain.SKU{
 		SPUID:     spuID,
-		SKUID:     generateSKUID(),
+		SKUID:     generateID("SKU"),
 		Price:     req.Price,
 		SalePrice: req.SalePrice,
 		Stock:     req.Stock,
@@ -368,19 +370,9 @@ func (s *SKUService) CreateSKU(ctx context.Context, spuID string, req CreateSKUR
 		Width:     req.Width,
 		Height:    req.Height,
 		Status:    skuStatus,
+		Version:   1,
 		CreatedAt: now,
 		UpdatedAt: now,
-	}
-
-	// Build variations
-	if len(req.Variations) > 0 {
-		sku.Variations = make([]domain.SKUVariation, 0, len(req.Variations))
-		for _, v := range req.Variations {
-			sku.Variations = append(sku.Variations, domain.SKUVariation{
-				VariationID: v.VariationID,
-				Value:       v.Value,
-			})
-		}
 	}
 
 	// Persist
@@ -398,10 +390,8 @@ func (s *SKUService) CreateSKU(ctx context.Context, spuID string, req CreateSKUR
 	span.SetAttributes(attribute.String("sku.id", sku.SKUID))
 
 	// Publish event
-	event := domain.NewSKUUpdatedEvent(sku.SPUID, sku.SKUID)
-	event.Price = &sku.Price
-	event.Stock = &sku.Stock
-	event.Status = string(sku.Status)
+	event := domain.NewSKUUpdatedEvent(sku.SPUID, sku.SKUID, sku.Price, sku.Stock, string(sku.Status))
+	event.SalePrice = sku.SalePrice
 	if payload, err := json.Marshal(event); err == nil {
 		if pubErr := s.publisher.Publish(ctx, "sku.events", sku.SKUID, payload); pubErr != nil {
 			log.Warn("failed to publish SKUUpdatedEvent",
@@ -414,7 +404,7 @@ func (s *SKUService) CreateSKU(ctx context.Context, spuID string, req CreateSKUR
 	log.Info("SKU created",
 		zap.String("sku_id", sku.SKUID),
 		zap.String("spu_id", spuID),
-		zap.Int64("price", sku.Price),
+		zap.Float64("price", sku.Price),
 	)
 
 	return ToSKUResponse(sku), nil

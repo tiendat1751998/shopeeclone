@@ -140,14 +140,14 @@ func ToProductResponse(p *domain.Product) *ProductResponse {
 	}
 }
 
-func ToProductListResponse(pl *domain.ProductList) ProductListResponse {
+func ToProductListResponse(pl *domain.ProductList) *ProductListResponse {
 	products := make([]ProductResponse, 0, len(pl.Products))
 	for i := range pl.Products {
 		if resp := ToProductResponse(&pl.Products[i]); resp != nil {
 			products = append(products, *resp)
 		}
 	}
-	return ProductListResponse{
+	return &ProductListResponse{
 		Products:   products,
 		Total:      pl.Total,
 		Page:       pl.Page,
@@ -180,7 +180,7 @@ type UpdateSKURequest struct {
 }
 
 type SKUResponse struct {
-	ID             string    `json:"id"`
+	ID             int64     `json:"id"`
 	SPUID          string    `json:"spu_id"`
 	SKUID          string    `json:"sku_id"`
 	Price          float64   `json:"price"`
@@ -198,6 +198,8 @@ func ToSKUResponse(s *domain.SKU) *SKUResponse {
 		return nil
 	}
 	return &SKUResponse{
+		ID:             s.ID,
+		SPUID:          s.SPUID,
 		SKUID:          s.SKUID,
 		Price:          s.Price,
 		SalePrice:      s.SalePrice,
@@ -222,7 +224,7 @@ type CreateImageRequest struct {
 }
 
 type ImageResponse struct {
-	ID        int    `json:"id"`
+	ID        int64  `json:"id"`
 	URL       string `json:"url"`
 	AltText   string `json:"alt_text"`
 	SortOrder int    `json:"sort_order"`
@@ -386,6 +388,7 @@ func ToAttributeResponse(a *domain.Attribute) *AttributeResponse {
 	vals := make([]AttributeValueResponse, 0, len(a.Values))
 	for _, v := range a.Values {
 		vals = append(vals, AttributeValueResponse{
+			ID:           v.ID,
 			AttributeID:  v.AttributeID,
 			Value:        v.Value,
 			DisplayValue: v.DisplayValue,
@@ -432,6 +435,7 @@ func ToModerationResponse(mr *domain.ModerationRecord) *ModerationResponse {
 		return nil
 	}
 	return &ModerationResponse{
+		ID:         mr.ID,
 		SPUID:      mr.SPUID,
 		Status:     string(mr.Status),
 		Reason:     mr.Reason,
