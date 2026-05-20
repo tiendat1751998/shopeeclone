@@ -25,7 +25,6 @@ WORKDIR /app
 
 COPY --from=builder /app/bin/promotion /app/promotion
 COPY --from=builder /app/migrations /app/migrations
-COPY --from=builder /app/configs /app/configs
 
 EXPOSE 8080 9090
 
