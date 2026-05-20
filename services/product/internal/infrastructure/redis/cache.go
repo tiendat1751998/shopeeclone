@@ -243,9 +243,43 @@ func (c *Cache) DeleteTree(ctx context.Context) error {
 	return iter.Err()
 }
 
+// AsCategoryCache returns a CategoryCache implementation
+func (c *Cache) AsCategoryCache() CategoryCache {
+	return &CategoryRedisCache{Cache: c}
+}
+
+// CategoryRedisCache wraps Cache to implement CategoryCache
+type CategoryRedisCache struct {
+	*Cache
+}
+
+func (c *CategoryRedisCache) Get(ctx context.Context, key string) (*domain.Category, error) {
+	data, err := c.client.Get(ctx, c.prefix+key).Bytes()
+	if err == redis.Nil {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("redis get: %w", err)
+	}
+
+	var category domain.Category
+	if err := json.Unmarshal(data, &category); err != nil {
+		return nil, fmt.Errorf("unmarshal category: %w", err)
+	}
+	return &category, nil
+}
+
+func (c *CategoryRedisCache) Set(ctx context.Context, key string, category *domain.Category, ttl time.Duration) error {
+	data, err := json.Marshal(category)
+	if err != nil {
+		return fmt.Errorf("marshal category: %w", err)
+	}
+	return c.client.Set(ctx, c.prefix+key, data, ttl).Err()
+}
+
 // Ensure interfaces are satisfied
 var _ ProductCache = (*Cache)(nil)
-var _ CategoryCache = (*Cache)(nil)
+var _ CategoryCache = (*CategoryRedisCache)(nil)
 
 // ProductCache interface
 type ProductCache interface {

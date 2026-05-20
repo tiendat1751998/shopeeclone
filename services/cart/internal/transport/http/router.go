@@ -24,6 +24,7 @@ func (r *Router) Setup(engine *gin.Engine) {
 		middleware.CORS(),
 		middleware.OTelMiddleware("shopee-cart"),
 		observability.ObserveHTTPMetrics("shopee-cart"),
+		UserContext(),
 	)
 
 	engine.GET("/health", r.health.LivenessHandler())
@@ -44,5 +45,14 @@ func (r *Router) Setup(engine *gin.Engine) {
 
 		// Checkout preview
 		api.POST("/carts/:cart_id/checkout-preview", r.handler.CheckoutPreview)
+	}
+}
+
+func UserContext() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if userID := c.GetHeader("X-User-ID"); userID != "" {
+			c.Set("user_id", userID)
+		}
+		c.Next()
 	}
 }

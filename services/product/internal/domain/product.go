@@ -55,6 +55,7 @@ type SKU struct {
 	Width     float64   `db:"width"      json:"width"`
 	Height    float64   `db:"height"     json:"height"`
 	Status    SKUStatus `db:"status"     json:"status"`
+	Version   int32     `db:"version"    json:"version"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }

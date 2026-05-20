@@ -21,6 +21,18 @@ func NewHandler(service *application.CartService) *Handler {
 	return &Handler{service: service}
 }
 
+func (h *Handler) checkCartOwnership(c *gin.Context, cart *domain.Cart) bool {
+	userID := c.GetString("user_id")
+	if cart.UserID != "" && cart.UserID != userID {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error_code": "FORBIDDEN",
+			"message":    "You do not have permission to access this cart",
+		})
+		return false
+	}
+	return true
+}
+
 func (h *Handler) GetCart(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.get_cart")
 	defer span.End()
@@ -32,6 +44,10 @@ func (h *Handler) GetCart(c *gin.Context) {
 		return
 	}
 
+	if !h.checkCartOwnership(c, cart) {
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"cart": cart, "items": items})
 }
 
@@ -40,6 +56,16 @@ func (h *Handler) AddItem(c *gin.Context) {
 	defer span.End()
 
 	cartID := c.Param("cart_id")
+
+	// Verify cart exists and user owns it first (CVE-3 IDOR Fix)
+	cart, _, err := h.service.GetCartWithItems(ctx, cartID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	if !h.checkCartOwnership(c, cart) {
+		return
+	}
 
 	var req struct {
 		SKU         string `json:"sku" binding:"required"`
@@ -78,6 +104,16 @@ func (h *Handler) UpdateItem(c *gin.Context) {
 	cartID := c.Param("cart_id")
 	itemID := c.Param("item_id")
 
+	// Verify cart exists and user owns it first (CVE-3 IDOR Fix)
+	cart, _, err := h.service.GetCartWithItems(ctx, cartID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	if !h.checkCartOwnership(c, cart) {
+		return
+	}
+
 	var req struct {
 		Quantity int `json:"quantity" binding:"required,min=0"`
 	}
@@ -101,6 +137,16 @@ func (h *Handler) RemoveItem(c *gin.Context) {
 	cartID := c.Param("cart_id")
 	itemID := c.Param("item_id")
 
+	// Verify cart exists and user owns it first (CVE-3 IDOR Fix)
+	cart, _, err := h.service.GetCartWithItems(ctx, cartID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	if !h.checkCartOwnership(c, cart) {
+		return
+	}
+
 	if err := h.service.RemoveItem(ctx, cartID, itemID); err != nil {
 		handleError(c, err)
 		return
@@ -114,6 +160,17 @@ func (h *Handler) ClearCart(c *gin.Context) {
 	defer span.End()
 
 	cartID := c.Param("cart_id")
+
+	// Verify cart exists and user owns it first (CVE-3 IDOR Fix)
+	cart, _, err := h.service.GetCartWithItems(ctx, cartID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	if !h.checkCartOwnership(c, cart) {
+		return
+	}
+
 	if err := h.service.ClearCart(ctx, cartID); err != nil {
 		handleError(c, err)
 		return
@@ -146,6 +203,28 @@ func (h *Handler) MergeCarts(c *gin.Context) {
 		return
 	}
 
+	// Verify target cart ownership (CVE-3 IDOR Fix)
+	targetCart, _, err := h.service.GetCartWithItems(ctx, req.TargetCartID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	if targetCart.UserID != "" && targetCart.UserID != userID {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error_code": "FORBIDDEN", "message": "You do not have permission to access the target cart"})
+		return
+	}
+
+	// Verify source cart ownership (CVE-3 IDOR Fix)
+	sourceCart, _, err := h.service.GetCartWithItems(ctx, req.SourceCartID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	if sourceCart.UserID != "" && sourceCart.UserID != userID {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error_code": "FORBIDDEN", "message": "You do not have permission to access the source cart"})
+		return
+	}
+
 	if err := h.service.MergeCarts(ctx, req.SourceCartID, req.TargetCartID, userID); err != nil {
 		handleError(c, err)
 		return
@@ -159,7 +238,6 @@ func (h *Handler) CheckoutPreview(c *gin.Context) {
 	defer span.End()
 
 	cartID := c.Param("cart_id")
-
 	userID := c.GetString("user_id")
 
 	var req struct {
@@ -176,6 +254,16 @@ func (h *Handler) CheckoutPreview(c *gin.Context) {
 	}
 	if userID == "" {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": "user_id is required"})
+		return
+	}
+
+	// Verify cart exists and user owns it first (CVE-3 IDOR Fix)
+	cart, _, err := h.service.GetCartWithItems(ctx, cartID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	if !h.checkCartOwnership(c, cart) {
 		return
 	}
 

@@ -40,8 +40,8 @@ func (r *ProductRepo) Create(ctx context.Context, product *domain.Product) error
 	// Insert SKUs
 	for i := range product.SKUs {
 		product.SKUs[i].SPUID = product.SPUID
-		skuQuery := `INSERT INTO skus (sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, created_at, updated_at)
-			VALUES (:sku_id, :spu_id, :price, :sale_price, :stock, :weight, :length, :width, :height, :status, :created_at, :updated_at)`
+		skuQuery := `INSERT INTO skus (sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, version, created_at, updated_at)
+			VALUES (:sku_id, :spu_id, :price, :sale_price, :stock, :weight, :length, :width, :height, :status, 1, :created_at, :updated_at)`
 		if _, err := tx.NamedExecContext(ctx, skuQuery, &product.SKUs[i]); err != nil {
 			return fmt.Errorf("insert sku: %w", err)
 		}
@@ -227,7 +227,7 @@ func (r *ProductRepo) Search(ctx context.Context, query string, filter domain.Pr
 // GetSKU gets a single SKU by ID
 func (r *ProductRepo) GetSKU(ctx context.Context, skuID string) (*domain.SKU, error) {
 	var sku domain.SKU
-	query := `SELECT id, sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, created_at, updated_at
+	query := `SELECT id, sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, version, created_at, updated_at
 		FROM skus WHERE sku_id = ?`
 	if err := r.db.GetContext(ctx, &sku, query, skuID); err != nil {
 		if err == sql.ErrNoRows {
@@ -251,7 +251,7 @@ func (r *ProductRepo) BatchGetSKUs(ctx context.Context, skuIDs []string) (map[st
 		args[i] = id
 	}
 
-	query := fmt.Sprintf(`SELECT id, sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, created_at, updated_at
+	query := fmt.Sprintf(`SELECT id, sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, version, created_at, updated_at
 		FROM skus WHERE sku_id IN (%s)`, strings.Join(placeholders, ","))
 
 	var skus []domain.SKU
@@ -268,23 +268,38 @@ func (r *ProductRepo) BatchGetSKUs(ctx context.Context, skuIDs []string) (map[st
 
 // CreateSKU creates a new SKU
 func (r *ProductRepo) CreateSKU(ctx context.Context, sku *domain.SKU) error {
-	query := `INSERT INTO skus (sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, created_at, updated_at)
-		VALUES (:sku_id, :spu_id, :price, :sale_price, :stock, :weight, :length, :width, :height, :status, :created_at, :updated_at)`
+	query := `INSERT INTO skus (sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, version, created_at, updated_at)
+		VALUES (:sku_id, :spu_id, :price, :sale_price, :stock, :weight, :length, :width, :height, :status, 1, :created_at, :updated_at)`
 	_, err := r.db.NamedExecContext(ctx, query, sku)
 	return err
 }
 
 // UpdateSKU updates a SKU
 func (r *ProductRepo) UpdateSKU(ctx context.Context, sku *domain.SKU) error {
-	query := `UPDATE skus SET price = :price, sale_price = :sale_price, stock = :stock, status = :status, updated_at = :updated_at
-		WHERE sku_id = :sku_id`
-	_, err := r.db.NamedExecContext(ctx, query, sku)
-	return err
+	query := `UPDATE skus SET price = :price, sale_price = :sale_price, stock = :stock, status = :status, version = version + 1, updated_at = :updated_at
+		WHERE sku_id = :sku_id AND version = :version`
+	
+	result, err := r.db.NamedExecContext(ctx, query, sku)
+	if err != nil {
+		return err
+	}
+	
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	
+	if rows == 0 {
+		return domain.ErrConcurrentModification
+	}
+	
+	sku.Version++
+	return nil
 }
 
 // ListSKUsByProduct lists all SKUs for a product
 func (r *ProductRepo) ListSKUsByProduct(ctx context.Context, spuID string) ([]domain.SKU, error) {
-	query := `SELECT id, sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, created_at, updated_at
+	query := `SELECT id, sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, version, created_at, updated_at
 		FROM skus WHERE spu_id = ? ORDER BY created_at ASC`
 	var skus []domain.SKU
 	if err := r.db.SelectContext(ctx, &skus, query, spuID); err != nil {
@@ -348,7 +363,7 @@ func (r *ProductRepo) loadRelationsBatch(ctx context.Context, products []domain.
 
 	// Batch load SKUs
 	var skus []domain.SKU
-	skuQuery := `SELECT id, sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, created_at, updated_at
+	skuQuery := `SELECT id, sku_id, spu_id, price, sale_price, stock, weight, length, width, height, status, version, created_at, updated_at
 		FROM skus WHERE spu_id IN (` + inClause + `) ORDER BY created_at ASC`
 	if err := r.db.SelectContext(ctx, &skus, skuQuery, args...); err != nil {
 		return fmt.Errorf("batch load skus: %w", err)
@@ -466,10 +481,10 @@ func (r *CategoryRepo) GetTree(ctx context.Context) (*domain.CategoryTree, error
 	}
 
 	for _, node := range nodeMap {
-		if node.ParentID == "" {
+		if node.Category.ParentID == "" {
 			tree.Roots = append(tree.Roots, node)
 		} else {
-			if parent, ok := nodeMap[node.ParentID]; ok {
+			if parent, ok := nodeMap[node.Category.ParentID]; ok {
 				parent.Children = append(parent.Children, node)
 			}
 		}

@@ -104,13 +104,15 @@ type ProductListResponse struct {
 	HasPrev    bool              `json:"has_prev"`
 }
 
-func ToProductResponse(p *domain.Product) ProductResponse {
+func ToProductResponse(p *domain.Product) *ProductResponse {
 	if p == nil {
-		return ProductResponse{}
+		return nil
 	}
 	skus := make([]SKUResponse, 0, len(p.SKUs))
 	for _, sku := range p.SKUs {
-		skus = append(skus, ToSKUResponse(&sku))
+		if resp := ToSKUResponse(&sku); resp != nil {
+			skus = append(skus, *resp)
+		}
 	}
 	images := make([]ImageResponse, 0, len(p.Images))
 	for _, img := range p.Images {
@@ -122,7 +124,7 @@ func ToProductResponse(p *domain.Product) ProductResponse {
 			IsPrimary: img.IsPrimary,
 		})
 	}
-	return ProductResponse{
+	return &ProductResponse{
 		ID:          p.ID,
 		SPUID:       p.SPUID,
 		Title:       p.Title,
@@ -141,7 +143,9 @@ func ToProductResponse(p *domain.Product) ProductResponse {
 func ToProductListResponse(pl *domain.ProductList) ProductListResponse {
 	products := make([]ProductResponse, 0, len(pl.Products))
 	for i := range pl.Products {
-		products = append(products, ToProductResponse(&pl.Products[i]))
+		if resp := ToProductResponse(&pl.Products[i]); resp != nil {
+			products = append(products, *resp)
+		}
 	}
 	return ProductListResponse{
 		Products:   products,
@@ -189,11 +193,11 @@ type SKUResponse struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
-func ToSKUResponse(s *domain.SKU) SKUResponse {
+func ToSKUResponse(s *domain.SKU) *SKUResponse {
 	if s == nil {
-		return SKUResponse{}
+		return nil
 	}
-	return SKUResponse{
+	return &SKUResponse{
 		SKUID:          s.SKUID,
 		Price:          s.Price,
 		SalePrice:      s.SalePrice,
@@ -270,11 +274,11 @@ type CategoryTreeResponse struct {
 	Categories []CategoryTreeNode `json:"categories"`
 }
 
-func ToCategoryResponse(c *domain.Category) CategoryResponse {
+func ToCategoryResponse(c *domain.Category) *CategoryResponse {
 	if c == nil {
-		return CategoryResponse{}
+		return nil
 	}
-	return CategoryResponse{
+	return &CategoryResponse{
 		ID:         c.ID,
 		CategoryID: c.CategoryID,
 		Name:       c.Name,
@@ -308,8 +312,12 @@ func toCategoryTreeNode(node *domain.CategoryTreeNode) CategoryTreeNode {
 	for i, child := range node.Children {
 		children[i] = toCategoryTreeNode(child)
 	}
+	catResp := ToCategoryResponse(&node.Category)
+	if catResp == nil {
+		return CategoryTreeNode{}
+	}
 	return CategoryTreeNode{
-		CategoryResponse: ToCategoryResponse(&node.Category),
+		CategoryResponse: *catResp,
 		Children:         children,
 		Depth:            node.Category.Level,
 	}
@@ -371,9 +379,9 @@ type AttributeValueResponse struct {
 	SortOrder    int    `json:"sort_order"`
 }
 
-func ToAttributeResponse(a *domain.Attribute) AttributeResponse {
+func ToAttributeResponse(a *domain.Attribute) *AttributeResponse {
 	if a == nil {
-		return AttributeResponse{}
+		return nil
 	}
 	vals := make([]AttributeValueResponse, 0, len(a.Values))
 	for _, v := range a.Values {
@@ -384,7 +392,7 @@ func ToAttributeResponse(a *domain.Attribute) AttributeResponse {
 			SortOrder:    v.SortOrder,
 		})
 	}
-	return AttributeResponse{
+	return &AttributeResponse{
 		ID:           a.ID,
 		CategoryID:   a.CategoryID,
 		Name:         a.Name,
@@ -419,11 +427,11 @@ type ModerationResponse struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
-func ToModerationResponse(mr *domain.ModerationRecord) ModerationResponse {
+func ToModerationResponse(mr *domain.ModerationRecord) *ModerationResponse {
 	if mr == nil {
-		return ModerationResponse{}
+		return nil
 	}
-	return ModerationResponse{
+	return &ModerationResponse{
 		SPUID:      mr.SPUID,
 		Status:     string(mr.Status),
 		Reason:     mr.Reason,
