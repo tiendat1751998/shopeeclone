@@ -174,29 +174,39 @@ func (s *InventoryService) ReleaseStock(ctx context.Context, reservationID strin
 	ctx, span := otel.Tracer("shopee-inventory").Start(ctx, "InventoryService.ReleaseStock")
 	defer span.End()
 
-	err := s.invRepo.ExecInTx(ctx, func(tx *sql.Tx) error {
+	// Get reservation first to have SkuID for cache invalidation after tx
+	reservation, err := s.invRepo.GetReservation(ctx, reservationID)
+	if err != nil {
+		return err
+	}
+
+	err = s.invRepo.ExecInTx(ctx, func(tx *sql.Tx) error {
 		// Get reservation with lock
-		reservation, err := s.invRepo.GetReservationForUpdate(ctx, tx, reservationID)
+		res, err := s.invRepo.GetReservationForUpdate(ctx, tx, reservationID)
 		if err != nil {
 			return err
 		}
 
 		// Validate state transition
-		if err := reservation.Release(); err != nil {
+		if err := res.Release(); err != nil {
 			return err
 		}
 
 		// Update reservation status
-		s.invRepo.UpdateReservationStatusInTx(ctx, tx, reservationID, domain.ReservationStatusReleased)
+		if err := s.invRepo.UpdateReservationStatusInTx(ctx, tx, reservationID, domain.ReservationStatusReleased); err != nil {
+			return err
+		}
 
 		// Get stock with lock and release
-		stock, err := s.invRepo.GetStockForUpdate(ctx, tx, reservation.SkuID, reservation.WarehouseID)
+		stock, err := s.invRepo.GetStockForUpdate(ctx, tx, res.SkuID, res.WarehouseID)
 		if err != nil {
 			return err
 		}
-		stock.Release(reservation.Quantity)
+		stock.Release(res.Quantity)
 		stock.Version++
-		s.invRepo.UpdateStockInTx(ctx, tx, stock)
+		if err := s.invRepo.UpdateStockInTx(ctx, tx, stock); err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -206,11 +216,11 @@ func (s *InventoryService) ReleaseStock(ctx context.Context, reservationID strin
 	}
 
 	// Invalidate cache after successful commit
-	s.redisStore.InvalidateStockCache(ctx, reservationID)
+	s.redisStore.InvalidateStockCache(ctx, reservation.SkuID)
 
 	// Publish event
 	event := &domain.InventoryEvent{
-		SkuID: reservationID, EventType: domain.EventStockReleased, Timestamp: time.Now().UTC(),
+		SkuID: reservation.SkuID, EventType: domain.EventStockReleased, Timestamp: time.Now().UTC(),
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {

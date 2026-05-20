@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -19,10 +20,10 @@ type Config struct {
 	Kafka KafkaConfig
 	JWT   JWTConfig
 
-	Order    OrderConfig
-	Idempotency IdempotencyConfig
+	Order         OrderConfig
+	Idempotency   IdempotencyConfig
 	OpenTelemetry OTELConfig
-	Audit    AuditConfig
+	Audit         AuditConfig
 }
 
 type MySQLConfig struct {
@@ -61,14 +62,14 @@ type KafkaConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret  string
-	AccessTTL     time.Duration
-	Issuer        string
-	Audience      string
+	AccessSecret string
+	AccessTTL    time.Duration
+	Issuer       string
+	Audience     string
 }
 
 type OrderConfig struct {
-	DefaultCurrency         string
+	DefaultCurrency        string
 	PaymentTimeout         time.Duration
 	IdempotencyKeyTTL      time.Duration
 	SnapshotRetentionDays  int
@@ -132,14 +133,14 @@ func Load() *Config {
 		},
 
 		JWT: JWTConfig{
-			AccessSecret: getEnv("JWT_ACCESS_SECRET", "change-me-in-production"),
+			AccessSecret: requireEnv("JWT_ACCESS_SECRET"),
 			AccessTTL:    getEnvDuration("JWT_ACCESS_TTL", 15*time.Minute),
 			Issuer:       getEnv("JWT_ISSUER", "shopee-auth"),
 			Audience:     getEnv("JWT_AUDIENCE", "shopee-clone"),
 		},
 
 		Order: OrderConfig{
-			DefaultCurrency:         getEnv("ORDER_DEFAULT_CURRENCY", "SGD"),
+			DefaultCurrency:        getEnv("ORDER_DEFAULT_CURRENCY", "SGD"),
 			PaymentTimeout:         getEnvDuration("ORDER_PAYMENT_TIMEOUT", 30*time.Minute),
 			IdempotencyKeyTTL:      getEnvDuration("ORDER_IDEMPOTENCY_TTL", 24*time.Hour),
 			SnapshotRetentionDays:  getEnvInt("ORDER_SNAPSHOT_RETENTION_DAYS", 365),
@@ -170,6 +171,14 @@ func getEnv(key, fallback string) string {
 		return val
 	}
 	return fallback
+}
+
+func requireEnv(key string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	log.Fatalf("required environment variable %s is not set", key)
+	return ""
 }
 
 func getEnvInt(key string, fallback int) int {

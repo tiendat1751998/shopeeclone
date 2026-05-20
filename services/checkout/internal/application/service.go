@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/checkout/internal/domain"
 	"github.com/shopee-clone/shopee/services/checkout/internal/infrastructure/redis"
 	"github.com/shopee-clone/shopee/services/checkout/internal/metrics"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -165,18 +165,30 @@ func (s *CheckoutService) stepFreezePricing(ctx context.Context, checkout *domai
 	s.checkoutRepo.Update(ctx, checkout)
 
 	// Create immutable pricing snapshot
+	itemsJSON, err := mustJSON(req.Items)
+	if err != nil {
+		return fmt.Errorf("marshal items: %w", err)
+	}
+	sellerGroupsJSON, err := mustJSON(req.SellerGroups)
+	if err != nil {
+		return fmt.Errorf("marshal seller groups: %w", err)
+	}
+	promotionsJSON, err := mustJSON(req.Promotions)
+	if err != nil {
+		return fmt.Errorf("marshal promotions: %w", err)
+	}
 	snapshot := &domain.PricingSnapshot{
-		ID:             fmt.Sprintf("snap_%d", time.Now().UnixNano()),
-		CheckoutID:     checkout.ID,
-		Items:          mustJSON(req.Items),
-		SellerGroups:   mustJSON(req.SellerGroups),
-		Subtotal:       req.Subtotal,
-		DiscountTotal:  req.DiscountTotal,
-		ShippingTotal:  req.ShippingTotal,
-		GrandTotal:     req.GrandTotal,
-		Currency:       checkout.Currency,
-		PromotionsApplied: mustJSON(req.Promotions),
-		CreatedAt:      time.Now(),
+		ID:                fmt.Sprintf("snap_%d", time.Now().UnixNano()),
+		CheckoutID:        checkout.ID,
+		Items:             itemsJSON,
+		SellerGroups:      sellerGroupsJSON,
+		Subtotal:          req.Subtotal,
+		DiscountTotal:     req.DiscountTotal,
+		ShippingTotal:     req.ShippingTotal,
+		GrandTotal:        req.GrandTotal,
+		Currency:          checkout.Currency,
+		PromotionsApplied: promotionsJSON,
+		CreatedAt:         time.Now(),
 	}
 
 	if err := s.pricingRepo.Create(ctx, snapshot); err != nil {
@@ -225,7 +237,11 @@ func (s *CheckoutService) stepReserveInventory(ctx context.Context, checkout *do
 	}
 
 	checkout.Status = domain.CheckoutStatusReserved
-	checkout.ReservationKeys = mustJSON(reservationKeys)
+	resKeysJSON, err := mustJSON(reservationKeys)
+	if err != nil {
+		return reservationKeys, fmt.Errorf("marshal reservation keys: %w", err)
+	}
+	checkout.ReservationKeys = resKeysJSON
 	s.checkoutRepo.Update(ctx, checkout)
 
 	s.logStep(ctx, checkout.ID, domain.StepReserve, "success", fmt.Sprintf("reserved %d items", len(reservationKeys)), time.Since(start).Milliseconds())
@@ -364,17 +380,17 @@ func (s *CheckoutService) RetryCheckout(ctx context.Context, checkoutID string) 
 // Request types
 
 type InitiateRequest struct {
-	UserID        string      `json:"user_id"`
-	CartId        string      `json:"cart_id"`
-	IdempotencyKey string     `json:"idempotency_key"`
-	Currency      string      `json:"currency"`
-	Items         []ItemRequest `json:"items"`
-	SellerGroups  []SellerGroupRequest `json:"seller_groups"`
-	Subtotal      int64       `json:"subtotal"`
-	DiscountTotal int64       `json:"discount_total"`
-	ShippingTotal int64       `json:"shipping_total"`
-	GrandTotal    int64       `json:"grand_total"`
-	Promotions    interface{} `json:"promotions"`
+	UserID         string               `json:"user_id"`
+	CartId         string               `json:"cart_id"`
+	IdempotencyKey string               `json:"idempotency_key"`
+	Currency       string               `json:"currency"`
+	Items          []ItemRequest        `json:"items"`
+	SellerGroups   []SellerGroupRequest `json:"seller_groups"`
+	Subtotal       int64                `json:"subtotal"`
+	DiscountTotal  int64                `json:"discount_total"`
+	ShippingTotal  int64                `json:"shipping_total"`
+	GrandTotal     int64                `json:"grand_total"`
+	Promotions     interface{}          `json:"promotions"`
 }
 
 type ItemRequest struct {
@@ -387,14 +403,17 @@ type ItemRequest struct {
 }
 
 type SellerGroupRequest struct {
-	ShopID      string          `json:"shop_id"`
-	ShopName    string          `json:"shop_name"`
-	Items       []ItemRequest   `json:"items"`
-	Subtotal    int64           `json:"subtotal"`
-	ShippingFee int64           `json:"shipping_fee"`
+	ShopID      string        `json:"shop_id"`
+	ShopName    string        `json:"shop_name"`
+	Items       []ItemRequest `json:"items"`
+	Subtotal    int64         `json:"subtotal"`
+	ShippingFee int64         `json:"shipping_fee"`
 }
 
-func mustJSON(v interface{}) string {
-	b, _ := json.Marshal(v)
-	return string(b)
+func mustJSON(v interface{}) (string, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "", fmt.Errorf("json marshal: %w", err)
+	}
+	return string(b), nil
 }

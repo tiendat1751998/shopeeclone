@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -94,7 +95,8 @@ func (r *ProductRepository) List(ctx context.Context, filter domain.ProductFilte
 		query["seller_id"] = filter.SellerID
 	}
 	if filter.Search != "" {
-		query["title"] = bson.M{"$regex": filter.Search, "$options": "i"}
+		escaped := regexp.QuoteMeta(filter.Search)
+		query["title"] = bson.M{"$regex": escaped, "$options": "i"}
 	}
 	if filter.MinPrice > 0 || filter.MaxPrice > 0 {
 		priceQuery := bson.M{}

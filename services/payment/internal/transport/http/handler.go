@@ -23,8 +23,17 @@ func (h *Handler) AuthorizePayment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	userID, _ := c.Get("user_id")
-	req.UserID = userID.(string)
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	req.UserID = uid
 	payment, err := h.paymentService.AuthorizePayment(c.Request.Context(), &req)
 	if err != nil { handleError(c, err); return }
 	c.JSON(http.StatusCreated, payment)
@@ -32,8 +41,17 @@ func (h *Handler) AuthorizePayment(c *gin.Context) {
 
 func (h *Handler) CapturePayment(c *gin.Context) {
 	paymentID := c.Param("id")
-	userID, _ := c.Get("user_id")
-	payment, err := h.paymentService.CapturePayment(c.Request.Context(), paymentID, userID.(string))
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	payment, err := h.paymentService.CapturePayment(c.Request.Context(), paymentID, uid)
 	if err != nil { handleError(c, err); return }
 	c.JSON(http.StatusOK, payment)
 }

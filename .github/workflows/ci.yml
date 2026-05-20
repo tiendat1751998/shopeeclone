@@ -17,15 +17,23 @@ jobs:
     strategy:
       matrix:
         service:
+          - auth
+          - cart
           - catalog-product
-          - shopping-cart
-          - inventory-flashsale
-          - search-indexing
+          - checkout
+          - gateway
+          - inventory
+          - order
+          - payment
+          - product
+          - product-catalog
+          - promotion
+          - shipment
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
@@ -38,15 +46,22 @@ jobs:
     strategy:
       matrix:
         service:
+          - auth
+          - cart
           - catalog-product
-          - shopping-cart
-          - inventory-flashsale
-          - search-indexing
+          - checkout
+          - inventory
+          - order
+          - payment
+          - product
+          - product-catalog
+          - promotion
+          - shipment
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24"
       - name: Run tests
         working-directory: services/${{ matrix.service }}
         run: go test ./... -v -race -count=1 -coverprofile=coverage.out
@@ -66,8 +81,6 @@ jobs:
       matrix:
         service:
           - identity-auth
-          - order-processing
-          - payment-ledger
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -86,8 +99,6 @@ jobs:
       matrix:
         service:
           - identity-auth
-          - order-processing
-          - payment-ledger
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -111,16 +122,23 @@ jobs:
     name: Build & Push Docker Images
     needs: [lint-go, test-go, lint-java, test-java]
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     strategy:
       matrix:
         service:
-          - identity-auth
+          - auth
+          - cart
           - catalog-product
-          - shopping-cart
-          - order-processing
-          - inventory-flashsale
-          - payment-ledger
-          - search-indexing
+          - checkout
+          - gateway
+          - identity-auth
+          - inventory
+          - order
+          - payment
+          - product
+          - product-catalog
+          - promotion
+          - shipment
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx

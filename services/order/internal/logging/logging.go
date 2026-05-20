@@ -9,7 +9,7 @@ import (
 )
 
 func Logger() *zap.Logger {
-	return observability.Logger()
+	return observability.GetLogger()
 }
 
 func ExtractTraceFields(ctx context.Context) []zap.Field {

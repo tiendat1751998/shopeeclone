@@ -88,6 +88,8 @@ func main() {
 
 	httpHandler := catalogHttp.NewHandler(productUseCase, categoryUseCase)
 	api := router.Group("/api/v1")
+	// TODO: Add auth middleware — GinJWTAuth requires secret from config
+	// api.Use(auth.GinJWTAuth(cfg.JWTConfig.AccessSecret))
 	{
 		products := api.Group("/products")
 		{

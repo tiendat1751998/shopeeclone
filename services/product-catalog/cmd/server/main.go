@@ -68,7 +68,7 @@ func main() {
 	engine := gin.New()
 
 	handler := httptransport.NewHandler(catService)
-	router := httptransport.NewRouter(handler, hc)
+	router := httptransport.NewRouter(handler, hc, cfg.JWTConfig.AccessSecret)
 	router.Setup(engine)
 
 	httpServer := &http.Server{

@@ -1,5 +1,5 @@
 package application
-import ("context"; "fmt"; "time"; "github.com/shopee-clone/shopee/platforms/fraud/internal/domain"; "github.com/shopee-clone/shopee/platforms/fraud/internal/metrics"; "github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"; "go.opentelemetry.io/otel"; "go.uber.org/zap")
+import ("context"; "fmt"; "time"; "github.com/shopee-clone/shopee/platforms/fraud/internal/domain"; "github.com/shopee-clone/shopee/platforms/fraud/internal/metrics"; "go.opentelemetry.io/otel")
 
 type FraudService struct { publisher EventPublisher }
 type EventPublisher interface { Publish(ctx context.Context, eventType string, payload interface{}) error }

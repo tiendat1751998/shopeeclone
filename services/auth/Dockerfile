@@ -1,6 +1,7 @@
+# Build stage
 FROM golang:tip-trixie AS builder
 
-RUN apt-get update && apt-get install -y git ca-certificates
+RUN apt-get update && apt-get install -y git ca-certificates tzdata
 
 WORKDIR /app
 
@@ -15,24 +16,18 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -o /app/bin/auth \
     ./cmd/server
 
-FROM alpine:3.19
+# Runtime stage
+FROM gcr.io/distroless/static-debian12:nonroot
 
-RUN apk add --no-cache ca-certificates tzdata curl
-
-RUN addgroup -S auth && adduser -S auth -G auth
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
 WORKDIR /app
 
 COPY --from=builder /app/bin/auth /app/auth
 COPY --from=builder /app/migrations /app/migrations
+COPY --from=builder /app/configs /app/configs
 
-USER auth
-
-EXPOSE 8080
-EXPOSE 9090
-
-HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+EXPOSE 8080 9090
 
 ENTRYPOINT ["/app/auth"]
-

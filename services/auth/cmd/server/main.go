@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	sharedRedis "github.com/shopee-clone/shopee/packages/go-shared/pkg/redis"
 	"github.com/shopee-clone/shopee/services/auth/internal/application"
@@ -82,7 +83,8 @@ func main() {
 
 	handler := httptransport.NewHandler(authService)
 
-	httpRouter := httptransport.NewRouter(handler, nil)
+	hc := health.NewChecker(cfg.AppName, version)
+	httpRouter := httptransport.NewRouter(handler, hc)
 	httpRouter.Setup(engine)
 
 	httpServer := &http.Server{

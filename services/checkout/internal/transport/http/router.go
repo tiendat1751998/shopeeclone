@@ -2,18 +2,20 @@ package http
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/auth"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 )
 
 type Router struct {
-	handler *Handler
-	health  *health.Checker
+	handler   *Handler
+	health    *health.Checker
+	jwtSecret string
 }
 
-func NewRouter(handler *Handler, healthChecker *health.Checker) *Router {
-	return &Router{handler: handler, health: healthChecker}
+func NewRouter(handler *Handler, healthChecker *health.Checker, jwtSecret string) *Router {
+	return &Router{handler: handler, health: healthChecker, jwtSecret: jwtSecret}
 }
 
 func (r *Router) Setup(engine *gin.Engine) {
@@ -29,6 +31,9 @@ func (r *Router) Setup(engine *gin.Engine) {
 	engine.GET("/metrics", observability.MetricsHandler())
 
 	api := engine.Group("/api/v1")
+	if r.jwtSecret != "" {
+		api.Use(auth.GinJWTAuth(r.jwtSecret))
+	}
 	{
 		api.POST("/checkout", r.handler.InitiateCheckout)
 		api.GET("/checkout/:checkout_id/status", r.handler.GetCheckoutStatus)

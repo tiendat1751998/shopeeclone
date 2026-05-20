@@ -37,6 +37,22 @@ type RedisConfig struct {
 	DB       int
 }
 
+type MySQLConfig struct {
+	Host         string
+	Port         int
+	User         string
+	Password     string
+	Database     string
+	MaxOpenConns int
+	MaxIdleConns int
+	MaxLifetime  time.Duration
+	Timeout      time.Duration
+}
+
+func (c MySQLConfig) DSN() string {
+	return c.User + ":" + c.Password + "@tcp(" + c.Host + ":" + strconv.Itoa(c.Port) + ")/" + c.Database + "?charset=utf8mb4&parseTime=true&loc=UTC&timeout=" + c.Timeout.String()
+}
+
 type KafkaConfig struct {
 	Brokers          []string
 	NotificationTopic string

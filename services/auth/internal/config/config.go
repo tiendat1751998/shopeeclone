@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -84,34 +85,34 @@ type PasswordConfig struct {
 }
 
 type RateLimitConfig struct {
-	LoginMaxAttempts   int
-	LoginWindow        time.Duration
-	RegisterMaxPerIP   int
-	RegisterWindow     time.Duration
-	PasswordResetMax   int
+	LoginMaxAttempts    int
+	LoginWindow         time.Duration
+	RegisterMaxPerIP    int
+	RegisterWindow      time.Duration
+	PasswordResetMax    int
 	PasswordResetWindow time.Duration
-	AccountLockout     int
-	LockoutDuration    time.Duration
+	AccountLockout      int
+	LockoutDuration     time.Duration
 }
 
 type SessionConfig struct {
-	Driver            string
+	Driver             string
 	MaxSessionsPerUser int
-	SessionTTL        time.Duration
-	IdleTimeout       time.Duration
-	RefreshRotation   bool
+	SessionTTL         time.Duration
+	IdleTimeout        time.Duration
+	RefreshRotation    bool
 }
 
 type SecurityConfig struct {
-	BcryptCost            int
-	Argon2Memory          uint32
-	Argon2Time            uint32
-	Argon2Threads         uint8
-	Argon2KeyLen          uint32
-	SuspiciousIPTTL       time.Duration
-	SuspiciousLoginCount  int
-	DeviceFingerprinting  bool
-	MaxDevicesPerUser     int
+	BcryptCost           int
+	Argon2Memory         uint32
+	Argon2Time           uint32
+	Argon2Threads        uint8
+	Argon2KeyLen         uint32
+	SuspiciousIPTTL      time.Duration
+	SuspiciousLoginCount int
+	DeviceFingerprinting bool
+	MaxDevicesPerUser    int
 }
 
 type OTELConfig struct {
@@ -138,10 +139,10 @@ func Load() *Config {
 		GRPCPort: getEnvInt("AUTH_GRPC_PORT", 9090),
 
 		MySQL: MySQLConfig{
-			Host:         getEnv("MYSQL_HOST", "localhost"),
+			Host:         requireEnv("MYSQL_HOST"),
 			Port:         getEnvInt("MYSQL_PORT", 3306),
-			User:         getEnv("MYSQL_USER", "shopee"),
-			Password:     getEnv("MYSQL_PASSWORD", "shopee_dev"),
+			User:         requireEnv("MYSQL_USER"),
+			Password:     requireEnv("MYSQL_PASSWORD"),
 			Database:     getEnv("MYSQL_DATABASE", "shopee_auth"),
 			MaxOpenConns: getEnvInt("MYSQL_MAX_OPEN_CONNS", 25),
 			MaxIdleConns: getEnvInt("MYSQL_MAX_IDLE_CONNS", 10),
@@ -162,8 +163,8 @@ func Load() *Config {
 		},
 
 		JWT: JWTConfig{
-			AccessSecret:     getEnv("JWT_ACCESS_SECRET", "change-me-in-production"),
-			RefreshSecret:    getEnv("JWT_REFRESH_SECRET", "change-me-too-in-production"),
+			AccessSecret:     requireEnv("JWT_ACCESS_SECRET"),
+			RefreshSecret:    requireEnv("JWT_REFRESH_SECRET"),
 			AccessTTL:        getEnvDuration("JWT_ACCESS_TTL", 15*time.Minute),
 			RefreshTTL:       getEnvDuration("JWT_REFRESH_TTL", 168*time.Hour),
 			Issuer:           getEnv("JWT_ISSUER", "shopee-auth"),
@@ -185,13 +186,13 @@ func Load() *Config {
 
 		RateLimit: RateLimitConfig{
 			LoginMaxAttempts:    getEnvInt("LOGIN_MAX_ATTEMPTS", 5),
-			LoginWindow:        getEnvDuration("LOGIN_WINDOW", 5*time.Minute),
-			RegisterMaxPerIP:   getEnvInt("REGISTER_MAX_PER_IP", 3),
-			RegisterWindow:     getEnvDuration("REGISTER_WINDOW", 1*time.Hour),
-			PasswordResetMax:   getEnvInt("PASSWORD_RESET_MAX", 3),
+			LoginWindow:         getEnvDuration("LOGIN_WINDOW", 5*time.Minute),
+			RegisterMaxPerIP:    getEnvInt("REGISTER_MAX_PER_IP", 3),
+			RegisterWindow:      getEnvDuration("REGISTER_WINDOW", 1*time.Hour),
+			PasswordResetMax:    getEnvInt("PASSWORD_RESET_MAX", 3),
 			PasswordResetWindow: getEnvDuration("PASSWORD_RESET_WINDOW", 1*time.Hour),
-			AccountLockout:     getEnvInt("ACCOUNT_LOCKOUT_THRESHOLD", 10),
-			LockoutDuration:    getEnvDuration("ACCOUNT_LOCKOUT_DURATION", 30*time.Minute),
+			AccountLockout:      getEnvInt("ACCOUNT_LOCKOUT_THRESHOLD", 10),
+			LockoutDuration:     getEnvDuration("ACCOUNT_LOCKOUT_DURATION", 30*time.Minute),
 		},
 
 		Session: SessionConfig{
@@ -239,6 +240,14 @@ func getEnv(key, fallback string) string {
 		return val
 	}
 	return fallback
+}
+
+func requireEnv(key string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	log.Fatalf("required environment variable %s is not set", key)
+	return ""
 }
 
 func getEnvInt(key string, fallback int) int {

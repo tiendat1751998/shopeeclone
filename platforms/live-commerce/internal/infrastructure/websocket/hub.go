@@ -57,7 +57,7 @@ func (h *Hub) Run() {
 			if clients, ok := h.rooms[client.RoomID]; ok {
 				if _, ok := clients[client]; ok {
 					delete(clients, client)
-					close(client.send)
+					close(client.Send)
 					metrics.ConnectionsActive.WithLabelValues(client.RoomID).Dec()
 					if len(clients) == 0 {
 						delete(h.rooms, client.RoomID)
@@ -84,12 +84,12 @@ func (h *Hub) Run() {
 					continue
 				}
 				select {
-				case client.send <- data:
+				case client.Send <- data:
 				default:
 					h.mu.RUnlock()
 					h.mu.Lock()
 					delete(clients, client)
-					close(client.send)
+					close(client.Send)
 					metrics.ConnectionsActive.WithLabelValues(client.RoomID).Dec()
 					h.mu.Unlock()
 					h.mu.RLock()
