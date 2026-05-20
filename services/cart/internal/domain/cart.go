@@ -231,6 +231,7 @@ var (
 	ErrMergeConflict     = ErrCart("merge_conflict")
 	ErrSnapshotNotFound  = ErrCart("snapshot_not_found")
 	ErrIdempotencyConflict = ErrCart("idempotency_conflict")
+	ErrCartForbidden       = ErrCart("forbidden")
 )
 
 type ErrCart string

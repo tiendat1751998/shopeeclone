@@ -272,33 +272,35 @@ func (v *JWTValidator) ValidateToken(ctx context.Context, tokenString string) (*
 		}
 	}
 
+	// [SECURITY] Determine the expected signing method family from configuration,
+	// NOT from the token header. This prevents algorithm confusion attacks
+	// (CVE-2015-9235, CVE-2016-5431) where an attacker changes the alg header
+	// to trick the verifier into using the wrong key type.
+	isRSA := v.cfg.JWKSEndpoint != ""
+
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		alg := token.Header["alg"].(string)
 
-		// [SECURITY] Algorithm confusion prevention:
-		// Determine expected algorithm based on key type, NOT from the token header.
-		switch {
-		case strings.HasPrefix(alg, "RS"):
-			// RSA signing - use JWKS
+		if isRSA {
+			// RSA mode: JWKS endpoint is configured, only accept RS* algorithms
+			if !strings.HasPrefix(alg, "RS") {
+				return nil, fmt.Errorf("unexpected signing method: %s (expected RS* when JWKS is configured)", alg)
+			}
 			kid, ok := token.Header["kid"].(string)
 			if !ok {
 				return nil, fmt.Errorf("kid not found in token header")
 			}
 			return v.jwksClient.GetKey(kid)
-		case strings.HasPrefix(alg, "HS"):
-			// HMAC signing - use shared secret
-			// [SECURITY] Only allow HMAC if JWKS endpoint is NOT configured
-			// This prevents an attacker from using HS256 when RS256 is expected
-			if v.cfg.JWKSEndpoint != "" {
-				return nil, fmt.Errorf("HMAC signing not allowed when JWKS is configured")
-			}
-			return []byte(v.cfg.AccessTokenKey), nil
-		default:
-			return nil, fmt.Errorf("unexpected signing method: %s", alg)
 		}
+
+		// HMAC mode: no JWKS configured, only accept HS* algorithms
+		if !strings.HasPrefix(alg, "HS") {
+			return nil, fmt.Errorf("unexpected signing method: %s (expected HS* when using shared secret)", alg)
+		}
+		return []byte(v.cfg.AccessTokenKey), nil
 	},
 		jwt.WithLeeway(30*time.Second),
-		jwt.WithValidMethods([]string{"RS256", "RS384", "RS512", "HS256", "HS384", "HS512"}),
+		jwt.WithValidMethods(v.allowedSigningMethods()),
 	)
 
 	if err != nil {
@@ -310,6 +312,16 @@ func (v *JWTValidator) ValidateToken(ctx context.Context, tokenString string) (*
 	}
 
 	return claims, nil
+}
+
+// allowedSigningMethods returns the list of accepted JWT signing algorithms
+// based on the active configuration. This is a key defense against algorithm
+// confusion attacks: only one algorithm family is allowed at a time.
+func (v *JWTValidator) allowedSigningMethods() []string {
+	if v.cfg.JWKSEndpoint != "" {
+		return []string{"RS256", "RS384", "RS512"}
+	}
+	return []string{"HS256", "HS384", "HS512"}
 }
 
 func (v *JWTValidator) BlacklistToken(ctx context.Context, tokenString string, ttl time.Duration) error {

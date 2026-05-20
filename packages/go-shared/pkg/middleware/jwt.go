@@ -8,12 +8,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/shopee-clone/shopee/services/order/internal/config"
 )
 
 // JWTAuth validates JWT tokens and extracts user context.
-// [SECURITY] Only allows HMAC signing to prevent algorithm confusion attacks.
-func JWTAuth(cfg config.JWTConfig) gin.HandlerFunc {
+// It rejects tokens with invalid signatures, expired tokens, and tokens
+// with unexpected signing methods (algorithm confusion protection).
+// Only HMAC-based signing (HS256, HS384, HS512) is supported.
+func JWTAuth(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		bearer := c.GetHeader("Authorization")
 		if bearer == "" {
@@ -27,12 +28,14 @@ func JWTAuth(cfg config.JWTConfig) gin.HandlerFunc {
 			return
 		}
 
+		tokenString := parts[1]
+
 		claims := jwt.MapClaims{}
-		token, err := jwt.ParseWithClaims(parts[1], &claims, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return []byte(cfg.AccessSecret), nil
+			return []byte(secret), nil
 		},
 			jwt.WithValidMethods([]string{"HS256", "HS384", "HS512"}),
 			jwt.WithLeeway(30*time.Second),
@@ -43,35 +46,51 @@ func JWTAuth(cfg config.JWTConfig) gin.HandlerFunc {
 			return
 		}
 
-		// Extract user_id from standard "sub" claim or custom "user_id" claim
 		userID, _ := claims["sub"].(string)
 		if userID == "" {
-			if uid, ok := claims["user_id"].(string); ok {
-				userID = uid
-			}
+			userID, _ = claims["user_id"].(string)
 		}
 		if userID == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token missing user identifier"})
 			return
 		}
 
-		// Extract role from "role" claim, with fallback to "roles" array for backward compatibility
 		role := "buyer"
 		if r, ok := claims["role"].(string); ok && r != "" {
 			role = r
-		} else if roles, ok := claims["roles"].([]interface{}); ok && len(roles) > 0 {
-			if r, ok := roles[0].(string); ok {
-				role = r
-			}
-		}
-
-		if email, ok := claims["email"].(string); ok {
-			c.Set("email", email)
 		}
 
 		c.Set("user_id", userID)
 		c.Set("role", role)
 
 		c.Next()
+	}
+}
+
+// RequireRole creates middleware that checks if the authenticated user has one of the required roles.
+func RequireRole(roles ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userRole, exists := c.Get("role")
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "role not found in context"})
+			return
+		}
+
+		roleStr, ok := userRole.(string)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "invalid role format"})
+			return
+		}
+
+		for _, allowed := range roles {
+			if roleStr == allowed {
+				c.Next()
+				return
+			}
+		}
+
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+			"error": fmt.Sprintf("role '%s' does not have permission", roleStr),
+		})
 	}
 }

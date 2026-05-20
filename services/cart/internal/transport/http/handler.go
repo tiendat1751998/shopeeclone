@@ -26,9 +26,16 @@ func (h *Handler) GetCart(c *gin.Context) {
 	defer span.End()
 
 	cartID := c.Param("cart_id")
+	userID, _ := c.Get("user_id")
+
 	cart, items, err := h.service.GetCartWithItems(ctx, cartID)
 	if err != nil {
 		handleError(c, err)
+		return
+	}
+
+	if userIDStr, ok := userID.(string); ok && userIDStr != "" && cart.UserID != "" && cart.UserID != userIDStr {
+		handleError(c, domain.ErrCartForbidden)
 		return
 	}
 
@@ -54,6 +61,12 @@ func (h *Handler) AddItem(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": err.Error()})
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	if err := h.verifyCartOwnership(ctx, cartID, userID); err != nil {
+		handleError(c, err)
 		return
 	}
 
@@ -86,6 +99,12 @@ func (h *Handler) UpdateItem(c *gin.Context) {
 		return
 	}
 
+	userID, _ := c.Get("user_id")
+	if err := h.verifyCartOwnership(ctx, cartID, userID); err != nil {
+		handleError(c, err)
+		return
+	}
+
 	if err := h.service.UpdateItemQuantity(ctx, cartID, itemID, req.Quantity); err != nil {
 		handleError(c, err)
 		return
@@ -101,6 +120,12 @@ func (h *Handler) RemoveItem(c *gin.Context) {
 	cartID := c.Param("cart_id")
 	itemID := c.Param("item_id")
 
+	userID, _ := c.Get("user_id")
+	if err := h.verifyCartOwnership(ctx, cartID, userID); err != nil {
+		handleError(c, err)
+		return
+	}
+
 	if err := h.service.RemoveItem(ctx, cartID, itemID); err != nil {
 		handleError(c, err)
 		return
@@ -114,6 +139,13 @@ func (h *Handler) ClearCart(c *gin.Context) {
 	defer span.End()
 
 	cartID := c.Param("cart_id")
+
+	userID, _ := c.Get("user_id")
+	if err := h.verifyCartOwnership(ctx, cartID, userID); err != nil {
+		handleError(c, err)
+		return
+	}
+
 	if err := h.service.ClearCart(ctx, cartID); err != nil {
 		handleError(c, err)
 		return
@@ -126,17 +158,26 @@ func (h *Handler) MergeCarts(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.merge_carts")
 	defer span.End()
 
+	userID, _ := c.Get("user_id")
+	userIDStr, _ := userID.(string)
+
 	var req struct {
 		SourceCartID string `json:"source_cart_id" binding:"required"`
 		TargetCartID string `json:"target_cart_id" binding:"required"`
-		UserID       string `json:"user_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": err.Error()})
 		return
 	}
 
-	if err := h.service.MergeCarts(ctx, req.SourceCartID, req.TargetCartID, req.UserID); err != nil {
+	if userIDStr != "" {
+		if err := h.verifyCartOwnership(ctx, req.SourceCartID, userID); err != nil {
+			handleError(c, err)
+			return
+		}
+	}
+
+	if err := h.service.MergeCarts(ctx, req.SourceCartID, req.TargetCartID, userIDStr); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -151,7 +192,6 @@ func (h *Handler) CheckoutPreview(c *gin.Context) {
 	cartID := c.Param("cart_id")
 
 	var req struct {
-		UserID         string `json:"user_id" binding:"required"`
 		IdempotencyKey string `json:"idempotency_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -159,13 +199,37 @@ func (h *Handler) CheckoutPreview(c *gin.Context) {
 		return
 	}
 
-	preview, err := h.service.PrepareCheckout(ctx, cartID, req.UserID, req.IdempotencyKey)
+	userID, _ := c.Get("user_id")
+	userIDStr, _ := userID.(string)
+
+	if err := h.verifyCartOwnership(ctx, cartID, userID); err != nil {
+		handleError(c, err)
+		return
+	}
+
+	preview, err := h.service.PrepareCheckout(ctx, cartID, userIDStr, req.IdempotencyKey)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, preview)
+}
+
+// verifyCartOwnership checks that the authenticated user owns the cart.
+func (h *Handler) verifyCartOwnership(ctx *gin.Context, cartID string, userID interface{}) error {
+	userIDStr, ok := userID.(string)
+	if !ok || userIDStr == "" {
+		return nil
+	}
+	ownerID, err := h.service.GetCartOwner(ctx, cartID)
+	if err != nil {
+		return err
+	}
+	if ownerID != "" && ownerID != userIDStr {
+		return domain.ErrCartForbidden
+	}
+	return nil
 }
 
 var errorStatusMap = map[error]int{
@@ -179,6 +243,7 @@ var errorStatusMap = map[error]int{
 	domain.ErrMergeConflict:     http.StatusConflict,
 	domain.ErrSnapshotNotFound:  http.StatusNotFound,
 	domain.ErrIdempotencyConflict: http.StatusConflict,
+	domain.ErrCartForbidden:     http.StatusForbidden,
 }
 
 func handleError(c *gin.Context, err error) {

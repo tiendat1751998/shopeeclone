@@ -78,7 +78,7 @@ func main() {
 	engine := gin.New()
 
 	handler := httptransport.NewHandler(cartService)
-	httpRouter := httptransport.NewRouter(handler, healthChecker)
+	httpRouter := httptransport.NewRouter(handler, healthChecker, cfg.JWT)
 	httpRouter.Setup(engine)
 
 	httpServer := &http.Server{

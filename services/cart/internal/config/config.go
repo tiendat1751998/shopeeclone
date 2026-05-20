@@ -16,6 +16,7 @@ type Config struct {
 	MySQL MySQLConfig
 	Redis RedisConfig
 	Kafka KafkaConfig
+	JWT   JWTConfig
 
 	CartTTL            time.Duration
 	CheckoutPreviewTTL time.Duration
@@ -55,6 +56,12 @@ type RedisConfig struct {
 
 type KafkaConfig struct {
 	Brokers []string
+}
+
+type JWTConfig struct {
+	AccessSecret string
+	AccessTTL    time.Duration
+	Issuer       string
 }
 
 type OTELConfig struct {
@@ -103,6 +110,12 @@ func Load() *Config {
 		CheckoutPreviewTTL: getEnvDuration("CHECKOUT_PREVIEW_TTL", 15*time.Minute),
 		MaxCartItems:       getEnvInt("MAX_CART_ITEMS", 100),
 		MaxQuantityPerItem: getEnvInt("MAX_QUANTITY_PER_ITEM", 99),
+
+		JWT: JWTConfig{
+			AccessSecret: getEnv("JWT_ACCESS_SECRET", "change-me-in-production"),
+			AccessTTL:    getEnvDuration("JWT_ACCESS_TTL", 15*time.Minute),
+			Issuer:       getEnv("JWT_ISSUER", "shopee-auth"),
+		},
 
 		OpenTelemetry: OTELConfig{
 			Endpoint:    getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),

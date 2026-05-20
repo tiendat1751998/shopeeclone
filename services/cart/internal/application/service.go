@@ -515,6 +515,18 @@ func (s *CartService) PrepareCheckout(ctx context.Context, cartID, userID, idemp
 	return preview, nil
 }
 
+// GetCartOwner returns the user_id that owns the cart, or empty string if no owner.
+func (s *CartService) GetCartOwner(ctx context.Context, cartID string) (string, error) {
+	cart, err := s.cartRepo.FindByID(ctx, cartID)
+	if err != nil {
+		return "", err
+	}
+	if cart == nil {
+		return "", domain.ErrCartNotFound
+	}
+	return cart.UserID, nil
+}
+
 // GetCartWithItems retrieves a cart with all its items (cache-first)
 func (s *CartService) GetCartWithItems(ctx context.Context, cartID string) (*domain.Cart, []*domain.CartItem, error) {
 	cart, err := s.cartRepo.FindByID(ctx, cartID)

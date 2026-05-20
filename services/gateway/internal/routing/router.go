@@ -7,7 +7,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
+	sharedMiddleware "github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
 	"go.uber.org/zap"
 
 	"github.com/shopee-clone/shopee/services/gateway/internal/auth"
@@ -17,8 +19,6 @@ import (
 	"github.com/shopee-clone/shopee/services/gateway/internal/middleware"
 	"github.com/shopee-clone/shopee/services/gateway/internal/ratelimit"
 	"github.com/shopee-clone/shopee/services/gateway/internal/transport"
-	sharedMiddleware "github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 )
 
 type Router struct {
@@ -52,7 +52,10 @@ func NewRouter(
 }
 
 func (r *Router) Setup(engine *gin.Engine) {
-	engine.Use(
+	// [SECURITY] When no JWKS endpoint is configured, use the shared HMAC-only
+	// middleware as the primary JWT validator. When JWKS is configured, the
+	// gateway's own RequireAuth handles the full RSA validation.
+	middlewareChain := []gin.HandlerFunc{
 		sharedMiddleware.Recovery(),
 		sharedMiddleware.ErrorHandler(),
 		middleware.CorrelationID(),
@@ -67,8 +70,16 @@ func (r *Router) Setup(engine *gin.Engine) {
 		middleware.RequestValidation(),
 		r.rateLimiter.GlobalMiddleware(),
 		r.rateLimiter.IPRateLimit(),
-		r.authMW.RequireAuth(),
-	)
+	}
+	if r.cfg.Auth.JWKSEndpoint == "" {
+		// HMAC mode: use the standardized shared middleware
+		middlewareChain = append(middlewareChain,
+			sharedMiddleware.JWTAuth(r.cfg.Auth.AccessTokenKey),
+		)
+	}
+	middlewareChain = append(middlewareChain, r.authMW.RequireAuth())
+
+	engine.Use(middlewareChain...)
 
 	r.setupSystemEndpoints(engine)
 	r.setupUpstreamRoutes(engine)

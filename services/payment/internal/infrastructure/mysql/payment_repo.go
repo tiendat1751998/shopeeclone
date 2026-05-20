@@ -18,12 +18,28 @@ func NewPaymentRepository(db *sqlx.DB) *PaymentRepository {
 	return &PaymentRepository{db: db}
 }
 
-func (r *PaymentRepository) Create(ctx context.Context, p *domain.Payment) error {
-	query := `INSERT INTO payments (id, order_id, user_id, amount, currency, status, payment_method, psp_transaction_id, psp_provider, idempotency_key, amount_refunded, failure_reason, metadata, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, p.ID, p.OrderID, p.UserID, p.Amount, p.Currency, p.Status, p.PaymentMethod, p.PSPTransactionID, p.PSPProvider, p.IdempotencyKey, p.AmountRefunded, p.FailureReason, p.Metadata, p.Version, p.CreatedAt, p.UpdatedAt)
-	if err != nil {
-		return fmt.Errorf("failed to insert payment: %w", err)
-	}
+// BeginTx starts a transaction with read-committed isolation.
+func (r *PaymentRepository) BeginTx(ctx context.Context) (*sql.Tx, error) {
+	return r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+}
+
+type txProvider interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
+	SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
+}
+
+func (r *PaymentRepository) dbOrTx(tx *sql.Tx) txProvider {
+	if tx != nil { return tx }
+	return r.db
+}
+
+func (r *PaymentRepository) Create(ctx context.Context, p *domain.Payment, tx ...*sql.Tx) error {
+	var t *sql.Tx
+	if len(tx) > 0 { t = tx[0] }
+	q := `INSERT INTO payments (id, order_id, user_id, amount, currency, status, payment_method, psp_transaction_id, psp_provider, idempotency_key, amount_refunded, failure_reason, metadata, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.dbOrTx(t).ExecContext(ctx, q, p.ID, p.OrderID, p.UserID, p.Amount, p.Currency, p.Status, p.PaymentMethod, p.PSPTransactionID, p.PSPProvider, p.IdempotencyKey, p.AmountRefunded, p.FailureReason, p.Metadata, p.Version, p.CreatedAt, p.UpdatedAt)
+	if err != nil { return fmt.Errorf("failed to insert payment: %w", err) }
 	return nil
 }
 
@@ -86,9 +102,11 @@ func (r *PaymentRepository) IsWebhookProcessed(ctx context.Context, idempotencyK
 	return count > 0, err
 }
 
-func (r *PaymentRepository) SaveOutboxEvent(ctx context.Context, event *domain.OutboxEvent) error {
+func (r *PaymentRepository) SaveOutboxEvent(ctx context.Context, event *domain.OutboxEvent, tx ...*sql.Tx) error {
+	var t *sql.Tx
+	if len(tx) > 0 { t = tx[0] }
 	query := `INSERT INTO outbox_events (event_id, aggregate_type, aggregate_id, event_type, payload, created_at, processed) VALUES (?, ?, ?, ?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, event.ID, event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.CreatedAt, event.Processed)
+	_, err := r.dbOrTx(t).ExecContext(ctx, query, event.ID, event.AggregateType, event.AggregateID, event.EventType, event.Payload, event.CreatedAt, event.Processed)
 	return err
 }
 
@@ -103,15 +121,29 @@ func (r *PaymentRepository) MarkOutboxEventProcessed(ctx context.Context, eventI
 	return err
 }
 
-func (r *PaymentRepository) SaveFraudCheck(ctx context.Context, result *domain.FraudCheckResult) error {
-	query := `INSERT INTO fraud_checks (id, payment_id, user_id, risk_score, risk_level, is_fraud, reasons, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, result.ID, result.PaymentID, result.UserID, result.RiskScore, result.RiskLevel, result.IsFraud, result.Reasons, result.CreatedAt)
+func (r *PaymentRepository) MarkOutboxEventProcessing(ctx context.Context, eventID string) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET processed = 'processing' WHERE event_id = ? AND processed = FALSE", eventID)
 	return err
 }
 
-func (r *PaymentRepository) SaveIdempotencyKey(ctx context.Context, record *domain.IdempotencyRecord) error {
+func (r *PaymentRepository) MarkOutboxEventFailed(ctx context.Context, eventID, reason string) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET processed = 'failed', failure_reason = ? WHERE event_id = ?", reason, eventID)
+	return err
+}
+
+func (r *PaymentRepository) SaveFraudCheck(ctx context.Context, result *domain.FraudCheckResult, tx ...*sql.Tx) error {
+	var t *sql.Tx
+	if len(tx) > 0 { t = tx[0] }
+	query := `INSERT INTO fraud_checks (id, payment_id, user_id, risk_score, risk_level, is_fraud, reasons, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.dbOrTx(t).ExecContext(ctx, query, result.ID, result.PaymentID, result.UserID, result.RiskScore, result.RiskLevel, result.IsFraud, result.Reasons, result.CreatedAt)
+	return err
+}
+
+func (r *PaymentRepository) SaveIdempotencyKey(ctx context.Context, record *domain.IdempotencyRecord, tx ...*sql.Tx) error {
+	var t *sql.Tx
+	if len(tx) > 0 { t = tx[0] }
 	query := `INSERT INTO idempotency_keys (` + "`key`" + `, payment_id, expires_at, created_at) VALUES (?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, record.Key, record.PaymentID, record.ExpiresAt, record.CreatedAt)
+	_, err := r.dbOrTx(t).ExecContext(ctx, query, record.Key, record.PaymentID, record.ExpiresAt, record.CreatedAt)
 	return err
 }
 

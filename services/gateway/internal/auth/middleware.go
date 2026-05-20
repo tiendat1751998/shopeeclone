@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -41,6 +42,25 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			}
 		}
 
+		// [SECURITY] Check if the shared middleware already validated the token
+		// (HMAC mode). If so, use its extracted values and skip re-validation.
+		if userID, exists := c.Get(string(middleware.UserIDKey)); exists {
+			userIDStr := fmt.Sprintf("%v", userID)
+			if userIDStr != "" {
+				if _, hasRoles := c.Get(string(middleware.UserRolesKey)); !hasRoles {
+					if role, ok := c.Get("role"); ok {
+						c.Set(string(middleware.UserRolesKey), []string{fmt.Sprintf("%v", role)})
+					}
+				}
+				for key, value := range extractHeaders(c.Request) {
+					c.Request.Header.Set(key, value)
+				}
+				c.Next()
+				return
+			}
+		}
+
+		// JWKS/RSA mode: full validation required (shared middleware not in chain)
 		tokenString := ExtractToken(c.Request)
 		if tokenString == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -52,9 +72,11 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 
 		claims, err := m.validator.ValidateToken(c.Request.Context(), tokenString)
 		if err != nil {
+			// [SECURITY] Return generic error message to avoid leaking internal
+			// details (e.g. Redis connection failures, blacklist reasons).
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error_code": "INVALID_TOKEN",
-				"message":    err.Error(),
+				"message":    "invalid or revoked token",
 			})
 			return
 		}

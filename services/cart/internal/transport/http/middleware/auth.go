@@ -3,7 +3,7 @@ package middleware
 import (
 	"github.com/gin-gonic/gin"
 	sharedMiddleware "github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
-	"github.com/shopee-clone/shopee/services/payment/internal/config"
+	"github.com/shopee-clone/shopee/services/cart/internal/config"
 )
 
 // JWTAuth validates JWT tokens and extracts user context.
