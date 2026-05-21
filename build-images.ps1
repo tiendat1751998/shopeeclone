@@ -101,6 +101,7 @@ if (-not $SkipGo) {
                 if (Test-Path $TempGoModPath) {
                     $GoModContent = Get-Content $TempGoModPath -Raw
                     $GoModContent = $GoModContent -replace "replace github\.com/shopee-clone/shopee/proto => \.\./\.\./proto", "replace github.com/shopee-clone/shopee/proto => /proto"
+                    $GoModContent = $GoModContent -replace "replace github\.com/shopee-clone/shopee/packages/go-shared => \.\./\.\./packages/go-shared", "replace github.com/shopee-clone/shopee/packages/go-shared => ./packages/go-shared"
                     Set-Content -Path $TempGoModPath -Value $GoModContent
                 }
                 

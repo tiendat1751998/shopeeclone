@@ -84,6 +84,8 @@ if [ "$SKIP_GO" = false ]; then
                 if [ -f "${TEMP_CONTEXT_DIR}/go.mod" ]; then
                     sed 's|replace github.com/shopee-clone/shopee/proto => ../../proto|replace github.com/shopee-clone/shopee/proto => /proto|g' "${TEMP_CONTEXT_DIR}/go.mod" > "${TEMP_CONTEXT_DIR}/go.mod.tmp"
                     mv "${TEMP_CONTEXT_DIR}/go.mod.tmp" "${TEMP_CONTEXT_DIR}/go.mod"
+                    sed 's|replace github.com/shopee-clone/shopee/packages/go-shared => ../../packages/go-shared|replace github.com/shopee-clone/shopee/packages/go-shared => ./packages/go-shared|g' "${TEMP_CONTEXT_DIR}/go.mod" > "${TEMP_CONTEXT_DIR}/go.mod.tmp"
+                    mv "${TEMP_CONTEXT_DIR}/go.mod.tmp" "${TEMP_CONTEXT_DIR}/go.mod"
                 fi
                 
                 # Create adjusted temp Dockerfile
