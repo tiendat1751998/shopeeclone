@@ -1,4 +1,4 @@
-FROM golang:tip-trixie AS builder
+FROM golang:1.26.3-bookworm AS builder
 
 WORKDIR /app
 

@@ -12,11 +12,9 @@ type Config struct {
 	AppEnv   string
 	LogLevel string
 	HTTPPort int
-	GRPCPort int
 
 	MySQL MySQLConfig
 	Redis RedisConfig
-	Kafka KafkaConfig
 
 	SnapshotTTL        time.Duration
 	ReservationTimeout time.Duration
@@ -63,10 +61,6 @@ type RedisConfig struct {
 	MaxRetries   int
 }
 
-type KafkaConfig struct {
-	Brokers []string
-}
-
 type OTELConfig struct {
 	Endpoint    string
 	ServiceName string
@@ -79,7 +73,6 @@ func Load() *Config {
 		AppEnv:   getEnv("APP_ENV", "development"),
 		LogLevel: getEnv("LOG_LEVEL", "info"),
 		HTTPPort: getEnvInt("CHECKOUT_HTTP_PORT", 8080),
-		GRPCPort: getEnvInt("CHECKOUT_GRPC_PORT", 9090),
 
 		MySQL: MySQLConfig{
 			Host:         getEnv("MYSQL_HOST", "localhost"),
@@ -103,10 +96,6 @@ func Load() *Config {
 			ReadTimeout:  getEnvDuration("REDIS_READ_TIMEOUT", 3*time.Second),
 			WriteTimeout: getEnvDuration("REDIS_WRITE_TIMEOUT", 3*time.Second),
 			MaxRetries:   getEnvInt("REDIS_MAX_RETRIES", 3),
-		},
-
-		Kafka: KafkaConfig{
-			Brokers: []string{getEnv("KAFKA_BROKERS", "localhost:9092")},
 		},
 
 		JWTConfig: JWTConfig{

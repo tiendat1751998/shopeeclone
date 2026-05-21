@@ -99,7 +99,7 @@ func (s *OrderService) CancelOrder(ctx context.Context, req *CancelOrderRequest)
 	}
 
 	// Trigger compensation workflows asynchronously
-	compCtx, compCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	compCtx, compCancel := context.WithTimeout(ctx, 30*time.Second)
 	go func() {
 		defer compCancel()
 		s.triggerCompensation(compCtx, order, cancellation)

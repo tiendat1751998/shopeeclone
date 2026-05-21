@@ -18,7 +18,7 @@ func NewCartRepository(db *sqlx.DB) *CartRepository {
 
 func (r *CartRepository) FindByID(ctx context.Context, id string) (*domain.Cart, error) {
 	var cart domain.Cart
-	err := r.db.GetContext(ctx, &cart, "SELECT * FROM carts WHERE id = ? AND deleted_at IS NULL", id)
+	err := r.db.GetContext(ctx, &cart, 	"SELECT id, user_id, session_id, status, currency, item_count, subtotal, version, expires_at, created_at, updated_at FROM carts WHERE id = ? AND deleted_at IS NULL", id)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -30,7 +30,7 @@ func (r *CartRepository) FindByID(ctx context.Context, id string) (*domain.Cart,
 
 func (r *CartRepository) FindByUserID(ctx context.Context, userID string) (*domain.Cart, error) {
 	var cart domain.Cart
-	err := r.db.GetContext(ctx, &cart, "SELECT * FROM carts WHERE user_id = ? AND status = 'active' AND deleted_at IS NULL", userID)
+	err := r.db.GetContext(ctx, &cart, 	"SELECT id, user_id, session_id, status, currency, item_count, subtotal, version, expires_at, created_at, updated_at FROM carts WHERE user_id = ? AND status = 'active' AND deleted_at IS NULL", userID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -42,7 +42,7 @@ func (r *CartRepository) FindByUserID(ctx context.Context, userID string) (*doma
 
 func (r *CartRepository) FindBySessionID(ctx context.Context, sessionID string) (*domain.Cart, error) {
 	var cart domain.Cart
-	err := r.db.GetContext(ctx, &cart, "SELECT * FROM carts WHERE session_id = ? AND status = 'active' AND deleted_at IS NULL", sessionID)
+	err := r.db.GetContext(ctx, &cart, 	"SELECT id, user_id, session_id, status, currency, item_count, subtotal, version, expires_at, created_at, updated_at FROM carts WHERE session_id = ? AND status = 'active' AND deleted_at IS NULL", sessionID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -72,7 +72,7 @@ func (r *CartRepository) Delete(ctx context.Context, id string) error {
 
 func (r *CartRepository) FindExpired(ctx context.Context, before string, limit int) ([]*domain.Cart, error) {
 	var carts []*domain.Cart
-	err := r.db.SelectContext(ctx, &carts, "SELECT * FROM carts WHERE status = 'active' AND expires_at < ? AND deleted_at IS NULL LIMIT ?", before, limit)
+	err := r.db.SelectContext(ctx, &carts, 	"SELECT id, user_id, session_id, status, currency, item_count, subtotal, version, expires_at, created_at, updated_at FROM carts WHERE status = 'active' AND expires_at < ? AND deleted_at IS NULL LIMIT ?", before, limit)
 	return carts, err
 }
 
@@ -86,7 +86,7 @@ func NewCartItemRepository(db *sqlx.DB) *CartItemRepository {
 
 func (r *CartItemRepository) FindByID(ctx context.Context, id string) (*domain.CartItem, error) {
 	var item domain.CartItem
-	err := r.db.GetContext(ctx, &item, "SELECT * FROM cart_items WHERE id = ?", id)
+	err := r.db.GetContext(ctx, &item, 	"SELECT id, cart_id, sku, product_name, shop_id, shop_name, quantity, unit_price, total_price, image_url, attributes, is_selected, is_available, added_at, updated_at FROM cart_items WHERE id = ?", id)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -98,13 +98,13 @@ func (r *CartItemRepository) FindByID(ctx context.Context, id string) (*domain.C
 
 func (r *CartItemRepository) FindByCartID(ctx context.Context, cartID string) ([]*domain.CartItem, error) {
 	var items []*domain.CartItem
-	err := r.db.SelectContext(ctx, &items, "SELECT * FROM cart_items WHERE cart_id = ? ORDER BY added_at DESC LIMIT 500", cartID)
+	err := r.db.SelectContext(ctx, &items, 	"SELECT id, cart_id, sku, product_name, shop_id, shop_name, quantity, unit_price, total_price, image_url, attributes, is_selected, is_available, added_at, updated_at FROM cart_items WHERE cart_id = ? ORDER BY added_at DESC LIMIT 500", cartID)
 	return items, err
 }
 
 func (r *CartItemRepository) FindByCartAndSKU(ctx context.Context, cartID, sku string) (*domain.CartItem, error) {
 	var item domain.CartItem
-	err := r.db.GetContext(ctx, &item, "SELECT * FROM cart_items WHERE cart_id = ? AND sku = ?", cartID, sku)
+	err := r.db.GetContext(ctx, &item, 	"SELECT id, cart_id, sku, product_name, shop_id, shop_name, quantity, unit_price, total_price, image_url, attributes, is_selected, is_available, added_at, updated_at FROM cart_items WHERE cart_id = ? AND sku = ?", cartID, sku)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -153,7 +153,7 @@ func NewCartSnapshotRepository(db *sqlx.DB) *CartSnapshotRepository {
 
 func (r *CartSnapshotRepository) FindByID(ctx context.Context, id string) (*domain.CartSnapshot, error) {
 	var snap domain.CartSnapshot
-	err := r.db.GetContext(ctx, &snap, "SELECT * FROM cart_snapshots WHERE id = ?", id)
+	err := r.db.GetContext(ctx, &snap, 	"SELECT id, cart_id, user_id, items, seller_groups, subtotal, item_count, currency, idempotency_key, expires_at, created_at FROM cart_snapshots WHERE id = ?", id)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -165,7 +165,7 @@ func (r *CartSnapshotRepository) FindByID(ctx context.Context, id string) (*doma
 
 func (r *CartSnapshotRepository) FindByCartID(ctx context.Context, cartID string) (*domain.CartSnapshot, error) {
 	var snap domain.CartSnapshot
-	err := r.db.GetContext(ctx, &snap, "SELECT * FROM cart_snapshots WHERE cart_id = ? ORDER BY created_at DESC LIMIT 1", cartID)
+	err := r.db.GetContext(ctx, &snap, 	"SELECT id, cart_id, user_id, items, seller_groups, subtotal, item_count, currency, idempotency_key, expires_at, created_at FROM cart_snapshots WHERE cart_id = ? ORDER BY created_at DESC LIMIT 1", cartID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -177,7 +177,7 @@ func (r *CartSnapshotRepository) FindByCartID(ctx context.Context, cartID string
 
 func (r *CartSnapshotRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.CartSnapshot, error) {
 	var snap domain.CartSnapshot
-	err := r.db.GetContext(ctx, &snap, "SELECT * FROM cart_snapshots WHERE idempotency_key = ?", key)
+	err := r.db.GetContext(ctx, &snap, 	"SELECT id, cart_id, user_id, items, seller_groups, subtotal, item_count, currency, idempotency_key, expires_at, created_at FROM cart_snapshots WHERE idempotency_key = ?", key)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -216,6 +216,6 @@ func (r *CartMergeHistoryRepository) Create(ctx context.Context, history *domain
 
 func (r *CartMergeHistoryRepository) FindByUserID(ctx context.Context, userID string, limit int) ([]*domain.CartMergeHistory, error) {
 	var history []*domain.CartMergeHistory
-	err := r.db.SelectContext(ctx, &history, "SELECT * FROM cart_merge_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?", userID, limit)
+	err := r.db.SelectContext(ctx, &history, "SELECT id, source_cart_id, target_cart_id, user_id, merge_type, items_merged, created_at FROM cart_merge_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?", userID, limit)
 	return history, err
 }

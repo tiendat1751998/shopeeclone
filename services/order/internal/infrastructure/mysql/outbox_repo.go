@@ -18,7 +18,7 @@ func NewOutboxRepository(db *sqlx.DB) *OutboxRepository {
 
 func (r *OutboxRepository) GetUnprocessedOutboxEvents(ctx context.Context, limit int) ([]*domain.OutboxEvent, error) {
 	var events []*domain.OutboxEvent
-	query := `SELECT * FROM outbox_events WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?`
+	query := `SELECT event_id, aggregate_type, aggregate_id, event_type, status, error_message, retries, payload, created_at, processed FROM outbox_events WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?`
 	if err := r.db.SelectContext(ctx, &events, query, limit); err != nil {
 		return nil, fmt.Errorf("failed to get outbox events: %w", err)
 	}

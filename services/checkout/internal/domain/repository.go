@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type CheckoutRepository interface {
 	FindByID(ctx context.Context, id string) (*Checkout, error)
@@ -8,7 +11,7 @@ type CheckoutRepository interface {
 	Create(ctx context.Context, c *Checkout) error
 	Update(ctx context.Context, c *Checkout) error
 	UpdateStatus(ctx context.Context, id, status string) error
-	FindExpired(ctx context.Context, before string, limit int) ([]*Checkout, error)
+	FindExpired(ctx context.Context, before time.Time, limit int) ([]*Checkout, error)
 }
 
 type CheckoutStepLogRepository interface {

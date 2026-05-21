@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 	"time"
@@ -67,7 +66,7 @@ func (h *Handler) GetRecommendations(c *gin.Context) {
 	metrics.RecLatency.Observe(float64(tookMs) / 1000.0)
 	metrics.RecRequestsTotal.Inc()
 
-	h.publisher.Publish(context.Background(), events.EventRecommendationRequested, events.RecommendationRequested{
+	h.publisher.Publish(c.Request.Context(), events.EventRecommendationRequested, events.RecommendationRequested{
 		UserID:    req.UserID,
 		Type:      req.Type,
 		Limit:     req.Limit,

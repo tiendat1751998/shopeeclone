@@ -12,7 +12,7 @@ func main() {
 	behaviorService := application.NewBehaviorService(pub)
 	hc := health.NewChecker(cfg.AppName, version, redisClient)
 	gin.SetMode(getGinMode(cfg.AppEnv)); engine := gin.New()
-	handler := httptransport.NewHandler(behaviorService); router := httptransport.NewRouter(handler, hc); router.Setup(engine)
+	handler := httptransport.NewHandler(behaviorService); router := httptransport.NewRouter(handler, hc.HealthChecker()); router.Setup(engine)
 	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HTTPPort), Handler: engine, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	quit := make(chan os.Signal, 1); signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	go func() { logger.Info("starting user behavior service", zap.Int("http_port", cfg.HTTPPort)); if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed { logger.Fatal("http server failed", zap.Error(err)) } }()
