@@ -82,8 +82,10 @@ func (s *CheckoutService) InitiateCheckout(ctx context.Context, req InitiateRequ
 		return nil, fmt.Errorf("create checkout: %w", err)
 	}
 
-	// Execute saga steps asynchronously with timeout
-	sagaCtx, sagaCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	// Execute saga steps asynchronously with timeout.
+	// Use context.WithoutCancel to keep tracing context but remain alive after client disconnect.
+	// The saga gets its own timeout and is not affected by client cancellation.
+	sagaCtx, sagaCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 	go func() {
 		defer sagaCancel()
 		defer func() {
@@ -148,7 +150,6 @@ func (s *CheckoutService) stepValidate(ctx context.Context, checkout *domain.Che
 
 	// Validate cart exists and is active
 	// In production: call Cart Service gRPC to validate
-	// For now, basic validation
 	if req.CartId == "" || req.UserID == "" {
 		s.logStep(ctx, checkout.ID, domain.StepValidate, "failed", "missing cart_id or user_id", time.Since(start).Milliseconds())
 		return fmt.Errorf("invalid request: cart_id and user_id required")
@@ -164,7 +165,6 @@ func (s *CheckoutService) stepFreezePricing(ctx context.Context, checkout *domai
 	checkout.Status = domain.CheckoutStatusPricingFrozen
 	s.checkoutRepo.Update(ctx, checkout)
 
-	// Create immutable pricing snapshot
 	itemsJSON, err := mustJSON(req.Items)
 	if err != nil {
 		return fmt.Errorf("marshal items: %w", err)
@@ -214,12 +214,10 @@ func (s *CheckoutService) stepReserveInventory(ctx context.Context, checkout *do
 	s.checkoutRepo.Update(ctx, checkout)
 
 	var reservationKeys []string
-	// In production: call Inventory Service gRPC for each item
-	// For each item in the cart, create a reservation
-	for _, item := range req.Items {
+	for i, item := range req.Items {
 		resKey := fmt.Sprintf("res_%s_%s", checkout.ID, item.SKU)
 		res := &domain.ReservationOrchestration{
-			ID:             fmt.Sprintf("ro_%d", time.Now().UnixNano()),
+			ID:             fmt.Sprintf("ro_%d_%d", time.Now().UnixNano(), i),
 			CheckoutID:     checkout.ID,
 			ReservationKey: resKey,
 			SKU:            item.SKU,
@@ -255,7 +253,6 @@ func (s *CheckoutService) stepProcess(ctx context.Context, checkout *domain.Chec
 	s.checkoutRepo.Update(ctx, checkout)
 
 	// In production: call Order Service to create order, then Payment Service
-	// For now, simulate order creation
 	orderID := fmt.Sprintf("ORD-%s", checkout.ID[:8])
 
 	s.logStep(ctx, checkout.ID, domain.StepProcess, "success", "order_created:"+orderID, time.Since(start).Milliseconds())
@@ -268,9 +265,9 @@ func (s *CheckoutService) stepComplete(ctx context.Context, checkout *domain.Che
 	s.checkoutRepo.Update(ctx, checkout)
 
 	// Confirm all reservations asynchronously
-	for _, key := range reservationKeys {
+	for i, key := range reservationKeys {
 		job := &domain.ReconciliationJob{
-			ID:          fmt.Sprintf("job_%d", time.Now().UnixNano()),
+			ID:          fmt.Sprintf("job_%d_%d", time.Now().UnixNano(), i),
 			CheckoutID:  checkout.ID,
 			JobType:     domain.JobTypeConfirmReservation,
 			Status:      domain.JobStatusPending,
@@ -280,14 +277,20 @@ func (s *CheckoutService) stepComplete(ctx context.Context, checkout *domain.Che
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		}
-		s.reconcileRepo.Create(ctx, job)
+		if err := s.reconcileRepo.Create(ctx, job); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to create reconciliation job",
+				zap.String("checkout_id", checkout.ID), zap.Error(err))
+		}
 	}
 
 	if s.publisher != nil {
-		s.publisher.Publish(ctx, "checkout.completed", map[string]interface{}{
+		if err := s.publisher.Publish(ctx, "checkout.completed", map[string]interface{}{
 			"checkout_id": checkout.ID, "order_id": checkout.OrderID,
 			"grand_total": checkout.GrandTotal, "currency": checkout.Currency,
-		})
+		}); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish checkout.completed event",
+				zap.String("checkout_id", checkout.ID), zap.Error(err))
+		}
 	}
 }
 
@@ -309,19 +312,23 @@ func (s *CheckoutService) handleFailure(ctx context.Context, checkout *domain.Ch
 		JobType:     domain.JobTypeReleaseReservation,
 		Status:      domain.JobStatusPending,
 		MaxAttempts: 3,
-		NextRetryAt: time.Now(),
+		NextRetryAt: time.Now().Add(100 * time.Millisecond),
 		Metadata:    fmt.Sprintf(`{"failure_step":"%s","error":"%s"}`, step, err.Error()),
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	s.reconcileRepo.Create(ctx, job)
+	if createErr := s.reconcileRepo.Create(ctx, job); createErr != nil {
+		logger.Error("failed to create reconciliation job", zap.Error(createErr))
+	}
 
 	metrics.CheckoutsFailed.Inc()
 
 	if s.publisher != nil {
-		s.publisher.Publish(ctx, "checkout.failed", map[string]interface{}{
+		if pubErr := s.publisher.Publish(ctx, "checkout.failed", map[string]interface{}{
 			"checkout_id": checkout.ID, "step": step, "error": err.Error(),
-		})
+		}); pubErr != nil {
+			logger.Error("failed to publish checkout.failed event", zap.Error(pubErr))
+		}
 	}
 }
 
@@ -330,7 +337,12 @@ func (s *CheckoutService) rollbackReservations(ctx context.Context, checkout *do
 	s.checkoutRepo.Update(ctx, checkout)
 
 	for _, key := range keys {
-		s.reservationRepo.UpdateStatus(ctx, key, domain.ReservationStatusReleased)
+		if err := s.reservationRepo.UpdateStatus(ctx, key, domain.ReservationStatusReleased); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to rollback reservation",
+				zap.String("checkout_id", checkout.ID),
+				zap.String("reservation_key", key),
+				zap.Error(err))
+		}
 	}
 
 	checkout.MarkRolledBack()
@@ -339,7 +351,12 @@ func (s *CheckoutService) rollbackReservations(ctx context.Context, checkout *do
 
 func (s *CheckoutService) logStep(ctx context.Context, checkoutID, step, status, errMsg string, durationMs int64) {
 	log := domain.NewCheckoutStepLog(checkoutID, step, status, durationMs, errMsg, "")
-	s.stepLogRepo.Create(ctx, log)
+	if err := s.stepLogRepo.Create(ctx, log); err != nil {
+		observability.LogWithTrace(ctx).Error("failed to log checkout step",
+			zap.String("checkout_id", checkoutID),
+			zap.String("step", step),
+			zap.Error(err))
+	}
 }
 
 // GetCheckoutStatus returns the current status of a checkout

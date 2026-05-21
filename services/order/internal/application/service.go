@@ -19,13 +19,13 @@ import (
 )
 
 type OrderService struct {
-	cfg            *config.Config
-	orderRepo      *mysql.OrderRepository
-	outboxRepo     *mysql.OutboxRepository
-	redisStore     *redisinfra.Store
-	kafkaProducer  *kafka.Producer
-	numberGen      *domain.OrderNumberGenerator
-	stateMachine   *domain.StateMachine
+	cfg           *config.Config
+	orderRepo     *mysql.OrderRepository
+	outboxRepo    *mysql.OutboxRepository
+	redisStore    *redisinfra.Store
+	kafkaProducer *kafka.Producer
+	numberGen     *domain.OrderNumberGenerator
+	stateMachine  *domain.StateMachine
 }
 
 func NewOrderService(
@@ -293,14 +293,19 @@ func (s *OrderService) TransitionStatus(ctx context.Context, orderID string, tar
 	// Invalidate cache
 	s.redisStore.InvalidateOrderCache(ctx, orderID)
 
-	// Publish event via outbox
+	// Publish event via outbox (best-effort - outbox processor will retry)
 	transitionEvent := domain.NewOrderEvent(order, domain.EventType("order."+string(target)), nil)
 	eventPayload, _ := json.Marshal(transitionEvent)
 	outboxEvent := domain.NewOutboxEvent("order", order.ID, string(domain.EventType("order."+string(target))), eventPayload)
-	s.outboxRepo.SaveOutboxEvent(ctx, outboxEvent)
+	if err := s.outboxRepo.SaveOutboxEvent(ctx, outboxEvent); err != nil {
+		zap.L().Warn("failed to save outbox event", zap.Error(err))
+	}
 
+	// Best-effort Kafka publish (outbox pattern is the reliable path)
 	if s.kafkaProducer != nil {
-		s.kafkaProducer.PublishEvent(ctx, transitionEvent)
+		if err := s.kafkaProducer.PublishEvent(ctx, transitionEvent); err != nil {
+			zap.L().Warn("failed to publish kafka event", zap.Error(err))
+		}
 	}
 
 	// Update metrics

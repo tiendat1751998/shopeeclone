@@ -35,7 +35,10 @@ func (h *Handler) AuthorizePayment(c *gin.Context) {
 	}
 	req.UserID = uid
 	payment, err := h.paymentService.AuthorizePayment(c.Request.Context(), &req)
-	if err != nil { handleError(c, err); return }
+	if err != nil {
+		handleError(c, err)
+		return
+	}
 	c.JSON(http.StatusCreated, payment)
 }
 
@@ -52,7 +55,10 @@ func (h *Handler) CapturePayment(c *gin.Context) {
 		return
 	}
 	payment, err := h.paymentService.CapturePayment(c.Request.Context(), paymentID, uid)
-	if err != nil { handleError(c, err); return }
+	if err != nil {
+		handleError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, payment)
 }
 
@@ -68,14 +74,20 @@ func (h *Handler) RefundPayment(c *gin.Context) {
 		return
 	}
 	refund, err := h.paymentService.RefundPayment(c.Request.Context(), paymentID, req.Reason, req.IdempotencyKey, req.Amount)
-	if err != nil { handleError(c, err); return }
+	if err != nil {
+		handleError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, refund)
 }
 
 func (h *Handler) GetPayment(c *gin.Context) {
 	paymentID := c.Param("id")
 	payment, err := h.paymentService.GetPayment(c.Request.Context(), paymentID)
-	if err != nil { handleError(c, err); return }
+	if err != nil {
+		handleError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, payment)
 }
 
@@ -86,7 +98,8 @@ func (h *Handler) HandleWebhook(c *gin.Context) {
 	idempotencyKey := c.GetHeader("X-Idempotency-Key")
 	payload, _ := c.GetRawData()
 	if err := h.paymentService.HandleWebhook(c.Request.Context(), pspProvider, eventType, payload, signature, idempotencyKey); err != nil {
-		handleError(c, err); return
+		handleError(c, err)
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "processed"})
 }
@@ -103,6 +116,20 @@ func handleError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	case domain.ErrRefundNotAllowed:
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case domain.ErrRefundAmountExceeded:
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+	case domain.ErrPaymentAlreadyProcessed:
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case domain.ErrInvalidPaymentState:
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case domain.ErrUnauthorized, domain.ErrInsufficientPermissions:
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+	case domain.ErrIdempotencyKeyExists:
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case domain.ErrConcurrentModification:
+		c.JSON(http.StatusConflict, gin.H{"error": "concurrent modification detected, please retry"})
+	case domain.ErrFraudDetected:
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	default:
 		zap.L().Error("unexpected error", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})

@@ -17,9 +17,13 @@ func (r *ProductRepository) FindByCategory(ctx context.Context, categoryID strin
 	var products []*domain.Product; err := r.db.SelectContext(ctx, &products, "SELECT * FROM products WHERE category_id = ? AND status = 'active' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?", categoryID, limit, offset)
 	return products, total, err
 }
+func (r *ProductRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.Product, error) {
+	var p domain.Product; err := r.db.GetContext(ctx, &p, "SELECT * FROM products WHERE idempotency_key = ? AND deleted_at IS NULL", key)
+	if err == sql.ErrNoRows { return nil, nil }; if err != nil { return nil, err }; return &p, nil
+}
 func (r *ProductRepository) Create(ctx context.Context, p *domain.Product) error {
-	query := `INSERT INTO products (id, shop_id, name, description, category_id, status, currency, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, p.ID, p.ShopID, p.Name, p.Description, p.CategoryID, p.Status, p.Currency, p.Version, p.CreatedAt, p.UpdatedAt); return err
+	query := `INSERT INTO products (id, shop_id, name, description, category_id, status, currency, idempotency_key, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, p.ID, p.ShopID, p.Name, p.Description, p.CategoryID, p.Status, p.Currency, p.IdempotencyKey, p.Version, p.CreatedAt, p.UpdatedAt); return err
 }
 func (r *ProductRepository) Update(ctx context.Context, p *domain.Product) error {
 	query := `UPDATE products SET name = ?, description = ?, category_id = ?, status = ?, version = version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`

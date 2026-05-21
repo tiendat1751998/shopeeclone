@@ -84,6 +84,16 @@ func handleError(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized"})
 	case err == domain.ErrConcurrentModification:
 		c.JSON(http.StatusConflict, gin.H{"error": "concurrent modification, please retry"})
+	case err == domain.ErrReservationExpired:
+		c.JSON(http.StatusGone, gin.H{"error": "reservation expired"})
+	case err == domain.ErrReservationExists:
+		c.JSON(http.StatusConflict, gin.H{"error": "reservation already exists"})
+	case err == domain.ErrInvalidStockOperation:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid stock operation"})
+	case err == domain.ErrWarehouseNotFound:
+		c.JSON(http.StatusNotFound, gin.H{"error": "warehouse not found"})
+	case err == domain.ErrIdempotencyKeyExists:
+		c.JSON(http.StatusConflict, gin.H{"error": "duplicate request"})
 	default:
 		// [SECURITY] Log full error internally, return generic message to client
 		zap.L().Error("unexpected error", zap.Error(err))

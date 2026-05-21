@@ -10,6 +10,7 @@ var (
 	ProductsUpdated = promauto.NewCounter(prometheus.CounterOpts{Name: "shopee_catalog_products_updated_total", Help: "Total products updated"})
 	SKUsCreated     = promauto.NewCounter(prometheus.CounterOpts{Name: "shopee_catalog_skus_created_total", Help: "Total SKUs created"})
 	IdempotentRequests = promauto.NewCounter(prometheus.CounterOpts{Name: "shopee_catalog_idempotent_requests_total", Help: "Idempotent requests"})
+	ProductsDeleted    = promauto.NewCounter(prometheus.CounterOpts{Name: "shopee_catalog_products_deleted_total", Help: "Total products deleted"})
 
 	CacheHitsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "shopee_catalog_cache_hits_total", Help: "Cache hits by layer",

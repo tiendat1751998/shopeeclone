@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/cart/internal/application"
 	"github.com/shopee-clone/shopee/services/cart/internal/domain"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
@@ -183,23 +183,19 @@ func (h *Handler) MergeCarts(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.merge_carts")
 	defer span.End()
 
+	// [SECURITY] Always get user_id from JWT context, never from request body
 	userID := c.GetString("user_id")
+	if userID == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error_code": "UNAUTHORIZED", "message": "authentication required"})
+		return
+	}
 
 	var req struct {
 		SourceCartID string `json:"source_cart_id" binding:"required"`
 		TargetCartID string `json:"target_cart_id" binding:"required"`
-		UserID       string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": err.Error()})
-		return
-	}
-
-	if userID == "" {
-		userID = req.UserID
-	}
-	if userID == "" {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": "user_id is required"})
 		return
 	}
 
@@ -238,22 +234,18 @@ func (h *Handler) CheckoutPreview(c *gin.Context) {
 	defer span.End()
 
 	cartID := c.Param("cart_id")
+	// [SECURITY] Always get user_id from JWT context, never from request body
 	userID := c.GetString("user_id")
+	if userID == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error_code": "UNAUTHORIZED", "message": "authentication required"})
+		return
+	}
 
 	var req struct {
-		UserID         string `json:"user_id"`
 		IdempotencyKey string `json:"idempotency_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": err.Error()})
-		return
-	}
-
-	if userID == "" {
-		userID = req.UserID
-	}
-	if userID == "" {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": "user_id is required"})
 		return
 	}
 
@@ -277,15 +269,15 @@ func (h *Handler) CheckoutPreview(c *gin.Context) {
 }
 
 var errorStatusMap = map[error]int{
-	domain.ErrCartNotFound:      http.StatusNotFound,
-	domain.ErrCartExpired:       http.StatusGone,
-	domain.ErrCartFull:          http.StatusConflict,
-	domain.ErrItemNotFound:      http.StatusNotFound,
-	domain.ErrInvalidQuantity:   http.StatusBadRequest,
-	domain.ErrInvalidCartState:  http.StatusConflict,
-	domain.ErrDuplicateItem:     http.StatusConflict,
-	domain.ErrMergeConflict:     http.StatusConflict,
-	domain.ErrSnapshotNotFound:  http.StatusNotFound,
+	domain.ErrCartNotFound:        http.StatusNotFound,
+	domain.ErrCartExpired:         http.StatusGone,
+	domain.ErrCartFull:            http.StatusConflict,
+	domain.ErrItemNotFound:        http.StatusNotFound,
+	domain.ErrInvalidQuantity:     http.StatusBadRequest,
+	domain.ErrInvalidCartState:    http.StatusConflict,
+	domain.ErrDuplicateItem:       http.StatusConflict,
+	domain.ErrMergeConflict:       http.StatusConflict,
+	domain.ErrSnapshotNotFound:    http.StatusNotFound,
 	domain.ErrIdempotencyConflict: http.StatusConflict,
 }
 

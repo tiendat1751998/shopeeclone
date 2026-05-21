@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,9 +36,14 @@ func (r *Router) Setup(engine *gin.Engine) {
 	engine.GET("/metrics", observability.MetricsHandler())
 
 	api := engine.Group("/api/v1")
-	if r.jwtSecret != "" {
-		api.Use(auth.GinJWTAuth(r.jwtSecret))
+
+	// [SECURITY] Authentication is mandatory. If JWT secret is not configured,
+	// we fail fast in production rather than allowing unauthenticated access.
+	if r.jwtSecret == "" {
+		log.Fatal("JWT_ACCESS_SECRET is required - cannot start checkout service without authentication")
 	}
+	api.Use(auth.GinJWTAuth(r.jwtSecret))
+
 	{
 		api.POST("/checkout",
 			middleware.RedisSlidingWindowLimiter(r.redis, 1, 5*time.Second, "checkout"),

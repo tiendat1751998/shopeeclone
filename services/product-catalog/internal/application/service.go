@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
@@ -36,6 +37,17 @@ func NewCatalogService(pr domain.ProductRepository, sr domain.SKURepository, cr 
 func (s *CatalogService) CreateProduct(ctx context.Context, shopID, name, description, categoryID, currency, idempotencyKey string) (*domain.Product, error) {
 	ctx, span := otel.Tracer("shopee-catalog").Start(ctx, "catalog.create_product")
 	defer span.End()
+
+	if shopID == "" {
+		return nil, fmt.Errorf("shop_id is required")
+	}
+	if name == "" {
+		return nil, fmt.Errorf("product name is required")
+	}
+	if categoryID == "" {
+		return nil, fmt.Errorf("category_id is required")
+	}
+
 	if idempotencyKey != "" {
 		exists, err := s.redis.CheckIdempotency(ctx, "create_product:"+idempotencyKey, 24*time.Hour)
 		if err != nil {
@@ -45,26 +57,33 @@ func (s *CatalogService) CreateProduct(ctx context.Context, shopID, name, descri
 			return nil, domain.ErrDuplicateRequest
 		}
 	}
-	p := domain.NewProduct(shopID, name, description, categoryID, currency)
-	if err := s.productRepo.Create(ctx, p); err != nil {
+	product := domain.NewProduct(shopID, name, description, categoryID, currency)
+	if err := s.productRepo.Create(ctx, product); err != nil {
 		return nil, err
 	}
-	s.redis.DeleteProduct(ctx, p.ID)
+	s.redis.DeleteProduct(ctx, product.ID)
 	metrics.ProductsCreated.Inc()
 	if s.publisher != nil {
-		s.publisher.Publish(ctx, &domain.CatalogEvent{EventType: domain.EventProductCreated, AggregateType: "product", AggregateID: p.ID, Payload: p, CreatedAt: time.Now()})
+		if pubErr := s.publisher.Publish(ctx, &domain.CatalogEvent{EventType: domain.EventProductCreated, AggregateType: "product", AggregateID: product.ID, Payload: product, CreatedAt: time.Now()}); pubErr != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish product created event",
+				zap.String("product_id", product.ID), zap.Error(pubErr))
+		}
 	}
-	return p, nil
+	return product, nil
 }
 
 func (s *CatalogService) GetProduct(ctx context.Context, id string) (*domain.Product, error) {
 	ctx, span := otel.Tracer("shopee-catalog").Start(ctx, "catalog.get_product")
 	defer span.End()
+
 	if data, err := s.redis.GetProduct(ctx, id); err == nil && len(data) > 0 {
 		metrics.CacheHitsTotal.WithLabelValues("catalog", "redis").Inc()
-		var p domain.Product
-		json.Unmarshal(data, &p)
-		return &p, nil
+		var cached domain.Product
+		if unmarshalErr := json.Unmarshal(data, &cached); unmarshalErr == nil {
+			return &cached, nil
+		}
+		observability.LogWithTrace(ctx).Warn("failed to unmarshal cached product",
+			zap.String("product_id", id), zap.Error(unmarshalErr))
 	}
 	metrics.CacheMissesTotal.WithLabelValues("catalog", "redis").Inc()
 	p, err := s.productRepo.FindByID(ctx, id)
@@ -80,6 +99,13 @@ func (s *CatalogService) GetProduct(ctx context.Context, id string) (*domain.Pro
 }
 
 func (s *CatalogService) UpdateProduct(ctx context.Context, id, name, description, categoryID string) error {
+	if id == "" {
+		return fmt.Errorf("product id is required")
+	}
+	if name == "" && description == "" && categoryID == "" {
+		return fmt.Errorf("at least one field (name, description, category_id) must be provided for update")
+	}
+
 	p, err := s.productRepo.FindByID(ctx, id)
 	if err != nil {
 		return err
@@ -97,7 +123,10 @@ func (s *CatalogService) UpdateProduct(ctx context.Context, id, name, descriptio
 	s.redis.DeleteProduct(ctx, id)
 	metrics.ProductsUpdated.Inc()
 	if s.publisher != nil {
-		s.publisher.Publish(ctx, &domain.CatalogEvent{EventType: domain.EventProductUpdated, AggregateType: "product", AggregateID: id, CreatedAt: time.Now()})
+		if pubErr := s.publisher.Publish(ctx, &domain.CatalogEvent{EventType: domain.EventProductUpdated, AggregateType: "product", AggregateID: id, CreatedAt: time.Now()}); pubErr != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish product updated event",
+				zap.String("product_id", id), zap.Error(pubErr))
+		}
 	}
 	return nil
 }
@@ -118,7 +147,38 @@ func (s *CatalogService) ArchiveProduct(ctx context.Context, id string) error {
 	}
 	s.redis.DeleteProduct(ctx, id)
 	if s.publisher != nil {
-		s.publisher.Publish(ctx, &domain.CatalogEvent{EventType: domain.EventProductArchived, AggregateType: "product", AggregateID: id, CreatedAt: time.Now()})
+		if pubErr := s.publisher.Publish(ctx, &domain.CatalogEvent{EventType: domain.EventProductArchived, AggregateType: "product", AggregateID: id, CreatedAt: time.Now()}); pubErr != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish product archived event",
+				zap.String("product_id", id), zap.Error(pubErr))
+		}
+	}
+	return nil
+}
+
+func (s *CatalogService) DeleteProduct(ctx context.Context, id string) error {
+	if id == "" {
+		return fmt.Errorf("product id is required")
+	}
+	p, err := s.productRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if p == nil {
+		return domain.ErrProductNotFound
+	}
+	if err := p.Archive(); err != nil {
+		return err
+	}
+	if err := s.productRepo.Update(ctx, p); err != nil {
+		return err
+	}
+	s.redis.DeleteProduct(ctx, id)
+	metrics.ProductsDeleted.Inc()
+	if s.publisher != nil {
+		if pubErr := s.publisher.Publish(ctx, &domain.CatalogEvent{EventType: domain.EventProductArchived, AggregateType: "product", AggregateID: id, CreatedAt: time.Now()}); pubErr != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish product deleted event",
+				zap.String("product_id", id), zap.Error(pubErr))
+		}
 	}
 	return nil
 }
@@ -126,8 +186,10 @@ func (s *CatalogService) ArchiveProduct(ctx context.Context, id string) error {
 func (s *CatalogService) GetCategoryTree(ctx context.Context) ([]*domain.Category, error) {
 	if data, err := s.redis.GetCategoryTree(ctx); err == nil && len(data) > 0 {
 		var cats []*domain.Category
-		json.Unmarshal(data, &cats)
-		return cats, nil
+		if unmarshalErr := json.Unmarshal(data, &cats); unmarshalErr == nil {
+			return cats, nil
+		}
+		observability.LogWithTrace(ctx).Warn("failed to unmarshal cached category tree", zap.Error(unmarshalErr))
 	}
 	cats, err := s.categoryRepo.GetTree(ctx)
 	if err != nil {
@@ -139,11 +201,17 @@ func (s *CatalogService) GetCategoryTree(ctx context.Context) ([]*domain.Categor
 }
 
 func (s *CatalogService) CreateCategory(ctx context.Context, parentID, name, slug string, level, sortOrder int) (*domain.Category, error) {
-	var p *string
-	if parentID != "" {
-		p = &parentID
+	if name == "" {
+		return nil, fmt.Errorf("category name is required")
 	}
-	c := domain.NewCategory(name, slug, "", p, level)
+	if slug == "" {
+		return nil, fmt.Errorf("category slug is required")
+	}
+	var parentPtr *string
+	if parentID != "" {
+		parentPtr = &parentID
+	}
+	c := domain.NewCategory(name, slug, "", parentPtr, level)
 	c.SortOrder = sortOrder
 	if err := s.categoryRepo.Create(ctx, c); err != nil {
 		return nil, err
@@ -153,6 +221,12 @@ func (s *CatalogService) CreateCategory(ctx context.Context, parentID, name, slu
 }
 
 func (s *CatalogService) AddSKU(ctx context.Context, productID, skuCode, name, currency string, price int64) (*domain.SKU, error) {
+	if productID == "" {
+		return nil, fmt.Errorf("product_id is required")
+	}
+	if skuCode == "" {
+		return nil, fmt.Errorf("sku_code is required")
+	}
 	sku := domain.NewSKU(productID, skuCode, name, currency, price)
 	if err := s.skuRepo.Create(ctx, sku); err != nil {
 		return nil, err
@@ -160,11 +234,26 @@ func (s *CatalogService) AddSKU(ctx context.Context, productID, skuCode, name, c
 	s.redis.DeleteProduct(ctx, productID)
 	metrics.SKUsCreated.Inc()
 	if s.publisher != nil {
-		s.publisher.Publish(ctx, &domain.CatalogEvent{EventType: domain.EventSKUUpdated, AggregateType: "sku", AggregateID: sku.ID, CreatedAt: time.Now()})
+		if pubErr := s.publisher.Publish(ctx, &domain.CatalogEvent{EventType: domain.EventSKUUpdated, AggregateType: "sku", AggregateID: sku.ID, CreatedAt: time.Now()}); pubErr != nil {
+			observability.LogWithTrace(ctx).Error("failed to publish SKU updated event",
+				zap.String("sku_id", sku.ID), zap.Error(pubErr))
+		}
 	}
 	return sku, nil
 }
 
 func (s *CatalogService) ListProductsByShop(ctx context.Context, shopID string, offset, limit int) ([]*domain.Product, int64, error) {
+	if shopID == "" {
+		return nil, 0, fmt.Errorf("shop_id is required")
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	return s.productRepo.FindByShopID(ctx, shopID, offset, limit)
 }

@@ -203,14 +203,14 @@ func (h *Handler) GetProfile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":            user.ID,
-		"email":         user.Email,
-		"username":      user.Username,
-		"display_name":  user.DisplayName,
-		"phone":         user.Phone,
-		"status":        user.Status,
+		"id":             user.ID,
+		"email":          user.Email,
+		"username":       user.Username,
+		"display_name":   user.DisplayName,
+		"phone":          user.Phone,
+		"status":         user.Status,
 		"email_verified": user.EmailVerified,
-		"created_at":    user.CreatedAt,
+		"created_at":     user.CreatedAt,
 	})
 }
 
@@ -271,21 +271,26 @@ func handleError(c *gin.Context, err error) {
 	status, ok := errorStatusMap[err]
 	if !ok {
 		status = http.StatusInternalServerError
+		zap.L().Error("unhandled auth error", zap.Error(err))
+		c.AbortWithStatusJSON(status, gin.H{
+			"error_code": "INTERNAL_ERROR",
+			"message":    "An unexpected error occurred",
+		})
+		return
 	}
 
+	// Find the matching domain error for the error code
 	errCode := "INTERNAL_ERROR"
-	errMsg := err.Error()
-	for k, v := range errorStatusMap {
-		if err == k && v != http.StatusInternalServerError {
+	for k := range errorStatusMap {
+		if err == k {
 			errCode = k.Error()
-			errMsg = k.Error()
 			break
 		}
 	}
 
 	c.AbortWithStatusJSON(status, gin.H{
 		"error_code": errCode,
-		"message":    errMsg,
+		"message":    err.Error(),
 	})
 }
 
