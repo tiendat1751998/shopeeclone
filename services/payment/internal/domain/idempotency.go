@@ -14,9 +14,10 @@ type IdempotencyRecord struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
-func NewIdempotencyRecord(paymentID string, ttl time.Duration) *IdempotencyRecord {
+func NewIdempotencyRecord(key, paymentID string, ttl time.Duration) *IdempotencyRecord {
 	now := time.Now().UTC()
 	return &IdempotencyRecord{
+		Key:       key,
 		PaymentID: paymentID,
 		ExpiresAt: now.Add(ttl),
 		CreatedAt: now,

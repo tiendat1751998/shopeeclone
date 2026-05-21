@@ -19,7 +19,7 @@ func NewStateMachine() *StateMachine {
 	sm.register(OrderStatusAwaitingPayment, OrderStatusPaid, OrderStatusCancelled)
 	sm.register(OrderStatusPaid, OrderStatusProcessing, OrderStatusCancelled)
 	sm.register(OrderStatusProcessing, OrderStatusPacked, OrderStatusCancelled)
-	sm.register(OrderStatusPacked, OrderStatusShipped)
+	sm.register(OrderStatusPacked, OrderStatusShipped, OrderStatusCancelled)
 	sm.register(OrderStatusShipped, OrderStatusDelivered, OrderStatusRefunded)
 	sm.register(OrderStatusDelivered, OrderStatusCompleted, OrderStatusRefunded)
 	sm.register(OrderStatusCompleted, OrderStatusRefunded)

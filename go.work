@@ -25,6 +25,7 @@ use (
 	./platforms/service-mesh
 	./platforms/sre
 	./platforms/user-behavior
+	./proto
 	./services/auth
 	./services/cart
 	./services/catalog-product
@@ -37,6 +38,5 @@ use (
 	./services/product-catalog
 	./services/promotion
 	./services/shipment
-	./proto
+	./tests/integration
 )
-

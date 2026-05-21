@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { productsApi } from "@/lib/api/products";
 import { ProductGrid } from "@/components/product/ProductGrid";
@@ -10,6 +10,14 @@ import { useDebounce } from "@/lib/hooks/useDebounce";
 import type { SearchFilters, SearchResult } from "@/lib/types";
 
 export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+      <ProductsContent />
+    </Suspense>
+  );
+}
+
+function ProductsContent() {
   const searchParams = useSearchParams();
   const query = searchParams.get("q") || "";
   const categorySlug = searchParams.get("category") || "";

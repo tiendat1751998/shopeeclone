@@ -6,19 +6,25 @@ import { Pagination } from "@/components/ui/Pagination";
 import { SearchFiltersBar } from "@/components/search/SearchFilters";
 import type { Product, Category, SearchFilters } from "@/lib/types";
 
-export default function CategoryPage({ params }: { params: { slug: string } }) {
+export default function CategoryPage({ params: paramsPromise }: { params: Promise<{ slug: string }> }) {
   const [category, setCategory] = useState<Category | null>(null);
   const [products, setProducts] = useState<Product[] | null>(null);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<SearchFilters>({ category_id: "", page: 1, page_size: 24, sort_by: "relevance" });
+  const [slug, setSlug] = useState<string>("");
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    paramsPromise.then((p) => setSlug(p.slug));
+  }, [paramsPromise]);
+
+  useEffect(() => {
+    if (!slug) return;
     const controller = new AbortController();
     abortRef.current = controller;
-    categoriesApi.getBySlug(params.slug, controller.signal)
+    categoriesApi.getBySlug(slug, controller.signal)
       .then((cat) => {
         if (!controller.signal.aborted) {
           setCategory(cat);
@@ -29,7 +35,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
         if (!controller.signal.aborted) setError(e.message);
       });
     return () => controller.abort();
-  }, [params.slug]);
+  }, [slug]);
 
   useEffect(() => {
     if (!filters.category_id) return;

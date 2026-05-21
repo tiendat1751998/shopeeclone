@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS fraud_checks (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS idempotency_keys (
-    ` + "`key`" + ` VARCHAR(255) PRIMARY KEY,
+    `key` VARCHAR(255) PRIMARY KEY,
     payment_id VARCHAR(36) NOT NULL,
     expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

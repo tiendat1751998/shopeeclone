@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS vouchers (
     INDEX idx_vouchers_code (code),
     INDEX idx_vouchers_status (status, start_time, end_time),
     INDEX idx_vouchers_scope (scope, shop_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS voucher_redemptions (
     id VARCHAR(36) PRIMARY KEY,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS voucher_redemptions (
     INDEX idx_redemptions_order (order_id),
     INDEX idx_redemptions_idempotency (idempotency_key),
     FOREIGN KEY (voucher_id) REFERENCES vouchers(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS campaigns (
     id VARCHAR(36) PRIMARY KEY,
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_campaigns_type (type, status),
     INDEX idx_campaigns_time (start_time, end_time, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS pricing_rules (
     id VARCHAR(36) PRIMARY KEY,
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS pricing_rules (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_pricing_campaign (campaign_id),
     FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS eligibility_rules (
     id VARCHAR(36) PRIMARY KEY,
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS eligibility_rules (
     target_value VARCHAR(255) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     INDEX idx_eligibility_promo (promotion_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS stacking_rules (
     id VARCHAR(36) PRIMARY KEY,
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS stacking_rules (
     max_stack_count INT DEFAULT 1,
     priority INT DEFAULT 0,
     INDEX idx_stacking_type (promotion_type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS outbox_events (
     event_id VARCHAR(36) PRIMARY KEY,
@@ -102,4 +102,4 @@ CREATE TABLE IF NOT EXISTS outbox_events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     processed BOOLEAN DEFAULT FALSE,
     INDEX idx_outbox_processed (processed, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;

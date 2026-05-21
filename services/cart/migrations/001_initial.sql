@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS carts (
     INDEX idx_carts_user (user_id, status, deleted_at),
     INDEX idx_carts_session (session_id, status, deleted_at),
     INDEX idx_carts_expires (expires_at, status),
-    UNIQUE INDEX idx_uq_active_user_cart (user_id) WHERE status = 'active' AND deleted_at IS NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    INDEX idx_uq_active_user_cart (user_id, status, deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS cart_items (
     id VARCHAR(36) PRIMARY KEY,
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS cart_items (
     INDEX idx_cart_items_shop (shop_id),
     UNIQUE KEY uk_cart_sku (cart_id, sku),
     FOREIGN KEY (cart_id) REFERENCES carts(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS cart_snapshots (
     id VARCHAR(36) PRIMARY KEY,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS cart_snapshots (
     INDEX idx_snapshots_idempotency (idempotency_key),
     INDEX idx_snapshots_expires (expires_at),
     FOREIGN KEY (cart_id) REFERENCES carts(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS cart_merge_history (
     id VARCHAR(36) PRIMARY KEY,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS cart_merge_history (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_merge_user (user_id),
     INDEX idx_merge_target (target_cart_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS outbox_events (
     event_id VARCHAR(36) PRIMARY KEY,
@@ -81,4 +81,4 @@ CREATE TABLE IF NOT EXISTS outbox_events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     processed BOOLEAN DEFAULT FALSE,
     INDEX idx_outbox_processed (processed, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;

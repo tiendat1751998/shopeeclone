@@ -24,7 +24,7 @@ function safeQuantity(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.floor(value)));
 }
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
+export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [skus, setSkus] = useState<SKU[]>([]);
   const [selectedSKU, setSelectedSKU] = useState<SKU | null>(null);
@@ -33,10 +33,16 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [id, setId] = useState<string>("");
   const addItem = useCartStore((s) => s.addItem);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    paramsPromise.then((p) => setId(p.id));
+  }, [paramsPromise]);
+
+  useEffect(() => {
+    if (!id) return;
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -44,8 +50,8 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     setError(null);
 
     Promise.all([
-      productsApi.getById(params.id, controller.signal),
-      skusApi.getByProduct(params.id, controller.signal),
+      productsApi.getById(id, controller.signal),
+      skusApi.getByProduct(id, controller.signal),
     ])
       .then(([p, s]) => {
         if (!controller.signal.aborted) {
@@ -63,7 +69,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
       });
 
     return () => controller.abort();
-  }, [params.id]);
+  }, [id]);
 
   const handleAddToCart = async () => {
     if (!product || !selectedSKU) return;

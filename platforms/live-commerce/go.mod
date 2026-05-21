@@ -74,4 +74,3 @@ require (
 )
 
 replace github.com/shopee-clone/shopee/packages/go-shared => ../../packages/go-shared
-

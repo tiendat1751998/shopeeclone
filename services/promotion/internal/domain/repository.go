@@ -1,13 +1,20 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"database/sql"
+)
 
 type VoucherRepository interface {
 	FindByID(ctx context.Context, id string) (*Voucher, error)
 	FindByCode(ctx context.Context, code string) (*Voucher, error)
+	FindByCodeForUpdate(ctx context.Context, tx *sql.Tx, code string) (*Voucher, error)
+	BeginTx(ctx context.Context) (*sql.Tx, error)
 	Create(ctx context.Context, v *Voucher) error
 	Update(ctx context.Context, v *Voucher) error
 	IncrementUsage(ctx context.Context, id string) error
+	IncrementUsageAtomic(ctx context.Context, id string, usageLimit int64) error
+	IncrementUsageInTx(ctx context.Context, tx *sql.Tx, id string, usageLimit int64) error
 	ListActive(ctx context.Context, offset, limit int) ([]*Voucher, int64, error)
 }
 
@@ -15,9 +22,12 @@ type VoucherRedemptionRepository interface {
 	FindByID(ctx context.Context, id string) (*VoucherRedemption, error)
 	FindByUserAndVoucher(ctx context.Context, userID, voucherID string) ([]*VoucherRedemption, error)
 	FindByIdempotencyKey(ctx context.Context, key string) (*VoucherRedemption, error)
+	FindByIdempotencyKeyInTx(ctx context.Context, tx *sql.Tx, key string) (*VoucherRedemption, error)
 	CountByVoucher(ctx context.Context, voucherID string) (int64, error)
 	CountByUserAndVoucher(ctx context.Context, userID, voucherID string) (int, error)
+	CountByUserAndVoucherInTx(ctx context.Context, tx *sql.Tx, userID, voucherID string) (int, error)
 	Create(ctx context.Context, r *VoucherRedemption) error
+	CreateInTx(ctx context.Context, tx *sql.Tx, r *VoucherRedemption) error
 }
 
 type CampaignRepository interface {

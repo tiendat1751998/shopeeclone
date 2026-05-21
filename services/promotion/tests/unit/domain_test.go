@@ -45,7 +45,7 @@ func TestVoucher_IsExpired(t *testing.T) {
 
 func TestVoucher_CalculateDiscount_Percentage(t *testing.T) {
 	now := time.Now()
-	v := domain.NewVoucher("PCT10", "10% Off", domain.VoucherTypePercentage, 10, 0, 5000, now, now.Add(24*time.Hour))
+	v := domain.NewVoucher("PCT10", "10% Off", domain.VoucherTypePercentage, 10, 0, 0, now, now.Add(24*time.Hour))
 	discount := v.CalculateDiscount(100000)
 	if discount != 10000 {
 		t.Errorf("expected discount 10000, got %d", discount)

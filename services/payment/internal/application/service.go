@@ -24,10 +24,11 @@ type PaymentService struct {
 	paymentRepo   *mysql.PaymentRepository
 	redisStore    *redisinfra.Store
 	kafkaProducer *kafka.Producer
+	fraudDetector domain.FraudDetector
 }
 
-func NewPaymentService(cfg *config.Config, paymentRepo *mysql.PaymentRepository, redisStore *redisinfra.Store, kafkaProducer *kafka.Producer) *PaymentService {
-	return &PaymentService{cfg: cfg, paymentRepo: paymentRepo, redisStore: redisStore, kafkaProducer: kafkaProducer}
+func NewPaymentService(cfg *config.Config, paymentRepo *mysql.PaymentRepository, redisStore *redisinfra.Store, kafkaProducer *kafka.Producer, fraudDetector domain.FraudDetector) *PaymentService {
+	return &PaymentService{cfg: cfg, paymentRepo: paymentRepo, redisStore: redisStore, kafkaProducer: kafkaProducer, fraudDetector: fraudDetector}
 }
 
 type AuthorizePaymentRequest struct {
@@ -47,14 +48,11 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 	start := time.Now()
 	defer func() { metrics.PaymentAuthorizationLatency.WithLabelValues(s.cfg.Payment.DefaultPSP).Observe(time.Since(start).Seconds()) }()
 
-	// [SECURITY] Acquire distributed lock BEFORE idempotency check and payment creation.
-	// This prevents race conditions where two concurrent requests with the same idempotency
-	// key both pass the idempotency check and attempt to create payments simultaneously.
-	locked, err := s.redisStore.AcquirePaymentLock(ctx, req.OrderID, 30*time.Second)
+	lockToken, locked, err := s.redisStore.AcquirePaymentLock(ctx, req.OrderID, 30*time.Second)
 	if err != nil || !locked {
 		return nil, fmt.Errorf("failed to acquire payment lock")
 	}
-	defer s.redisStore.ReleasePaymentLock(ctx, req.OrderID)
+	defer s.redisStore.ReleasePaymentLock(ctx, req.OrderID, lockToken)
 
 	// Idempotency check (inside lock)
 	if req.IdempotencyKey != "" {
@@ -83,11 +81,18 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 	payment := domain.NewPayment(req.OrderID, req.UserID, req.Amount, currency, req.PaymentMethod, s.cfg.Payment.DefaultPSP, req.IdempotencyKey)
 	payment.Metadata = req.Metadata
 
-	// [FIX A2] Fraud check - MUST handle error
-	fraudResult := domain.NewFraudCheckResult(payment.ID, req.UserID, 10, false)
-	if err := s.paymentRepo.SaveFraudCheck(ctx, fraudResult); err != nil {
-		observability.LogWithTrace(ctx).Error("failed to save fraud check", zap.Error(err))
-		// Don't fail the payment, but log for investigation
+	// Fraud check via domain service
+	fraudResult, err := s.fraudDetector.Assess(ctx, payment.ID, req.UserID, req.Amount, req.PaymentMethod)
+	if err != nil {
+		observability.LogWithTrace(ctx).Error("fraud detection failed", zap.Error(err))
+	} else {
+		if err := s.paymentRepo.SaveFraudCheck(ctx, fraudResult); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to save fraud check", zap.Error(err))
+		}
+		if fraudResult.IsFraud {
+			metrics.FraudDetectedCount.Inc()
+			return nil, domain.ErrFraudDetected
+		}
 	}
 
 	// Simulate PSP authorization
@@ -100,10 +105,9 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 		return nil, fmt.Errorf("failed to create payment: %w", err)
 	}
 
-	// [FIX A2] Store idempotency - MUST handle error
+	// Store idempotency
 	if req.IdempotencyKey != "" {
-		rec := domain.NewIdempotencyRecord(payment.ID, s.cfg.Payment.IdempotencyTTL)
-		rec.Key = req.IdempotencyKey
+		rec := domain.NewIdempotencyRecord(req.IdempotencyKey, payment.ID, s.cfg.Payment.IdempotencyTTL)
 		if err := s.paymentRepo.SaveIdempotencyKey(ctx, rec); err != nil {
 			observability.LogWithTrace(ctx).Error("failed to save idempotency key", zap.Error(err))
 		}
@@ -145,6 +149,7 @@ func (s *PaymentService) CapturePayment(ctx context.Context, paymentID, actorID 
 
 	payment, err := s.paymentRepo.FindByID(ctx, paymentID)
 	if err != nil { return nil, err }
+	if payment.UserID != actorID { return nil, domain.ErrUnauthorized }
 
 	if err := payment.TransitionTo(domain.PaymentStatusCaptured); err != nil {
 		return nil, err
@@ -174,12 +179,13 @@ func (s *PaymentService) CapturePayment(ctx context.Context, paymentID, actorID 
 	return payment, nil
 }
 
-func (s *PaymentService) RefundPayment(ctx context.Context, paymentID, reason, idempotencyKey string, amount int64) (*domain.Refund, error) {
+func (s *PaymentService) RefundPayment(ctx context.Context, paymentID, reason, idempotencyKey string, amount int64, actorID string) (*domain.Refund, error) {
 	ctx, span := otel.Tracer("shopee-payment").Start(ctx, "PaymentService.RefundPayment")
 	defer span.End()
 
 	payment, err := s.paymentRepo.FindByID(ctx, paymentID)
 	if err != nil { return nil, err }
+	if payment.UserID != actorID { return nil, domain.ErrUnauthorized }
 
 	if payment.Status != domain.PaymentStatusCaptured && payment.Status != domain.PaymentStatusPartialRefund {
 		return nil, domain.ErrRefundNotAllowed

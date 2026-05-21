@@ -123,7 +123,7 @@ func (o *Order) CanTransitionTo(target OrderStatus) bool {
 		OrderStatusAwaitingPayment: {OrderStatusPaid, OrderStatusCancelled},
 		OrderStatusPaid:            {OrderStatusProcessing, OrderStatusCancelled},
 		OrderStatusProcessing:      {OrderStatusPacked, OrderStatusCancelled},
-		OrderStatusPacked:          {OrderStatusShipped},
+		OrderStatusPacked:          {OrderStatusShipped, OrderStatusCancelled},
 		OrderStatusShipped:         {OrderStatusDelivered, OrderStatusRefunded},
 		OrderStatusDelivered:       {OrderStatusCompleted, OrderStatusRefunded},
 		OrderStatusCompleted:       {OrderStatusRefunded},
@@ -169,8 +169,7 @@ func (o *Order) IsCancellable() bool {
 		o.Status != OrderStatusRefunded &&
 		o.Status != OrderStatusCompleted &&
 		o.Status != OrderStatusDelivered &&
-		o.Status != OrderStatusShipped &&
-		o.Status != OrderStatusPacked
+		o.Status != OrderStatusShipped
 }
 
 func (o *Order) IsTerminal() bool {

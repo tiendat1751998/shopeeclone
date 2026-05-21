@@ -296,6 +296,7 @@ services:
       - "9098:9098"
     environment:
       APP_ENV: development
+      PORT: "8088"
       HTTP_PORT: "8088"
       GRPC_PORT: "9098"
       MYSQL_HOST: mysql-primary

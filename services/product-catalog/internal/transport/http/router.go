@@ -32,8 +32,8 @@ func (r *Router) Setup(e *gin.Engine) {
 		api.GET("/products/:id", r.handler.GetProduct)
 		api.PUT("/products/:id", r.handler.UpdateProduct)
 		api.DELETE("/products/:id", r.handler.ArchiveProduct)
-		api.GET("/products/:product_id/skus", r.handler.AddSKU)
-		api.POST("/products/:product_id/skus", r.handler.AddSKU)
+		api.GET("/products/:id/skus", r.handler.AddSKU)
+		api.POST("/products/:id/skus", r.handler.AddSKU)
 		api.GET("/categories", r.handler.GetCategories)
 		api.POST("/categories", r.handler.CreateCategory)
 	}

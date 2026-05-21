@@ -4,8 +4,10 @@ import (
 	"context"
 	"math"
 	"math/rand"
+	"sync"
 	"time"
 )
+
 
 type RetryConfig struct {
 	MaxAttempts int
@@ -68,6 +70,7 @@ const (
 )
 
 type CircuitBreaker struct {
+	mu           sync.Mutex
 	state        CircuitState
 	failureCount int
 	threshold    int
@@ -84,22 +87,43 @@ func NewCircuitBreaker(threshold int, resetTimeout time.Duration) *CircuitBreake
 }
 
 func (cb *CircuitBreaker) Execute(ctx context.Context, fn func(context.Context) error) error {
-	cb.maybeReset()
-	if cb.state == CircuitOpen {
-		return ErrCircuitOpen
-	}
-	if err := fn(ctx); err != nil {
-		cb.failureCount++
-		cb.lastFailure = time.Now()
-		if cb.failureCount >= cb.threshold {
-			cb.state = CircuitOpen
-		}
+	if err := cb.recordAttempt(); err != nil {
 		return err
 	}
+	if err := fn(ctx); err != nil {
+		cb.recordFailure()
+		return err
+	}
+	cb.recordSuccess()
+	return nil
+}
+
+func (cb *CircuitBreaker) recordFailure() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.failureCount++
+	cb.lastFailure = time.Now()
+	if cb.failureCount >= cb.threshold {
+		cb.state = CircuitOpen
+	}
+}
+
+func (cb *CircuitBreaker) recordSuccess() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 	if cb.state == CircuitHalfOpen {
 		cb.state = CircuitClosed
 	}
 	cb.failureCount = 0
+}
+
+func (cb *CircuitBreaker) recordAttempt() error {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.maybeReset()
+	if cb.state == CircuitOpen {
+		return ErrCircuitOpen
+	}
 	return nil
 }
 
@@ -110,6 +134,8 @@ func (cb *CircuitBreaker) maybeReset() {
 }
 
 func (cb *CircuitBreaker) State() CircuitState {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 	cb.maybeReset()
 	return cb.state
 }

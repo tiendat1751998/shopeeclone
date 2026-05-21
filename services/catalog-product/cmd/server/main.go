@@ -78,6 +78,7 @@ func main() {
 	gin.SetMode(getGinMode(cfg.AppEnv))
 	router := gin.New()
 	router.Use(middleware.Recovery())
+	router.Use(middleware.ErrorHandler())
 	router.Use(middleware.RequestID())
 	router.Use(middleware.CORS())
 	router.Use(middleware.OTelMiddleware("catalog-product"))

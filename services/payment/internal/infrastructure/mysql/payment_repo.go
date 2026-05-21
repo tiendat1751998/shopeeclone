@@ -29,7 +29,7 @@ func (r *PaymentRepository) Create(ctx context.Context, p *domain.Payment) error
 
 func (r *PaymentRepository) FindByID(ctx context.Context, id string) (*domain.Payment, error) {
 	var p domain.Payment
-	if err := r.db.GetContext(ctx, &p, "SELECT id, order_id, user_id, amount, currency, status, payment_method, psp_transaction_id, psp_provider, idempotency_key, amount_refunded, failure_reason, metadata, version, authorized_at, captured_at, created_at, updated_at FROM payments WHERE id = ?", id); err != nil {
+	if err := r.db.GetContext(ctx, &p, "SELECT id, order_id, user_id, amount, currency, status, payment_method, psp_transaction_id, psp_provider, idempotency_key, amount_refunded, failure_reason, metadata, version, authorized_at, captured_at, created_at, updated_at FROM payments WHERE id = ? AND deleted_at IS NULL", id); err != nil {
 		if err == sql.ErrNoRows { return nil, domain.ErrPaymentNotFound }
 		return nil, err
 	}
@@ -47,15 +47,15 @@ func (r *PaymentRepository) FindByOrderID(ctx context.Context, orderID string) (
 
 func (r *PaymentRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.Payment, error) {
 	var p domain.Payment
-	if err := r.db.GetContext(ctx, &p, "SELECT id, order_id, user_id, amount, currency, status, payment_method, psp_transaction_id, psp_provider, idempotency_key, amount_refunded, failure_reason, metadata, version, authorized_at, captured_at, created_at, updated_at FROM payments WHERE idempotency_key = ?", key); err != nil {
-		if err == sql.ErrNoRows { return nil, nil }
+	if err := r.db.GetContext(ctx, &p, "SELECT id, order_id, user_id, amount, currency, status, payment_method, psp_transaction_id, psp_provider, idempotency_key, amount_refunded, failure_reason, metadata, version, authorized_at, captured_at, created_at, updated_at FROM payments WHERE idempotency_key = ? AND deleted_at IS NULL", key); err != nil {
+		if err == sql.ErrNoRows { return nil, domain.ErrPaymentNotFound }
 		return nil, err
 	}
 	return &p, nil
 }
 
 func (r *PaymentRepository) UpdateStatus(ctx context.Context, id string, status domain.PaymentStatus, version int) error {
-	result, err := r.db.ExecContext(ctx, "UPDATE payments SET status = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?", status, time.Now().UTC(), id, version)
+	result, err := r.db.ExecContext(ctx, "UPDATE payments SET status = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ? AND deleted_at IS NULL", status, time.Now().UTC(), id, version)
 	if err != nil { return err }
 	rows, err := result.RowsAffected()
 	if err != nil { return fmt.Errorf("rows affected: %w", err) }
@@ -64,9 +64,13 @@ func (r *PaymentRepository) UpdateStatus(ctx context.Context, id string, status 
 }
 
 func (r *PaymentRepository) Update(ctx context.Context, p *domain.Payment) error {
-	query := `UPDATE payments SET status = ?, psp_transaction_id = ?, amount_refunded = ?, failure_reason = ?, metadata = ?, version = version + 1, updated_at = ? WHERE id = ?`
-	_, err := r.db.ExecContext(ctx, query, p.Status, p.PSPTransactionID, p.AmountRefunded, p.FailureReason, p.Metadata, time.Now().UTC(), p.ID)
-	return err
+	query := `UPDATE payments SET status = ?, psp_transaction_id = ?, amount_refunded = ?, failure_reason = ?, metadata = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ? AND deleted_at IS NULL`
+	result, err := r.db.ExecContext(ctx, query, p.Status, p.PSPTransactionID, p.AmountRefunded, p.FailureReason, p.Metadata, time.Now().UTC(), p.ID, p.Version-1)
+	if err != nil { return err }
+	rows, err := result.RowsAffected()
+	if err != nil { return fmt.Errorf("rows affected: %w", err) }
+	if rows == 0 { return domain.ErrConcurrentModification }
+	return nil
 }
 
 func (r *PaymentRepository) SaveRefund(ctx context.Context, refund *domain.Refund) error {

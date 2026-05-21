@@ -243,11 +243,27 @@ func jwkToPublicKey(jwk JWK) (*rsa.PublicKey, error) {
 }
 
 func NewJWTValidator(cfg config.AuthConfig, rdb *redis.Client) *JWTValidator {
-	return &JWTValidator{
+	v := &JWTValidator{
 		cfg:        cfg,
 		redis:      rdb,
 		jwksClient: NewJWKSClient(cfg.JWKSEndpoint),
 		cache:      make(map[string]*cacheEntry),
+	}
+	go v.periodicCacheCleanup()
+	return v
+}
+
+func (v *JWTValidator) periodicCacheCleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		v.mu.Lock()
+		for key, entry := range v.cache {
+			if time.Now().After(entry.expiresAt) {
+				delete(v.cache, key)
+			}
+		}
+		v.mu.Unlock()
 	}
 }
 
