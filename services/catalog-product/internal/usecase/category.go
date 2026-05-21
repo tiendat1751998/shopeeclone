@@ -43,7 +43,9 @@ func (uc *CategoryUseCase) Create(ctx context.Context, category *domain.Category
 	if uc.producer != nil {
 		event := domain.NewCategoryCreatedEvent(category)
 		if payload, err := event.Marshal(); err == nil {
+
 			uc.producer.Publish(ctx, kafka.Message{Key: category.CategoryID, Value: payload, Topic: "catalog.events"})
+
 		}
 	}
 
