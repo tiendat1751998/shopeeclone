@@ -1,6 +1,6 @@
 module github.com/shopee-clone/shopee/platforms/logistics-delivery
 
-go 1.22
+go 1.26.3
 
 require (
 	github.com/gin-gonic/gin v1.9.1
@@ -57,3 +57,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240116215550-a9fa1716bcac // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/shopee-clone/shopee/packages/go-shared => ../../packages/go-shared
+
