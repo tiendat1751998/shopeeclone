@@ -66,7 +66,7 @@ func (r *OrderRepository) Create(ctx context.Context, order *domain.Order, outbo
 }
 
 func (r *OrderRepository) FindByID(ctx context.Context, id string) (*domain.Order, error) {
-	query := `SELECT * FROM orders WHERE id = ? AND deleted_at IS NULL`
+	query := `SELECT id, order_number, user_id, seller_id, status, total_amount, currency, shipping_address, billing_address, idempotency_key, snapshot_id, parent_order_id, metadata, version, created_at, updated_at, deleted_at FROM orders WHERE id = ? AND deleted_at IS NULL`
 	var order domain.Order
 	err := r.db.GetContext(ctx, &order, query, id)
 	if err == sql.ErrNoRows {
@@ -89,7 +89,7 @@ func (r *OrderRepository) FindByIDs(ctx context.Context, ids []string) (map[stri
 		return nil, nil
 	}
 	var orders []*domain.Order
-	query, args, err := sqlx.In("SELECT * FROM orders WHERE id IN (?) AND deleted_at IS NULL", ids)
+	query, args, err := sqlx.In("SELECT id, order_number, user_id, seller_id, status, total_amount, currency, shipping_address, billing_address, idempotency_key, snapshot_id, parent_order_id, metadata, version, created_at, updated_at, deleted_at FROM orders WHERE id IN (?) AND deleted_at IS NULL", ids)
 	if err != nil {
 		return nil, fmt.Errorf("build find by ids: %w", err)
 	}
@@ -106,7 +106,7 @@ func (r *OrderRepository) FindByIDs(ctx context.Context, ids []string) (map[stri
 
 func (r *OrderRepository) FindByOrderNumber(ctx context.Context, orderNumber string) (*domain.Order, error) {
 	var order domain.Order
-	query := `SELECT * FROM orders WHERE order_number = ? AND deleted_at IS NULL`
+	query := `SELECT id, order_number, user_id, seller_id, status, total_amount, currency, shipping_address, billing_address, idempotency_key, snapshot_id, parent_order_id, metadata, version, created_at, updated_at, deleted_at FROM orders WHERE order_number = ? AND deleted_at IS NULL`
 	if err := r.db.GetContext(ctx, &order, query, orderNumber); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, domain.ErrOrderNotFound
@@ -118,7 +118,7 @@ func (r *OrderRepository) FindByOrderNumber(ctx context.Context, orderNumber str
 
 func (r *OrderRepository) FindByUserID(ctx context.Context, userID string, limit, offset int) ([]*domain.Order, error) {
 	var orders []*domain.Order
-	query := `SELECT * FROM orders WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`
+	query := `SELECT id, order_number, user_id, seller_id, status, total_amount, currency, shipping_address, billing_address, idempotency_key, snapshot_id, parent_order_id, metadata, version, created_at, updated_at, deleted_at FROM orders WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`
 	if err := r.db.SelectContext(ctx, &orders, query, userID, limit, offset); err != nil {
 		return nil, fmt.Errorf("failed to list orders: %w", err)
 	}
@@ -164,7 +164,7 @@ func (r *OrderRepository) Update(ctx context.Context, order *domain.Order) error
 
 func (r *OrderRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.Order, error) {
 	var order domain.Order
-	query := `SELECT * FROM orders WHERE idempotency_key = ? AND deleted_at IS NULL`
+	query := `SELECT id, order_number, user_id, seller_id, status, total_amount, currency, shipping_address, billing_address, idempotency_key, snapshot_id, parent_order_id, metadata, version, created_at, updated_at, deleted_at FROM orders WHERE idempotency_key = ? AND deleted_at IS NULL`
 	if err := r.db.GetContext(ctx, &order, query, key); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -176,7 +176,7 @@ func (r *OrderRepository) FindByIdempotencyKey(ctx context.Context, key string) 
 
 func (r *OrderRepository) FindItemsByOrderID(ctx context.Context, orderID string) ([]domain.OrderItem, error) {
 	var items []domain.OrderItem
-	query := `SELECT * FROM order_items WHERE order_id = ? ORDER BY id ASC LIMIT 500`
+	query := `SELECT id, order_id, product_id, sku_id, shop_id, quantity, unit_price, total_price, snapshot, created_at FROM order_items WHERE order_id = ? ORDER BY id ASC LIMIT 500`
 	if err := r.db.SelectContext(ctx, &items, query, orderID); err != nil {
 		return nil, fmt.Errorf("failed to find order items: %w", err)
 	}
@@ -185,7 +185,7 @@ func (r *OrderRepository) FindItemsByOrderID(ctx context.Context, orderID string
 
 func (r *OrderRepository) FindByParentOrderID(ctx context.Context, parentOrderID string) ([]*domain.Order, error) {
 	var orders []*domain.Order
-	query := `SELECT * FROM orders WHERE parent_order_id = ? AND deleted_at IS NULL`
+	query := `SELECT id, order_number, user_id, seller_id, status, total_amount, currency, shipping_address, billing_address, idempotency_key, snapshot_id, parent_order_id, metadata, version, created_at, updated_at, deleted_at FROM orders WHERE parent_order_id = ? AND deleted_at IS NULL`
 	if err := r.db.SelectContext(ctx, &orders, query, parentOrderID); err != nil {
 		return nil, fmt.Errorf("failed to find sub-orders: %w", err)
 	}
@@ -207,7 +207,7 @@ func (r *OrderRepository) SaveOutboxEvent(ctx context.Context, event *domain.Out
 
 func (r *OrderRepository) GetUnprocessedOutboxEvents(ctx context.Context, limit int) ([]*domain.OutboxEvent, error) {
 	var events []*domain.OutboxEvent
-	query := `SELECT * FROM outbox_events WHERE processed = FALSE ORDER BY created_at ASC LIMIT ?`
+	query := `SELECT event_id, aggregate_type, aggregate_id, event_type, status, error_message, retries, payload, created_at, processed FROM outbox_events WHERE processed = FALSE ORDER BY created_at ASC LIMIT ?`
 	if err := r.db.SelectContext(ctx, &events, query, limit); err != nil {
 		return nil, fmt.Errorf("failed to get outbox events: %w", err)
 	}
@@ -232,7 +232,7 @@ func (r *OrderRepository) SaveLifecycleEvent(ctx context.Context, event *domain.
 
 func (r *OrderRepository) GetLifecycleHistory(ctx context.Context, orderID string) ([]*domain.LifecycleEvent, error) {
 	var events []*domain.LifecycleEvent
-	query := `SELECT * FROM order_lifecycle_history WHERE order_id = ? ORDER BY created_at ASC LIMIT 1000`
+	query := `SELECT id, order_id, from_state, to_state, transition_reason, actor_id, actor_type, metadata, created_at FROM order_lifecycle_history WHERE order_id = ? ORDER BY created_at ASC LIMIT 1000`
 	if err := r.db.SelectContext(ctx, &events, query, orderID); err != nil {
 		return nil, fmt.Errorf("failed to get lifecycle history: %w", err)
 	}
@@ -250,7 +250,7 @@ func (r *OrderRepository) SaveSnapshot(ctx context.Context, snapshot *domain.Ord
 
 func (r *OrderRepository) GetSnapshot(ctx context.Context, snapshotID string) (*domain.OrderSnapshot, error) {
 	var snapshot domain.OrderSnapshot
-	query := `SELECT * FROM order_snapshots WHERE id = ?`
+	query := `SELECT id, order_id, snapshot_data, checksum, created_at FROM order_snapshots WHERE id = ?`
 	if err := r.db.GetContext(ctx, &snapshot, query, snapshotID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, domain.ErrOrderNotFound
@@ -366,7 +366,7 @@ func (r *OrderRepository) UpdateReconciliationStatus(ctx context.Context, id str
 
 func (r *OrderRepository) GetPendingReconciliations(ctx context.Context, limit int) ([]*domain.OrderReconciliation, error) {
 	var recs []*domain.OrderReconciliation
-	query := `SELECT * FROM order_reconciliation WHERE status IN ('pending', 'in_progress') AND retry_count < max_retries ORDER BY created_at ASC LIMIT ?`
+	query := `SELECT id, order_id, reconciliation_type, status, last_checked_at, retry_count, max_retries, metadata, created_at, updated_at FROM order_reconciliation WHERE status IN ('pending', 'in_progress') AND retry_count < max_retries ORDER BY created_at ASC LIMIT ?`
 	if err := r.db.SelectContext(ctx, &recs, query, limit); err != nil {
 		return nil, err
 	}
@@ -392,7 +392,7 @@ func (r *OrderRepository) SaveIdempotencyKey(ctx context.Context, record *domain
 
 func (r *OrderRepository) GetIdempotencyKey(ctx context.Context, key string) (*domain.IdempotencyRecord, error) {
 	var record domain.IdempotencyRecord
-	query := "SELECT * FROM idempotency_keys WHERE `key` = ?"
+	query := "SELECT `key`, order_id, expires_at, created_at FROM idempotency_keys WHERE `key` = ?"
 	if err := r.db.GetContext(ctx, &record, query, key); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

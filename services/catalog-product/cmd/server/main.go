@@ -75,6 +75,7 @@ func main() {
 		})
 	}
 
+	gin.SetMode(getGinMode(cfg.AppEnv))
 	router := gin.New()
 	router.Use(middleware.Recovery())
 	router.Use(middleware.RequestID())
@@ -156,4 +157,11 @@ func main() {
 	}
 
 	logger.Info("server stopped")
+}
+
+func getGinMode(env string) string {
+	if env == "production" || env == "staging" {
+		return gin.ReleaseMode
+	}
+	return gin.DebugMode
 }

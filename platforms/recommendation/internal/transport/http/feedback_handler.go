@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -33,9 +32,9 @@ func (h *Handler) RecordFeedback(c *gin.Context) {
 
 	switch req.EventType {
 	case "click":
-		h.collab.RecordInteraction(context.Background(), req.UserID, req.ProductID, false)
-		h.trending.RecordInteraction(context.Background(), req.ProductID)
-		h.publisher.Publish(context.Background(), events.EventItemClicked, events.ItemClicked{
+		h.collab.RecordInteraction(c.Request.Context(), req.UserID, req.ProductID, false)
+		h.trending.RecordInteraction(c.Request.Context(), req.ProductID)
+		h.publisher.Publish(c.Request.Context(), events.EventItemClicked, events.ItemClicked{
 			UserID:    req.UserID,
 			ProductID: req.ProductID,
 			SessionID: req.SessionID,
@@ -43,16 +42,16 @@ func (h *Handler) RecordFeedback(c *gin.Context) {
 		})
 
 	case "purchase":
-		h.collab.RecordInteraction(context.Background(), req.UserID, req.ProductID, true)
-		h.trending.RecordInteraction(context.Background(), req.ProductID)
-		h.publisher.Publish(context.Background(), events.EventItemPurchased, events.ItemPurchased{
+		h.collab.RecordInteraction(c.Request.Context(), req.UserID, req.ProductID, true)
+		h.trending.RecordInteraction(c.Request.Context(), req.ProductID)
+		h.publisher.Publish(c.Request.Context(), events.EventItemPurchased, events.ItemPurchased{
 			UserID:    req.UserID,
 			ProductID: req.ProductID,
 			Timestamp: time.Now(),
 		})
 
 	case "view":
-		h.trending.RecordInteraction(context.Background(), req.ProductID)
+		h.trending.RecordInteraction(c.Request.Context(), req.ProductID)
 
 	default:
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "unknown event_type: must be click, purchase, or view"})

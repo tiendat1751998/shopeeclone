@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -61,7 +60,7 @@ func (h *Handler) RecordImpression(c *gin.Context) {
 	metrics.ImpressionsTotal.Inc()
 	metrics.SpendTotal.Add(req.Cost)
 
-	h.publisher.Publish(context.Background(), events.EventImpressionRecorded, events.ImpressionRecorded{
+	h.publisher.Publish(c.Request.Context(), events.EventImpressionRecorded, events.ImpressionRecorded{
 		ImpressionID: imp.ID,
 		CampaignID:   req.CampaignID,
 		CreativeID:   req.CreativeID,
@@ -96,7 +95,7 @@ func (h *Handler) RecordClick(c *gin.Context) {
 	metrics.ClicksTotal.Inc()
 	metrics.SpendTotal.Add(req.Cost)
 
-	h.publisher.Publish(context.Background(), events.EventClickRecorded, events.ClickRecorded{
+	h.publisher.Publish(c.Request.Context(), events.EventClickRecorded, events.ClickRecorded{
 		ClickID:      click.ID,
 		ImpressionID: req.ImpressionID,
 		CampaignID:   req.CampaignID,
@@ -132,7 +131,7 @@ func (h *Handler) RecordConversion(c *gin.Context) {
 
 	metrics.ConversionsTotal.Inc()
 
-	h.publisher.Publish(context.Background(), events.EventConversionRecorded, conv)
+	h.publisher.Publish(c.Request.Context(), events.EventConversionRecorded, conv)
 
 	c.JSON(http.StatusOK, gin.H{"id": conv.ID, "message": "conversion recorded"})
 }

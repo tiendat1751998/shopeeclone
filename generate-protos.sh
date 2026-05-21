@@ -9,7 +9,7 @@ echo "Starting protobuf compilation inside a golang Docker container..."
 docker run --rm \
   -v "$(pwd)":/workspace \
   -w /workspace \
-  golang:tip-trixie \
+  golang:1.26.3-bookworm \
   sh -c "
     apt-get update && apt-get install -y protobuf-compiler libprotobuf-dev git wget && \
     go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \

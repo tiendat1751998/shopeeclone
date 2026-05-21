@@ -157,6 +157,7 @@ func (s *CheckoutService) stepValidate(ctx context.Context, checkout *domain.Che
 	}
 
 	s.logStep(ctx, checkout.ID, domain.StepValidate, "success", "", time.Since(start).Milliseconds())
+	metrics.CheckoutLatency.WithLabelValues(domain.StepValidate).Observe(time.Since(start).Seconds())
 	return nil
 }
 
@@ -206,6 +207,7 @@ func (s *CheckoutService) stepFreezePricing(ctx context.Context, checkout *domai
 	s.checkoutRepo.Update(ctx, checkout)
 
 	s.logStep(ctx, checkout.ID, domain.StepFreezePricing, "success", "", time.Since(start).Milliseconds())
+	metrics.CheckoutLatency.WithLabelValues(domain.StepFreezePricing).Observe(time.Since(start).Seconds())
 	return nil
 }
 
@@ -246,6 +248,7 @@ func (s *CheckoutService) stepReserveInventory(ctx context.Context, checkout *do
 	s.checkoutRepo.Update(ctx, checkout)
 
 	s.logStep(ctx, checkout.ID, domain.StepReserve, "success", fmt.Sprintf("reserved %d items", len(reservationKeys)), time.Since(start).Milliseconds())
+	metrics.CheckoutLatency.WithLabelValues(domain.StepReserve).Observe(time.Since(start).Seconds())
 	return reservationKeys, nil
 }
 
@@ -260,6 +263,7 @@ func (s *CheckoutService) stepProcess(ctx context.Context, checkout *domain.Chec
 	orderID := fmt.Sprintf("ORD-%s", checkout.ID[:8])
 
 	s.logStep(ctx, checkout.ID, domain.StepProcess, "success", "order_created:"+orderID, time.Since(start).Milliseconds())
+	metrics.CheckoutLatency.WithLabelValues(domain.StepProcess).Observe(time.Since(start).Seconds())
 	return nil
 }
 

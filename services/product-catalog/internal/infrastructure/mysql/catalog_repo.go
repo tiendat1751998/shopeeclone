@@ -38,7 +38,7 @@ func (r *CatalogRepository) CreateProduct(ctx context.Context, p *domain.Product
 
 func (r *CatalogRepository) FindProductByID(ctx context.Context, id string) (*domain.Product, error) {
 	var p domain.Product
-	query := `SELECT * FROM products WHERE id = ? AND deleted_at IS NULL`
+	query := `SELECT id, shop_id, name, description, category_id, brand, idempotency_key, status, condition, weight, dimensions, metadata, currency, version, created_at, updated_at, deleted_at FROM products WHERE id = ? AND deleted_at IS NULL`
 	if err := r.db.GetContext(ctx, &p, query, id); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, domain.ErrProductNotFound
@@ -54,10 +54,10 @@ func (r *CatalogRepository) FindProductsByShopID(ctx context.Context, shopID, st
 	var args []interface{}
 
 	if status != "" {
-		query = `SELECT * FROM products WHERE shop_id = ? AND status = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`
+		query = `SELECT id, shop_id, name, description, category_id, brand, idempotency_key, status, condition, weight, dimensions, metadata, currency, version, created_at, updated_at, deleted_at FROM products WHERE shop_id = ? AND status = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`
 		args = []interface{}{shopID, status, limit, offset}
 	} else {
-		query = `SELECT * FROM products WHERE shop_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`
+		query = `SELECT id, shop_id, name, description, category_id, brand, idempotency_key, status, condition, weight, dimensions, metadata, currency, version, created_at, updated_at, deleted_at FROM products WHERE shop_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`
 		args = []interface{}{shopID, limit, offset}
 	}
 
@@ -106,7 +106,7 @@ func (r *CatalogRepository) UpdateProduct(ctx context.Context, p *domain.Product
 
 func (r *CatalogRepository) FindProductByIdempotencyKey(ctx context.Context, key string) (*domain.Product, error) {
 	var p domain.Product
-	if err := r.db.GetContext(ctx, &p, "SELECT * FROM products WHERE idempotency_key = ?", key); err != nil {
+	if err := r.db.GetContext(ctx, &p, "SELECT id, shop_id, name, description, category_id, brand, idempotency_key, status, condition, weight, dimensions, metadata, currency, version, created_at, updated_at, deleted_at FROM products WHERE idempotency_key = ?", key); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -131,7 +131,7 @@ func (r *CatalogRepository) CreateSKU(ctx context.Context, sku *domain.SKU) erro
 
 func (r *CatalogRepository) FindSKUsByProductID(ctx context.Context, productID string) ([]domain.SKU, error) {
 	var skus []domain.SKU
-	err := r.db.SelectContext(ctx, &skus, "SELECT * FROM skus WHERE product_id = ? ORDER BY sort_order ASC LIMIT 500", productID)
+	err := r.db.SelectContext(ctx, &skus, "SELECT id, product_id, sku_code, name, price, compare_price, currency, stock, reserved_stock, weight, dimensions, status, attributes, metadata, version, created_at, updated_at FROM skus WHERE product_id = ? ORDER BY sort_order ASC LIMIT 500", productID)
 	return skus, err
 }
 
@@ -150,7 +150,7 @@ func (r *CatalogRepository) CreateCategory(ctx context.Context, c *domain.Catego
 
 func (r *CatalogRepository) FindCategoryByID(ctx context.Context, id string) (*domain.Category, error) {
 	var c domain.Category
-	if err := r.db.GetContext(ctx, &c, "SELECT * FROM categories WHERE id = ?", id); err != nil {
+	if err := r.db.GetContext(ctx, &c, "SELECT id, parent_id, name, slug, description, image_url, sort_order, is_active, depth, path, version, created_at, updated_at FROM categories WHERE id = ?", id); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, domain.ErrCategoryNotFound
 		}
@@ -166,10 +166,10 @@ func (r *CatalogRepository) FindCategoryTree(ctx context.Context, rootID string)
 
 	if rootID != "" {
 		// Get all descendants of the root
-		query = `SELECT * FROM categories WHERE path LIKE ? AND is_active = true ORDER BY depth ASC, sort_order ASC LIMIT 1000`
+		query = `SELECT id, parent_id, name, slug, description, image_url, sort_order, is_active, depth, path, version, created_at, updated_at FROM categories WHERE path LIKE ? AND is_active = true ORDER BY depth ASC, sort_order ASC LIMIT 1000`
 		args = []interface{}{rootID + "%"}
 	} else {
-		query = `SELECT * FROM categories WHERE is_active = true ORDER BY depth ASC, sort_order ASC LIMIT 1000`
+		query = `SELECT id, parent_id, name, slug, description, image_url, sort_order, is_active, depth, path, version, created_at, updated_at FROM categories WHERE is_active = true ORDER BY depth ASC, sort_order ASC LIMIT 1000`
 		args = []interface{}{}
 	}
 
@@ -182,7 +182,7 @@ func (r *CatalogRepository) FindCategoryTree(ctx context.Context, rootID string)
 func (r *CatalogRepository) FindMediaByProductID(ctx context.Context, productID string) ([]domain.Media, error) {
 	var media []domain.Media
 	err := r.db.SelectContext(ctx, &media,
-		"SELECT * FROM media WHERE product_id = ? AND status != ? ORDER BY sort_order ASC LIMIT 100",
+		"SELECT id, product_id, sku_id, type, url, thumbnail_url, alt_text, sort_order, status, metadata, version, created_at, updated_at FROM media WHERE product_id = ? AND status != ? ORDER BY sort_order ASC LIMIT 100",
 		productID, domain.MediaStatusDeleted,
 	)
 	return media, err
@@ -203,7 +203,7 @@ func (r *CatalogRepository) SaveOutboxEvent(ctx context.Context, event *domain.O
 func (r *CatalogRepository) GetUnprocessedOutboxEvents(ctx context.Context, limit int) ([]*domain.OutboxEvent, error) {
 	var events []*domain.OutboxEvent
 	err := r.db.SelectContext(ctx, &events,
-		"SELECT * FROM outbox_events WHERE processed = FALSE ORDER BY created_at ASC LIMIT ?",
+		"SELECT event_id, aggregate_type, aggregate_id, event_type, payload, created_at, processed FROM outbox_events WHERE processed = FALSE ORDER BY created_at ASC LIMIT ?",
 		limit,
 	)
 	return events, err
@@ -224,7 +224,7 @@ func (r *CatalogRepository) SaveIdempotencyKey(ctx context.Context, rec *domain.
 
 func (r *CatalogRepository) GetIdempotencyKey(ctx context.Context, key string) (*domain.IdempotencyRecord, error) {
 	var rec domain.IdempotencyRecord
-	if err := r.db.GetContext(ctx, &rec, "SELECT * FROM idempotency_keys WHERE `key` = ?", key); err != nil {
+	if err := r.db.GetContext(ctx, &rec, "SELECT `key`, product_id, expires_at, created_at FROM idempotency_keys WHERE `key` = ?", key); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}

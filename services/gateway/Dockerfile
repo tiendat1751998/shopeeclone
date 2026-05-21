@@ -1,5 +1,6 @@
-FROM golang:1.23-alpine AS builder
 
+# Build stage
+FROM golang:1.26.3-bookworm AS builder
 RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app

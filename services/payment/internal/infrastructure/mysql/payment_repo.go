@@ -29,7 +29,7 @@ func (r *PaymentRepository) Create(ctx context.Context, p *domain.Payment) error
 
 func (r *PaymentRepository) FindByID(ctx context.Context, id string) (*domain.Payment, error) {
 	var p domain.Payment
-	if err := r.db.GetContext(ctx, &p, "SELECT * FROM payments WHERE id = ?", id); err != nil {
+	if err := r.db.GetContext(ctx, &p, "SELECT id, order_id, user_id, amount, currency, status, payment_method, psp_transaction_id, psp_provider, idempotency_key, amount_refunded, failure_reason, metadata, version, authorized_at, captured_at, created_at, updated_at FROM payments WHERE id = ?", id); err != nil {
 		if err == sql.ErrNoRows { return nil, domain.ErrPaymentNotFound }
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func (r *PaymentRepository) FindByID(ctx context.Context, id string) (*domain.Pa
 
 func (r *PaymentRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.Payment, error) {
 	var p domain.Payment
-	if err := r.db.GetContext(ctx, &p, "SELECT * FROM payments WHERE order_id = ? AND deleted_at IS NULL", orderID); err != nil {
+	if err := r.db.GetContext(ctx, &p, "SELECT id, order_id, user_id, amount, currency, status, payment_method, psp_transaction_id, psp_provider, idempotency_key, amount_refunded, failure_reason, metadata, version, authorized_at, captured_at, created_at, updated_at FROM payments WHERE order_id = ? AND deleted_at IS NULL", orderID); err != nil {
 		if err == sql.ErrNoRows { return nil, domain.ErrPaymentNotFound }
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (r *PaymentRepository) FindByOrderID(ctx context.Context, orderID string) (
 
 func (r *PaymentRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.Payment, error) {
 	var p domain.Payment
-	if err := r.db.GetContext(ctx, &p, "SELECT * FROM payments WHERE idempotency_key = ?", key); err != nil {
+	if err := r.db.GetContext(ctx, &p, "SELECT id, order_id, user_id, amount, currency, status, payment_method, psp_transaction_id, psp_provider, idempotency_key, amount_refunded, failure_reason, metadata, version, authorized_at, captured_at, created_at, updated_at FROM payments WHERE idempotency_key = ?", key); err != nil {
 		if err == sql.ErrNoRows { return nil, nil }
 		return nil, err
 	}
@@ -57,7 +57,8 @@ func (r *PaymentRepository) FindByIdempotencyKey(ctx context.Context, key string
 func (r *PaymentRepository) UpdateStatus(ctx context.Context, id string, status domain.PaymentStatus, version int) error {
 	result, err := r.db.ExecContext(ctx, "UPDATE payments SET status = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?", status, time.Now().UTC(), id, version)
 	if err != nil { return err }
-	rows, _ := result.RowsAffected()
+	rows, err := result.RowsAffected()
+	if err != nil { return fmt.Errorf("rows affected: %w", err) }
 	if rows == 0 { return domain.ErrConcurrentModification }
 	return nil
 }
@@ -94,7 +95,7 @@ func (r *PaymentRepository) SaveOutboxEvent(ctx context.Context, event *domain.O
 
 func (r *PaymentRepository) GetUnprocessedOutboxEvents(ctx context.Context, limit int) ([]*domain.OutboxEvent, error) {
 	var events []*domain.OutboxEvent
-	err := r.db.SelectContext(ctx, &events, "SELECT * FROM outbox_events WHERE processed = FALSE ORDER BY created_at ASC LIMIT ?", limit)
+	err := r.db.SelectContext(ctx, &events, "SELECT event_id, aggregate_type, aggregate_id, event_type, payload, created_at, processed FROM outbox_events WHERE processed = FALSE ORDER BY created_at ASC LIMIT ?", limit)
 	return events, err
 }
 
@@ -104,12 +105,12 @@ func (r *PaymentRepository) MarkOutboxEventProcessed(ctx context.Context, eventI
 }
 
 func (r *PaymentRepository) MarkOutboxEventProcessing(ctx context.Context, eventID string) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET processed = 'processing' WHERE event_id = ? AND processed = FALSE", eventID)
+	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET processed = TRUE, processing_at = NOW() WHERE event_id = ? AND processed = FALSE", eventID)
 	return err
 }
 
 func (r *PaymentRepository) MarkOutboxEventFailed(ctx context.Context, eventID, reason string) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET last_error = ? WHERE event_id = ?", reason, eventID)
+	_, err := r.db.ExecContext(ctx, "UPDATE outbox_events SET error_message = ? WHERE event_id = ?", reason, eventID)
 	return err
 }
 
@@ -127,7 +128,7 @@ func (r *PaymentRepository) SaveIdempotencyKey(ctx context.Context, record *doma
 
 func (r *PaymentRepository) GetIdempotencyKey(ctx context.Context, key string) (*domain.IdempotencyRecord, error) {
 	var record domain.IdempotencyRecord
-	if err := r.db.GetContext(ctx, &record, "SELECT * FROM idempotency_keys WHERE `key` = ?", key); err != nil {
+	if err := r.db.GetContext(ctx, &record, "SELECT `key`, payment_id, expires_at, created_at FROM idempotency_keys WHERE `key` = ?", key); err != nil {
 		if err == sql.ErrNoRows { return nil, nil }
 		return nil, err
 	}

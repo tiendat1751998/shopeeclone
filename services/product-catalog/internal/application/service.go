@@ -52,7 +52,7 @@ func (s *CatalogService) CreateProduct(ctx context.Context, shopID, name, descri
 		exists, err := s.redis.CheckIdempotency(ctx, "create_product:"+idempotencyKey, 24*time.Hour)
 		if err != nil {
 			observability.LogWithTrace(ctx).Warn("idempotency check failed", zap.Error(err))
-		} else if exists {
+		} else if !exists {
 			metrics.IdempotentRequests.Inc()
 			return nil, domain.ErrDuplicateRequest
 		}

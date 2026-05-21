@@ -1,4 +1,4 @@
-FROM golang:tip-trixie AS builder
+FROM golang:1.26.3-bookworm AS builder
 
 RUN apt-get update && apt-get install -y gcc libc-dev
 

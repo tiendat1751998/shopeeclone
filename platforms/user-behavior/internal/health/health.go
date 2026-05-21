@@ -8,3 +8,4 @@ func NewChecker(s, v string, r *redis.Client) *Checker {
 }
 func (c *Checker) LivenessHandler() gin.HandlerFunc { return c.httpHealth.LivenessHandler() }
 func (c *Checker) ReadinessHandler() gin.HandlerFunc { return c.httpHealth.ReadinessHandler() }
+func (c *Checker) HealthChecker() *health.Checker { return c.httpHealth }
