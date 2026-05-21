@@ -417,6 +417,22 @@ services:
       redis-master:
         condition: service_healthy
 
+  # ============================================================
+  # Frontend
+  # ============================================================
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://gateway:8080
+    depends_on:
+      gateway:
+        condition: service_started
+
 volumes:
   mysql_data:
   redis_data:
