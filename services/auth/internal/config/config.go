@@ -47,7 +47,7 @@ type MySQLConfig struct {
 }
 
 func (c MySQLConfig) DSN() string {
-	return c.User + ":" + c.Password + "@tcp(" + c.Host + ":" + strconv.Itoa(c.Port) + ")/" + c.Database + "?charset=utf8mb4&parseTime=true&loc=UTC&timeout=" + c.Timeout.String()
+	return c.User + ":" + c.Password + "@tcp(" + c.Host + ":" + strconv.Itoa(c.Port) + ")/" + c.Database + "?charset=utf8mb4&parseTime=true&loc=UTC&timeout=" + strconv.Itoa(int(c.Timeout.Milliseconds())) + "ms"
 }
 
 type RedisConfig struct {
@@ -104,7 +104,6 @@ type SessionConfig struct {
 }
 
 type SecurityConfig struct {
-	BcryptCost           int
 	Argon2Memory         uint32
 	Argon2Time           uint32
 	Argon2Threads        uint8
@@ -204,7 +203,6 @@ func Load() *Config {
 		},
 
 		Security: SecurityConfig{
-			BcryptCost:           getEnvInt("BCRYPT_COST", 12),
 			Argon2Memory:         uint32(getEnvInt("ARGON2_MEMORY", 64*1024)),
 			Argon2Time:           uint32(getEnvInt("ARGON2_TIME", 3)),
 			Argon2Threads:        uint8(getEnvInt("ARGON2_THREADS", 4)),

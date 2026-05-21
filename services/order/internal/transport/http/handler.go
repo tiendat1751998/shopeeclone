@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -61,9 +62,17 @@ func (h *Handler) GetOrder(c *gin.Context) {
 	}
 
 	// Validate ownership
-	userID, _ := c.Get("user_id")
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	role, _ := c.Get("role")
-	uid, _ := userID.(string)
 	r, _ := role.(string)
 	if order.UserID != uid && r != "admin" && r != "seller" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
@@ -94,7 +103,16 @@ func (h *Handler) ListOrders(c *gin.Context) {
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if page < 1 {
+		page = 1
+	}
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
 
 	orders, total, err := h.orderService.ListOrders(c.Request.Context(), queryUserID, page, pageSize)
 	if err != nil {
@@ -115,6 +133,24 @@ func (h *Handler) GetOrderStatus(c *gin.Context) {
 	order, err := h.orderService.GetOrder(c.Request.Context(), orderID)
 	if err != nil {
 		handleError(c, err)
+		return
+	}
+
+	// Validate ownership
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	role, _ := c.Get("role")
+	r, _ := role.(string)
+	if order.UserID != uid && r != "admin" && r != "seller" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return
 	}
 
@@ -140,9 +176,17 @@ func (h *Handler) CancelOrder(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("user_id")
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	role, _ := c.Get("role")
-	uid, _ := userID.(string)
 	r, _ := role.(string)
 
 	cancelReq := &application.CancelOrderRequest{
@@ -167,6 +211,31 @@ func (h *Handler) CancelOrder(c *gin.Context) {
 
 func (h *Handler) GetOrderHistory(c *gin.Context) {
 	orderID := c.Param("id")
+
+	// Validate ownership: fetch order first to check user
+	order, err := h.orderService.GetOrder(c.Request.Context(), orderID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	role, _ := c.Get("role")
+	r, _ := role.(string)
+	if order.UserID != uid && r != "admin" && r != "seller" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		return
+	}
+
 	history, err := h.orderService.GetOrderHistory(c.Request.Context(), orderID)
 	if err != nil {
 		handleError(c, err)
@@ -181,6 +250,31 @@ func (h *Handler) GetOrderHistory(c *gin.Context) {
 
 func (h *Handler) GetReconciliationStatus(c *gin.Context) {
 	orderID := c.Param("id")
+
+	// Validate ownership
+	order, err := h.orderService.GetOrder(c.Request.Context(), orderID)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	role, _ := c.Get("role")
+	r, _ := role.(string)
+	if order.UserID != uid && r != "admin" && r != "seller" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		return
+	}
+
 	status, err := h.orderService.GetReconciliationStatus(c.Request.Context(), orderID)
 	if err != nil {
 		handleError(c, err)
@@ -194,17 +288,25 @@ func (h *Handler) GetReconciliationStatus(c *gin.Context) {
 }
 
 func handleError(c *gin.Context, err error) {
-	switch err {
-	case domain.ErrOrderNotFound:
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-	case domain.ErrOrderNotCancellable:
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-	case domain.ErrInvalidStateTransition:
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-	case domain.ErrUnauthorized, domain.ErrInsufficientPermissions:
-		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-	case domain.ErrConcurrentModification:
+	switch {
+	case errors.Is(err, domain.ErrOrderNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+	case errors.Is(err, domain.ErrOrderNotCancellable):
+		c.JSON(http.StatusConflict, gin.H{"error": "order cannot be cancelled"})
+	case errors.Is(err, domain.ErrInvalidStateTransition):
+		c.JSON(http.StatusConflict, gin.H{"error": "invalid state transition"})
+	case errors.Is(err, domain.ErrUnauthorized), errors.Is(err, domain.ErrInsufficientPermissions):
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+	case errors.Is(err, domain.ErrConcurrentModification):
 		c.JSON(http.StatusConflict, gin.H{"error": "concurrent modification detected, please retry"})
+	case errors.Is(err, domain.ErrIdempotencyKeyExists):
+		c.JSON(http.StatusConflict, gin.H{"error": "duplicate request"})
+	case errors.Is(err, domain.ErrOrderExpired):
+		c.JSON(http.StatusGone, gin.H{"error": "order expired"})
+	case errors.Is(err, domain.ErrOrderAlreadyExists):
+		c.JSON(http.StatusConflict, gin.H{"error": "order already exists"})
+	case errors.Is(err, domain.ErrOrderNotModifiable):
+		c.JSON(http.StatusConflict, gin.H{"error": "order cannot be modified"})
 	default:
 		zap.L().Error("unexpected error", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})

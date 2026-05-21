@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -27,6 +28,19 @@ func (h *Handler) InitiateCheckout(c *gin.Context) {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": err.Error()})
 		return
 	}
+
+	// Extract user_id from JWT context, never trust request body for identity
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error_code": "UNAUTHORIZED", "message": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error_code": "UNAUTHORIZED", "message": "unauthorized"})
+		return
+	}
+	req.UserID = uid
 
 	checkout, err := h.service.InitiateCheckout(ctx, req)
 	if err != nil {
@@ -82,11 +96,12 @@ var errorStatusMap = map[error]int{
 	domain.ErrReservationFailed:   http.StatusServiceUnavailable,
 	domain.ErrRollbackFailed:      http.StatusInternalServerError,
 	domain.ErrMaxRetriesExceeded:  http.StatusTooManyRequests,
+	domain.ErrUnauthorized:        http.StatusForbidden,
 }
 
 func handleError(c *gin.Context, err error) {
 	for domainErr, status := range errorStatusMap {
-		if err.Error() == domainErr.Error() || (len(err.Error()) >= len(domainErr.Error()) && err.Error()[:len(domainErr.Error())] == domainErr.Error()) {
+		if errors.Is(err, domainErr) {
 			c.AbortWithStatusJSON(status, gin.H{"error_code": domainErr.Error(), "message": err.Error()})
 			return
 		}

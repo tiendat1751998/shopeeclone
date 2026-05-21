@@ -6,6 +6,7 @@ type ProductRepository interface {
 	FindByID(ctx context.Context, id string) (*Product, error)
 	FindByShopID(ctx context.Context, shopID string, offset, limit int) ([]*Product, int64, error)
 	FindByCategory(ctx context.Context, categoryID string, offset, limit int) ([]*Product, int64, error)
+	FindByIdempotencyKey(ctx context.Context, key string) (*Product, error)
 	Create(ctx context.Context, p *Product) error
 	Update(ctx context.Context, p *Product) error
 	Delete(ctx context.Context, id string) error

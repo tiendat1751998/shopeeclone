@@ -15,6 +15,7 @@ type Product struct {
 	Description string           `db:"description" json:"description,omitempty"`
 	CategoryID  string           `db:"category_id" json:"category_id"`
 	Brand       string           `db:"brand" json:"brand,omitempty"`
+	IdempotencyKey string         `db:"idempotency_key" json:"idempotency_key,omitempty"`
 	Status      string           `db:"status" json:"status"`
 	Condition   string           `db:"condition" json:"condition,omitempty"`
 	Weight      float64          `db:"weight" json:"weight,omitempty"`

@@ -159,7 +159,10 @@ func (s *PaymentService) CapturePayment(ctx context.Context, paymentID, actorID 
 	if err != nil {
 		observability.LogWithTrace(ctx).Error("failed to marshal capture event", zap.Error(err))
 	} else {
-		s.paymentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("payment", payment.ID, string(domain.EventPaymentCaptured), payload))
+		if err := s.paymentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("payment", payment.ID, string(domain.EventPaymentCaptured), payload)); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to save capture outbox event",
+				zap.String("payment_id", payment.ID), zap.Error(err))
+		}
 	}
 	if s.kafkaProducer != nil {
 		if err := s.kafkaProducer.PublishEvent(ctx, event); err != nil {
@@ -216,7 +219,10 @@ func (s *PaymentService) RefundPayment(ctx context.Context, paymentID, reason, i
 	if err != nil {
 		observability.LogWithTrace(ctx).Error("failed to marshal refund event", zap.Error(err))
 	} else {
-		s.paymentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("payment", payment.ID, string(domain.EventPaymentRefunded), payload))
+		if err := s.paymentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("payment", payment.ID, string(domain.EventPaymentRefunded), payload)); err != nil {
+			observability.LogWithTrace(ctx).Error("failed to save refund outbox event",
+				zap.String("payment_id", payment.ID), zap.Error(err))
+		}
 	}
 	if s.kafkaProducer != nil {
 		if err := s.kafkaProducer.PublishEvent(ctx, event); err != nil {

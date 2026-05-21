@@ -48,7 +48,7 @@ type MySQLConfig struct {
 }
 
 func (c MySQLConfig) DSN() string {
-	return c.User + ":" + c.Password + "@tcp(" + c.Host + ":" + strconv.Itoa(c.Port) + ")/" + c.Database + "?charset=utf8mb4&parseTime=true&loc=UTC&timeout=" + c.Timeout.String()
+	return c.User + ":" + c.Password + "@tcp(" + c.Host + ":" + strconv.Itoa(c.Port) + ")/" + c.Database + "?charset=utf8mb4&parseTime=true&loc=UTC&timeout=" + strconv.Itoa(int(c.Timeout.Milliseconds())) + "ms"
 }
 
 type RedisConfig struct {
@@ -85,7 +85,7 @@ func Load() *Config {
 			Host:         getEnv("MYSQL_HOST", "localhost"),
 			Port:         getEnvInt("MYSQL_PORT", 3306),
 			User:         getEnv("MYSQL_USER", "shopee"),
-			Password:     getEnv("MYSQL_PASSWORD", "shopee_dev"),
+			Password:     requireEnv("MYSQL_PASSWORD"),
 			Database:     getEnv("MYSQL_DATABASE", "shopee_checkout"),
 			MaxOpenConns: getEnvInt("MYSQL_MAX_OPEN_CONNS", 25),
 			MaxIdleConns: getEnvInt("MYSQL_MAX_IDLE_CONNS", 10),
