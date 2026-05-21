@@ -459,8 +459,6 @@ func (s *AuthService) RequestPasswordReset(ctx context.Context, req *domain.Pass
 
 	token := uuid.New().String()
 	tokenHash := sha256Hex(token)
-	resetKey := fmt.Sprintf("password_reset:%s", user.ID)
-
 	if s.redisStore != nil {
 		if err := s.redisStore.SetResetToken(ctx, user.ID, tokenHash, 15*time.Minute); err != nil {
 			observability.LogWithTrace(ctx).Warn("failed to store reset token", zap.Error(err))

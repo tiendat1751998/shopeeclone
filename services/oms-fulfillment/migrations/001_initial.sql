@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS return_items (
     fulfillment_item_id VARCHAR(36) NOT NULL,
     sku_id VARCHAR(36) NOT NULL,
     quantity INT NOT NULL DEFAULT 1,
-    condition ENUM('unopened','opened_unused','used','damaged','defective') NOT NULL DEFAULT 'unopened',
+    `condition` ENUM('unopened','opened_unused','used','damaged','defective') NOT NULL DEFAULT 'unopened',
     refund_amount BIGINT NOT NULL DEFAULT 0,
     restockable BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -16,6 +16,7 @@ import (
 	"github.com/shopee-clone/shopee/services/payment/internal/application"
 	"github.com/shopee-clone/shopee/services/payment/internal/config"
 	"github.com/shopee-clone/shopee/services/payment/internal/health"
+	"github.com/shopee-clone/shopee/services/payment/internal/infrastructure/fraud"
 	"github.com/shopee-clone/shopee/services/payment/internal/infrastructure/kafka"
 	"github.com/shopee-clone/shopee/services/payment/internal/infrastructure/mysql"
 	redisinfra "github.com/shopee-clone/shopee/services/payment/internal/infrastructure/redis"
@@ -63,7 +64,11 @@ func main() {
 		kafkaProducer = kafka.NewProducer(cfg.Kafka)
 	}
 
-	paymentService := application.NewPaymentService(cfg, paymentRepo, redisStore, kafkaProducer)
+	fraudDetector := fraud.NewDetector(fraud.DetectorConfig{
+		RiskThreshold: cfg.Payment.FraudRiskThreshold,
+	})
+
+	paymentService := application.NewPaymentService(cfg, paymentRepo, redisStore, kafkaProducer, fraudDetector)
 
 	gin.SetMode(getGinMode(cfg.AppEnv))
 	engine := gin.New()
@@ -74,7 +79,12 @@ func main() {
 	}
 
 	handler := httptransport.NewHandler(paymentService)
-	router := httptransport.NewRouter(handler, authMw)
+
+	var webhookMiddlewares []gin.HandlerFunc
+	if redisClient != nil {
+		webhookMiddlewares = append(webhookMiddlewares, middleware.RateLimit(redisStore, 100, time.Minute))
+	}
+	router := httptransport.NewRouter(handler, authMw, webhookMiddlewares...)
 	router.Setup(engine)
 
 	healthChecker := health.NewChecker(cfg.AppName, version, db, redisClient)

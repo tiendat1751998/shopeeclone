@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [main]
 env:
-  GO_VERSION: "1.22"
+  GO_VERSION: "1.26.3"
   APP_NAME: shopee-payment
 jobs:
   lint:

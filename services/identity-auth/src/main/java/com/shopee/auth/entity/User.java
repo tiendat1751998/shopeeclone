@@ -6,7 +6,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -22,6 +24,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class User {
 
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Id
     @Column(name = "user_id", nullable = false, updatable = false)
     private UUID userId;

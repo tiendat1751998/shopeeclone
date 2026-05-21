@@ -5,6 +5,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -19,6 +22,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class Role {
 
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Id
     @Column(name = "role_id", nullable = false, updatable = false)
     private UUID roleId;
@@ -30,10 +34,8 @@ public class Role {
     private String description;
 
     @Column(name = "is_system", nullable = false)
-    private Boolean isSystem;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @Builder.Default
+    private Boolean isSystem = false;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -41,15 +43,17 @@ public class Role {
         joinColumns = @JoinColumn(name = "role_id"),
         inverseJoinColumns = @JoinColumn(name = "permission_id")
     )
+    @Builder.Default
     private Set<Permission> permissions = new HashSet<>();
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
     @PrePersist
     public void prePersist() {
         if (roleId == null) {
             roleId = UUID.randomUUID();
-        }
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
         }
     }
 }

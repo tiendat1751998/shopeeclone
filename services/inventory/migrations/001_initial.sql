@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS reservations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS idempotency_keys (
-    ` + "`key`" + ` VARCHAR(255) PRIMARY KEY, reservation_id VARCHAR(36) NOT NULL,
+    `key` VARCHAR(255) PRIMARY KEY, reservation_id VARCHAR(36) NOT NULL,
     expires_at TIMESTAMP NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_inv_idempotency_reservation (reservation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

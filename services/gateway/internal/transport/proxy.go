@@ -62,6 +62,7 @@ type Proxy struct {
 	retryConfig     map[string]resilience.RetryConfig
 	cbMu            sync.RWMutex
 	timeouts        map[string]time.Duration
+	cachedProxies   sync.Map
 }
 
 type ProxyTarget struct {
@@ -136,7 +137,34 @@ func (p *Proxy) getTimeout(service string) time.Duration {
 	return 30 * time.Second
 }
 
+func (p *Proxy) getOrCreateProxy(serviceName string) *httputil.ReverseProxy {
+	if cached, ok := p.cachedProxies.Load(serviceName); ok {
+		return cached.(*httputil.ReverseProxy)
+	}
+
+	proxy := &httputil.ReverseProxy{
+		Transport: p.transport,
+		Director:  func(req *http.Request) {},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			observability.GetLogger().Error("proxy error",
+				zap.String("service", serviceName),
+				zap.Error(err),
+			)
+			proxyErrorsTotal.WithLabelValues(serviceName, "PROXY_ERROR").Inc()
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(gin.H{
+				"error_code": "BAD_GATEWAY",
+				"message":    "upstream connection error",
+			})
+		},
+	}
+	p.cachedProxies.Store(serviceName, proxy)
+	return proxy
+}
+
 func (p *Proxy) ReverseProxy(target *ProxyTarget) gin.HandlerFunc {
+	baseProxy := p.getOrCreateProxy(target.ServiceName)
+
 	return func(c *gin.Context) {
 		_, span := otel.Tracer("shopee-gateway").Start(c.Request.Context(),
 			fmt.Sprintf("reverse_proxy.%s", target.ServiceName),
@@ -172,23 +200,15 @@ func (p *Proxy) ReverseProxy(target *ProxyTarget) gin.HandlerFunc {
 			return
 		}
 
-		timeout := p.getTimeout(target.ServiceName)
-		proxy := httputil.NewSingleHostReverseProxy(upstreamURL)
-		proxy.Transport = p.transport
-		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-			observability.GetLogger().Error("proxy error",
-				zap.String("service", target.ServiceName),
-				zap.Error(err),
-			)
-			proxyErrorsTotal.WithLabelValues(target.ServiceName, "PROXY_ERROR").Inc()
-			w.WriteHeader(http.StatusBadGateway)
-			json.NewEncoder(w).Encode(gin.H{
-				"error_code": "BAD_GATEWAY",
-				"message":    "upstream connection error",
-			})
+		proxy := new(httputil.ReverseProxy)
+		*proxy = *baseProxy
+		baseDirector := p.buildDirector(upstreamURL, target)
+		proxy.Director = func(req *http.Request) {
+			baseDirector(req)
+			p.injectGatewayHeaders(c, req)
 		}
 
-		p.modifyRequest(c, proxy, target)
+		timeout := p.getTimeout(target.ServiceName)
 
 		retryCfg := p.getRetryConfig(target.ServiceName)
 		cb := p.getCircuitBreaker(target.ServiceName)
@@ -233,6 +253,25 @@ func (p *Proxy) ReverseProxy(target *ProxyTarget) gin.HandlerFunc {
 	}
 }
 
+func (p *Proxy) buildDirector(upstreamURL *url.URL, target *ProxyTarget) func(req *http.Request) {
+	return func(req *http.Request) {
+		req.URL.Scheme = upstreamURL.Scheme
+		req.URL.Host = upstreamURL.Host
+		req.Host = upstreamURL.Host
+
+		if target.StripPrefix != "" {
+			req.URL.Path = strings.TrimPrefix(req.URL.Path, target.StripPrefix)
+			if !strings.HasPrefix(req.URL.Path, "/") {
+				req.URL.Path = "/" + req.URL.Path
+			}
+		}
+
+		if _, ok := req.Header["User-Agent"]; !ok {
+			req.Header.Set("User-Agent", "")
+		}
+	}
+}
+
 func (p *Proxy) doProxyRequest(c *gin.Context, proxy *httputil.ReverseProxy, target *ProxyTarget, timeout time.Duration) error {
 	ctx := c.Request.Context()
 	if timeout > 0 {
@@ -260,23 +299,6 @@ func (p *Proxy) doProxyRequest(c *gin.Context, proxy *httputil.ReverseProxy, tar
 	}
 
 	return nil
-}
-
-func (p *Proxy) modifyRequest(c *gin.Context, proxy *httputil.ReverseProxy, target *ProxyTarget) {
-	director := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		director(req)
-
-		if target.StripPrefix != "" {
-			req.URL.Path = strings.TrimPrefix(req.URL.Path, target.StripPrefix)
-			if !strings.HasPrefix(req.URL.Path, "/") {
-				req.URL.Path = "/" + req.URL.Path
-			}
-		}
-
-		req.Host = req.URL.Host
-		p.injectGatewayHeaders(c, req)
-	}
 }
 
 func (p *Proxy) injectGatewayHeaders(c *gin.Context, req *http.Request) {

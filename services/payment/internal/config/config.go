@@ -72,7 +72,8 @@ type PaymentConfig struct {
 	AuthorizationTTL time.Duration
 	IdempotencyTTL   time.Duration
 	MaxRetryAttempts int
-	WebhookSecret    string
+	WebhookSecret       string
+	FraudRiskThreshold  int
 }
 
 type IdempotencyConfig struct {
@@ -132,11 +133,12 @@ func Load() *Config {
 		},
 
 		Payment: PaymentConfig{
-			DefaultPSP:       getEnv("DEFAULT_PSP", "stripe"),
-			AuthorizationTTL: getEnvDuration("PAYMENT_AUTH_TTL", 7*24*time.Hour),
-			IdempotencyTTL:   getEnvDuration("PAYMENT_IDEMPOTENCY_TTL", 24*time.Hour),
-			MaxRetryAttempts: getEnvInt("PAYMENT_MAX_RETRY", 3),
-			WebhookSecret:    requireEnv("WEBHOOK_SECRET"),
+			DefaultPSP:          getEnv("DEFAULT_PSP", "stripe"),
+			AuthorizationTTL:    getEnvDuration("PAYMENT_AUTH_TTL", 7*24*time.Hour),
+			IdempotencyTTL:      getEnvDuration("PAYMENT_IDEMPOTENCY_TTL", 24*time.Hour),
+			MaxRetryAttempts:    getEnvInt("PAYMENT_MAX_RETRY", 3),
+			WebhookSecret:       requireEnv("WEBHOOK_SECRET"),
+			FraudRiskThreshold:  getEnvInt("FRAUD_RISK_THRESHOLD", 50),
 		},
 
 		Idempotency: IdempotencyConfig{

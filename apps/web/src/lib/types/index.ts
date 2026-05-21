@@ -22,6 +22,7 @@ export interface Category {
   is_active: boolean; depth: number; path: string;
   children?: Category[]; product_count?: number;
 }
+export interface ProductAttribute { id: string; name: string; value: string; }
 export interface Media {
   id: string; product_id: string; sku_id?: string;
   type: "image"|"video"; url: string; thumbnail_url: string;
@@ -54,6 +55,9 @@ export interface Order {
   currency: string; created_at: string;
 }
 export type OrderStatus = "pending"|"awaiting_payment"|"paid"|"processing"|"packed"|"shipped"|"delivered"|"completed"|"cancelled"|"refunded";
+export interface ApiResponse<T> { success: boolean; data: T; message?: string; code?: string; error?: string; }
+export interface LoginRequest { email: string; password: string; }
+export interface RegisterRequest { email: string; username: string; password: string; display_name?: string; }
 export interface User {
   id: string; email: string; username: string; display_name: string;
   phone: string; avatar_url: string; status: string; created_at: string;

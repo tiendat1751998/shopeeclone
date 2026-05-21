@@ -111,6 +111,7 @@ func main() {
 	router := gin.New()
 	router.Use(
 		middleware.Recovery(),
+		middleware.ErrorHandler(),
 		middleware.RequestID(),
 		middleware.CORS(),
 		middleware.OTelMiddleware(cfg.ServiceName),

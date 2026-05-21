@@ -11,6 +11,23 @@ import (
 type VoucherRepository struct{ db *sqlx.DB }
 func NewVoucherRepository(db *sqlx.DB) *VoucherRepository { return &VoucherRepository{db: db} }
 
+func (r *VoucherRepository) BeginTx(ctx context.Context) (*sql.Tx, error) {
+	return r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+}
+
+func (r *VoucherRepository) FindByCodeForUpdate(ctx context.Context, tx *sql.Tx, code string) (*domain.Voucher, error) {
+	var v domain.Voucher
+	err := tx.QueryRowContext(ctx, "SELECT * FROM vouchers WHERE code = ? FOR UPDATE", code).Scan(
+		&v.ID, &v.Code, &v.Title, &v.Description, &v.Type, &v.DiscountValue,
+		&v.MinSpend, &v.MaxDiscount, &v.UsageLimit, &v.UsageCount, &v.PerUserLimit,
+		&v.Scope, &v.ShopID, &v.CategoryID, &v.SKU, &v.Region, &v.PaymentMethod,
+		&v.StartTime, &v.EndTime, &v.Status, &v.Stackable, &v.Priority, &v.CreatedAt, &v.UpdatedAt,
+	)
+	if err == sql.ErrNoRows { return nil, nil }
+	if err != nil { return nil, err }
+	return &v, nil
+}
+
 func (r *VoucherRepository) FindByID(ctx context.Context, id string) (*domain.Voucher, error) {
 	var v domain.Voucher
 	err := r.db.GetContext(ctx, &v, "SELECT * FROM vouchers WHERE id = ?", id)
@@ -37,6 +54,36 @@ func (r *VoucherRepository) Update(ctx context.Context, v *domain.Voucher) error
 	query := `UPDATE vouchers SET title = ?, description = ?, discount_value = ?, min_spend = ?, max_discount = ?, usage_limit = ?, per_user_limit = ?, status = ?, stackable = ?, priority = ?, updated_at = ? WHERE id = ?`
 	_, err := r.db.ExecContext(ctx, query, v.Title, v.Description, v.DiscountValue, v.MinSpend, v.MaxDiscount, v.UsageLimit, v.PerUserLimit, v.Status, v.Stackable, v.Priority, v.UpdatedAt, v.ID)
 	return err
+}
+
+func (r *VoucherRepository) IncrementUsageAtomic(ctx context.Context, id string, usageLimit int64) error {
+	result, err := r.db.ExecContext(ctx, "UPDATE vouchers SET usage_count = usage_count + 1, updated_at = NOW() WHERE id = ? AND usage_count < ?", id, usageLimit)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return domain.ErrVoucherExhausted
+	}
+	return nil
+}
+
+func (r *VoucherRepository) IncrementUsageInTx(ctx context.Context, tx *sql.Tx, id string, usageLimit int64) error {
+	result, err := tx.ExecContext(ctx, "UPDATE vouchers SET usage_count = usage_count + 1, updated_at = NOW() WHERE id = ? AND usage_count < ?", id, usageLimit)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return domain.ErrVoucherExhausted
+	}
+	return nil
 }
 
 func (r *VoucherRepository) IncrementUsage(ctx context.Context, id string) error {
@@ -95,6 +142,27 @@ func (r *VoucherRedemptionRepository) Create(ctx context.Context, red *domain.Vo
 	query := `INSERT INTO voucher_redemptions (id, voucher_id, user_id, order_id, discount_amount, idempotency_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
 	_, err := r.db.ExecContext(ctx, query, red.ID, red.VoucherID, red.UserID, red.OrderID, red.DiscountAmt, red.IdempotencyKey, red.CreatedAt)
 	return err
+}
+
+func (r *VoucherRedemptionRepository) CreateInTx(ctx context.Context, tx *sql.Tx, red *domain.VoucherRedemption) error {
+	query := `INSERT INTO voucher_redemptions (id, voucher_id, user_id, order_id, discount_amount, idempotency_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query, red.ID, red.VoucherID, red.UserID, red.OrderID, red.DiscountAmt, red.IdempotencyKey, red.CreatedAt)
+	return err
+}
+
+func (r *VoucherRedemptionRepository) FindByIdempotencyKeyInTx(ctx context.Context, tx *sql.Tx, key string) (*domain.VoucherRedemption, error) {
+	var red domain.VoucherRedemption
+	err := tx.QueryRowContext(ctx, "SELECT * FROM voucher_redemptions WHERE idempotency_key = ? FOR UPDATE", key).Scan(
+		&red.ID, &red.VoucherID, &red.UserID, &red.OrderID, &red.DiscountAmt, &red.IdempotencyKey, &red.CreatedAt,
+	)
+	if err == sql.ErrNoRows { return nil, nil }
+	return &red, err
+}
+
+func (r *VoucherRedemptionRepository) CountByUserAndVoucherInTx(ctx context.Context, tx *sql.Tx, userID, voucherID string) (int, error) {
+	var count int
+	err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM voucher_redemptions WHERE user_id = ? AND voucher_id = ? FOR UPDATE", userID, voucherID).Scan(&count)
+	return count, err
 }
 
 type CampaignRepository struct{ db *sqlx.DB }

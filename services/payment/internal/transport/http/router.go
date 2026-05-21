@@ -6,18 +6,16 @@ import (
 )
 
 type Router struct {
-	handler *Handler
-	authMw  gin.HandlerFunc
+	handler            *Handler
+	authMw             gin.HandlerFunc
+	webhookMiddlewares []gin.HandlerFunc
 }
 
-func NewRouter(handler *Handler, authMw gin.HandlerFunc) *Router {
-	return &Router{handler: handler, authMw: authMw}
+func NewRouter(handler *Handler, authMw gin.HandlerFunc, webhookMiddlewares ...gin.HandlerFunc) *Router {
+	return &Router{handler: handler, authMw: authMw, webhookMiddlewares: webhookMiddlewares}
 }
 
 func (r *Router) Setup(engine *gin.Engine) {
-	engine.GET("/health/live", func(c *gin.Context) { c.JSON(200, gin.H{"status": "alive"}) })
-	engine.GET("/health/ready", func(c *gin.Context) { c.JSON(200, gin.H{"status": "ready"}) })
-
 	v1 := engine.Group("/api/v1")
 	v1.Use(middleware.RequestID())
 	v1.Use(middleware.Recovery())
@@ -32,5 +30,9 @@ func (r *Router) Setup(engine *gin.Engine) {
 	}
 
 	// Webhook endpoint (no auth, uses signature verification)
-	v1.POST("/webhooks/:provider", r.handler.HandleWebhook)
+	webhooks := v1.Group("/webhooks")
+	for _, mw := range r.webhookMiddlewares {
+		webhooks.Use(mw)
+	}
+	webhooks.POST("/:provider", r.handler.HandleWebhook)
 }

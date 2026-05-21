@@ -1,10 +1,15 @@
 package domain
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type FraudDetector interface {
+	Assess(ctx context.Context, paymentID, userID string, amount int64, method PaymentMethod) (*FraudCheckResult, error)
+}
 
 type FraudCheckResult struct {
 	ID          string    `db:"id" json:"id"`

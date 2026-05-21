@@ -70,7 +70,6 @@ func (r *Router) Setup(engine *gin.Engine) {
 		middleware.RequestValidation(),
 		r.rateLimiter.GlobalMiddleware(),
 		r.rateLimiter.IPRateLimit(),
-		r.authMW.RequireAuth(),
 	)
 
 	r.setupSystemEndpoints(engine)

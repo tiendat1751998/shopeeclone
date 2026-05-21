@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopee-clone/shopee/services/promotion/internal/domain"
 	"github.com/shopee-clone/shopee/services/promotion/internal/infrastructure/redis"
 	"github.com/shopee-clone/shopee/services/promotion/internal/metrics"
@@ -80,28 +81,50 @@ func (s *PromotionService) RedeemVoucher(ctx context.Context, code, userID, orde
 	ctx, span := otel.Tracer("shopee-promotion").Start(ctx, "promotion.redeem_voucher")
 	defer span.End()
 
-	// Idempotency check
+	tx, err := s.voucherRepo.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Idempotency check (inside tx with FOR UPDATE)
 	if idempotencyKey != "" {
-		existing, err := s.redemptionRepo.FindByIdempotencyKey(ctx, idempotencyKey)
+		existing, err := s.redemptionRepo.FindByIdempotencyKeyInTx(ctx, tx, idempotencyKey)
 		if err == nil && existing != nil {
 			metrics.IdempotentRequests.Inc()
+			tx.Commit()
 			return &domain.PromotionResult{
 				VoucherID: existing.VoucherID, DiscountAmt: existing.DiscountAmt,
 			}, nil
 		}
 	}
 
-	voucher, err := s.ValidateVoucher(ctx, code, userID, subtotal, shopID, categoryID, sku, region, paymentMethod)
+	// Lock voucher row for atomic read-check-write
+	voucher, err := s.voucherRepo.FindByCodeForUpdate(ctx, tx, code)
 	if err != nil {
-		metrics.ValidationsTotal.WithLabelValues("failed").Inc()
+		return nil, fmt.Errorf("find voucher: %w", err)
+	}
+	if voucher == nil {
+		return nil, domain.ErrVoucherInvalid
+	}
+
+	if err := voucher.CanRedeem(userID, subtotal, shopID, categoryID, sku, region, paymentMethod); err != nil {
 		return nil, err
+	}
+
+	// Check per-user limit inside transaction
+	userCount, err := s.redemptionRepo.CountByUserAndVoucherInTx(ctx, tx, userID, voucher.ID)
+	if err != nil {
+		return nil, fmt.Errorf("per-user limit check: %w", err)
+	}
+	if userCount >= voucher.PerUserLimit {
+		return nil, fmt.Errorf("%w: user limit %d reached", domain.ErrVoucherUserLimit, voucher.PerUserLimit)
 	}
 
 	discount := voucher.CalculateDiscount(subtotal)
 
-	// Create redemption record
 	redemption := &domain.VoucherRedemption{
-		ID:             fmt.Sprintf("red_%d", time.Now().UnixNano()),
+		ID:             uuid.New().String(),
 		VoucherID:      voucher.ID,
 		UserID:         userID,
 		OrderID:        orderID,
@@ -110,33 +133,34 @@ func (s *PromotionService) RedeemVoucher(ctx context.Context, code, userID, orde
 		CreatedAt:      time.Now(),
 	}
 
-	if err := s.redemptionRepo.Create(ctx, redemption); err != nil {
+	if err := s.redemptionRepo.CreateInTx(ctx, tx, redemption); err != nil {
 		return nil, fmt.Errorf("create redemption: %w", err)
 	}
 
-	// Increment usage
-	s.voucherRepo.IncrementUsage(ctx, voucher.ID)
+	// Atomic increment with exhaustion guard
+	if err := s.voucherRepo.IncrementUsageInTx(ctx, tx, voucher.ID, voucher.UsageLimit); err != nil {
+		return nil, fmt.Errorf("increment usage: %w", err)
+	}
 
-	// Update Redis counter
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit tx: %w", err)
+	}
+
+	// Post-commit side-effects (best-effort)
 	if s.redis != nil {
 		s.redis.IncrementVoucherUsage(ctx, voucher.ID)
 		s.redis.IncrementUserVoucherUsage(ctx, userID, voucher.ID)
 	}
-
-	metrics.RedeemTotal.Inc()
-
 	if s.publisher != nil {
 		s.publisher.Publish(ctx, "voucher.redeemed", map[string]interface{}{
 			"voucher_id": voucher.ID, "user_id": userID, "order_id": orderID, "discount": discount,
 		})
 	}
 
+	metrics.RedeemTotal.Inc()
 	return &domain.PromotionResult{
-		VoucherID:   voucher.ID,
-		Type:        voucher.Type,
-		Description: voucher.Title,
-		DiscountAmt: discount,
-		FinalAmount: subtotal - discount,
+		VoucherID: voucher.ID, Type: voucher.Type, Description: voucher.Title,
+		DiscountAmt: discount, FinalAmount: subtotal - discount,
 	}, nil
 }
 

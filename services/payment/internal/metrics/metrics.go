@@ -65,6 +65,11 @@ var (
 		Help: "Total number of refunds processed",
 	}, []string{"status"})
 
+	FraudDetectedCount = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "shopee_payment_fraud_detected_total",
+		Help: "Total number of fraud detection triggers",
+	})
+
 	ActivePayments = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "shopee_payments_active_by_status",
 		Help: "Current number of active payments by status",

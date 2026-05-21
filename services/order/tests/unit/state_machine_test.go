@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/shopee-clone/shopee/services/order/internal/domain"
@@ -117,7 +118,7 @@ func TestOrder_InvalidTransition(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for invalid transition")
 	}
-	if err != domain.ErrInvalidStateTransition {
+	if !errors.Is(err, domain.ErrInvalidStateTransition) {
 		t.Errorf("expected ErrInvalidStateTransition, got %v", err)
 	}
 }

@@ -15,6 +15,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./database/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -29,6 +30,18 @@ services:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -82,13 +95,19 @@ services:
       context: ./services/identity-auth
       dockerfile: Dockerfile
     ports:
-      - "8081:8081"
-      - "9090:9090"
+      - "8081:8080"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-primary:3306/shopee_auth
-      SPRING_REDIS_HOST: redis-master
+      MYSQL_HOST: mysql-primary
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: shopee_auth
+      MYSQL_USER: shopee
+      MYSQL_PASSWORD: shopee_dev
+      REDIS_HOST: redis-master
+      REDIS_PORT: "6379"
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
+      JWT_REFRESH_SECRET: dev-refresh-secret-key-for-local-development-only
     depends_on:
       mysql-primary:
         condition: service_healthy
@@ -97,11 +116,10 @@ services:
 
   inventory:
     build:
-      context: ./services/inventory
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/inventory/Dockerfile
     ports:
       - "8086:8086"
-      - "9096:9096"
     environment:
       APP_ENV: development
       INVENTORY_HTTP_PORT: "8086"
@@ -114,6 +132,7 @@ services:
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
     depends_on:
       mysql-primary:
         condition: service_healthy
@@ -122,11 +141,10 @@ services:
 
   cart:
     build:
-      context: ./services/cart
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/cart/Dockerfile
     ports:
       - "8082:8082"
-      - "9092:9092"
     environment:
       APP_ENV: development
       CART_HTTP_PORT: "8082"
@@ -138,6 +156,7 @@ services:
       MYSQL_DATABASE: shopee_cart
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
+      JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
     depends_on:
       mysql-primary:
         condition: service_healthy
@@ -146,8 +165,8 @@ services:
 
   payment:
     build:
-      context: ./services/payment
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/payment/Dockerfile
     ports:
       - "8083:8083"
       - "9093:9093"
@@ -162,6 +181,8 @@ services:
       MYSQL_DATABASE: shopee_payment
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
+      JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
+      WEBHOOK_SECRET: dev-webhook-secret-for-local-development
     depends_on:
       mysql-primary:
         condition: service_healthy
@@ -170,8 +191,8 @@ services:
 
   order:
     build:
-      context: ./services/order
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/order/Dockerfile
     ports:
       - "8084:8084"
       - "9094:9094"
@@ -186,6 +207,7 @@ services:
       MYSQL_DATABASE: shopee_order
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
+      JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
     depends_on:
       mysql-primary:
         condition: service_healthy
@@ -194,8 +216,8 @@ services:
 
   checkout:
     build:
-      context: ./services/checkout
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/checkout/Dockerfile
     ports:
       - "8085:8085"
       - "9095:9095"
@@ -210,6 +232,7 @@ services:
       MYSQL_DATABASE: shopee_checkout
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
+      JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
     depends_on:
       mysql-primary:
         condition: service_healthy
@@ -218,24 +241,200 @@ services:
 
   gateway:
     build:
-      context: ./services/gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./services/gateway/Dockerfile
     ports:
       - "8080:8080"
-      - "9090:9090"
     environment:
       APP_ENV: development
       GATEWAY_HTTP_PORT: "8080"
       GATEWAY_GRPC_PORT: "9090"
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
-      JWKS_ENDPOINT: http://identity-auth:8081/.well-known/jwks.json
+      JWKS_ENDPOINT: http://identity-auth:8080/.well-known/jwks.json
+      JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
       redis-master:
         condition: service_healthy
       identity-auth:
         condition: service_started
 
+  auth:
+    build:
+      context: .
+      dockerfile: ./services/auth/Dockerfile
+    ports:
+      - "8087:8087"
+      - "9097:9097"
+    environment:
+      APP_ENV: development
+      AUTH_HTTP_PORT: "8087"
+      AUTH_GRPC_PORT: "9097"
+      MYSQL_HOST: mysql-primary
+      MYSQL_PORT: "3306"
+      MYSQL_USER: shopee
+      MYSQL_PASSWORD: shopee_dev
+      MYSQL_DATABASE: shopee_platform
+      REDIS_ADDR: redis-master:6379
+      KAFKA_BROKERS: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
+      JWT_REFRESH_SECRET: dev-refresh-secret-key-for-local-development-only
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+
+  catalog-product:
+    build:
+      context: .
+      dockerfile: ./services/catalog-product/Dockerfile
+    ports:
+      - "8088:8088"
+      - "9098:9098"
+    environment:
+      APP_ENV: development
+      PORT: "8088"
+      HTTP_PORT: "8088"
+      GRPC_PORT: "9098"
+      MYSQL_HOST: mysql-primary
+      MYSQL_PORT: "3306"
+      MYSQL_USER: shopee
+      MYSQL_PASSWORD: shopee_dev
+      MYSQL_DATABASE: shopee_platform
+      REDIS_ADDR: redis-master:6379
+      KAFKA_BROKERS: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DATABASE: shopee_catalog
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+
+  product:
+    build:
+      context: .
+      dockerfile: ./services/product/Dockerfile
+    ports:
+      - "8089:8089"
+      - "9099:9099"
+    environment:
+      APP_ENV: development
+      HTTP_PORT: "8089"
+      GRPC_PORT: "9099"
+      MYSQL_HOST: mysql-primary
+      MYSQL_PORT: "3306"
+      MYSQL_USER: shopee
+      MYSQL_PASSWORD: shopee_dev
+      MYSQL_DATABASE: shopee_platform
+      REDIS_ADDR: redis-master:6379
+      KAFKA_BROKERS: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+
+  product-catalog:
+    build:
+      context: .
+      dockerfile: ./services/product-catalog/Dockerfile
+    ports:
+      - "8090:8090"
+      - "9100:9100"
+    environment:
+      APP_ENV: development
+      CATALOG_HTTP_PORT: "8090"
+      CATALOG_GRPC_PORT: "9100"
+      MYSQL_HOST: mysql-primary
+      MYSQL_PORT: "3306"
+      MYSQL_USER: shopee
+      MYSQL_PASSWORD: shopee_dev
+      MYSQL_DATABASE: shopee_platform
+      REDIS_ADDR: redis-master:6379
+      KAFKA_BROKERS: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+
+  promotion:
+    build:
+      context: .
+      dockerfile: ./services/promotion/Dockerfile
+    ports:
+      - "8091:8091"
+      - "9101:9101"
+    environment:
+      APP_ENV: development
+      PROMOTION_HTTP_PORT: "8091"
+      PROMOTION_GRPC_PORT: "9101"
+      MYSQL_HOST: mysql-primary
+      MYSQL_PORT: "3306"
+      MYSQL_USER: shopee
+      MYSQL_PASSWORD: shopee_dev
+      MYSQL_DATABASE: shopee_platform
+      REDIS_ADDR: redis-master:6379
+      KAFKA_BROKERS: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+
+  shipment:
+    build:
+      context: .
+      dockerfile: ./services/shipment/Dockerfile
+    ports:
+      - "8092:8092"
+      - "9102:9102"
+    environment:
+      APP_ENV: development
+      SHIPMENT_HTTP_PORT: "8092"
+      SHIPMENT_GRPC_PORT: "9102"
+      MYSQL_HOST: mysql-primary
+      MYSQL_PORT: "3306"
+      MYSQL_USER: shopee
+      MYSQL_PASSWORD: shopee_dev
+      MYSQL_DATABASE: shopee_platform
+      REDIS_ADDR: redis-master:6379
+      KAFKA_BROKERS: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+
+  # ============================================================
+  # Frontend
+  # ============================================================
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://gateway:8080
+    depends_on:
+      gateway:
+        condition: service_started
+
 volumes:
   mysql_data:
   redis_data:
+  mongo_data:

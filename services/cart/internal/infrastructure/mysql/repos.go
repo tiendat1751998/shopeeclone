@@ -60,9 +60,54 @@ func (r *CartRepository) Create(ctx context.Context, cart *domain.Cart) error {
 }
 
 func (r *CartRepository) Update(ctx context.Context, cart *domain.Cart) error {
-	query := `UPDATE carts SET status = ?, item_count = ?, subtotal = ?, version = version + 1, updated_at = ? WHERE id = ? AND deleted_at IS NULL`
-	_, err := r.db.ExecContext(ctx, query, cart.Status, cart.ItemCount, cart.Subtotal, cart.UpdatedAt, cart.ID)
-	return err
+	result, err := r.db.ExecContext(ctx, "UPDATE carts SET status = ?, item_count = ?, subtotal = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ? AND deleted_at IS NULL", cart.Status, cart.ItemCount, cart.Subtotal, cart.UpdatedAt, cart.ID, cart.Version)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return domain.ErrCartNotFound
+	}
+	cart.Version++
+	return nil
+}
+
+func (r *CartRepository) UpdateInTx(ctx context.Context, tx *sql.Tx, cart *domain.Cart) error {
+	result, err := tx.ExecContext(ctx, "UPDATE carts SET status = ?, item_count = ?, subtotal = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ? AND deleted_at IS NULL", cart.Status, cart.ItemCount, cart.Subtotal, cart.UpdatedAt, cart.ID, cart.Version)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return domain.ErrCartNotFound
+	}
+	cart.Version++
+	return nil
+}
+
+func (r *CartRepository) FindByIDForUpdate(ctx context.Context, tx *sql.Tx, id string) (*domain.Cart, error) {
+	var cart domain.Cart
+	err := tx.QueryRowContext(ctx, "SELECT id, user_id, session_id, status, currency, item_count, subtotal, version, expires_at, created_at, updated_at FROM carts WHERE id = ? AND deleted_at IS NULL FOR UPDATE", id).Scan(
+		&cart.ID, &cart.UserID, &cart.SessionID, &cart.Status, &cart.Currency,
+		&cart.ItemCount, &cart.Subtotal, &cart.Version, &cart.ExpiresAt, &cart.CreatedAt, &cart.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &cart, nil
+}
+
+func (r *CartRepository) BeginTx(ctx context.Context) (*sql.Tx, error) {
+	return r.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 }
 
 func (r *CartRepository) Delete(ctx context.Context, id string) error {
@@ -105,6 +150,68 @@ func (r *CartItemRepository) FindByCartID(ctx context.Context, cartID string) ([
 func (r *CartItemRepository) FindByCartAndSKU(ctx context.Context, cartID, sku string) (*domain.CartItem, error) {
 	var item domain.CartItem
 	err := r.db.GetContext(ctx, &item, 	"SELECT id, cart_id, sku, product_name, shop_id, shop_name, quantity, unit_price, total_price, image_url, attributes, is_selected, is_available, added_at, updated_at FROM cart_items WHERE cart_id = ? AND sku = ?", cartID, sku)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *CartItemRepository) FindByCartIDInTx(ctx context.Context, tx *sql.Tx, cartID string) ([]*domain.CartItem, error) {
+	var items []*domain.CartItem
+	rows, err := tx.QueryContext(ctx, "SELECT id, cart_id, sku, product_name, shop_id, shop_name, quantity, unit_price, total_price, image_url, attributes, is_selected, is_available, added_at, updated_at FROM cart_items WHERE cart_id = ? ORDER BY added_at ASC FOR UPDATE", cartID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item domain.CartItem
+		if err := rows.Scan(&item.ID, &item.CartID, &item.SKU, &item.ProductName, &item.ShopID, &item.ShopName, &item.Quantity, &item.UnitPrice, &item.TotalPrice, &item.ImageURL, &item.Attributes, &item.IsSelected, &item.IsAvailable, &item.AddedAt, &item.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, &item)
+	}
+	return items, rows.Err()
+}
+
+func (r *CartItemRepository) CreateInTx(ctx context.Context, tx *sql.Tx, item *domain.CartItem) error {
+	query := `INSERT INTO cart_items (id, cart_id, sku, product_name, shop_id, shop_name, quantity, unit_price, total_price, image_url, attributes, is_selected, is_available, added_at, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := tx.ExecContext(ctx, query, item.ID, item.CartID, item.SKU, item.ProductName, item.ShopID, item.ShopName, item.Quantity, item.UnitPrice, item.TotalPrice, item.ImageURL, item.Attributes, item.IsSelected, item.IsAvailable, item.AddedAt, item.UpdatedAt)
+	return err
+}
+
+func (r *CartItemRepository) UpdateInTx(ctx context.Context, tx *sql.Tx, item *domain.CartItem) error {
+	query := `UPDATE cart_items SET quantity = ?, total_price = ?, is_selected = ?, is_available = ?, updated_at = ? WHERE id = ?`
+	_, err := tx.ExecContext(ctx, query, item.Quantity, item.TotalPrice, item.IsSelected, item.IsAvailable, item.UpdatedAt, item.ID)
+	return err
+}
+
+func (r *CartItemRepository) DeleteInTx(ctx context.Context, tx *sql.Tx, id string) error {
+	_, err := tx.ExecContext(ctx, "DELETE FROM cart_items WHERE id = ?", id)
+	return err
+}
+
+func (r *CartItemRepository) DeleteByCartIDInTx(ctx context.Context, tx *sql.Tx, cartID string) error {
+	_, err := tx.ExecContext(ctx, "DELETE FROM cart_items WHERE cart_id = ?", cartID)
+	return err
+}
+
+func (r *CartItemRepository) CountByCartIDInTx(ctx context.Context, tx *sql.Tx, cartID string) (int, error) {
+	var count int
+	err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM cart_items WHERE cart_id = ? FOR UPDATE", cartID).Scan(&count)
+	return count, err
+}
+
+func (r *CartItemRepository) FindByCartAndSKUInTx(ctx context.Context, tx *sql.Tx, cartID, sku string) (*domain.CartItem, error) {
+	var item domain.CartItem
+	err := tx.QueryRowContext(ctx, "SELECT id, cart_id, sku, product_name, shop_id, shop_name, quantity, unit_price, total_price, image_url, attributes, is_selected, is_available, added_at, updated_at FROM cart_items WHERE cart_id = ? AND sku = ? FOR UPDATE", cartID, sku).Scan(
+		&item.ID, &item.CartID, &item.SKU, &item.ProductName, &item.ShopID, &item.ShopName,
+		&item.Quantity, &item.UnitPrice, &item.TotalPrice, &item.ImageURL, &item.Attributes,
+		&item.IsSelected, &item.IsAvailable, &item.AddedAt, &item.UpdatedAt,
+	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

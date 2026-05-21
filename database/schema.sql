@@ -874,7 +874,7 @@ CREATE TABLE IF NOT EXISTS search_query_logs (
 
 CREATE TABLE IF NOT EXISTS user_embeddings (
     user_id VARCHAR(36) PRIMARY KEY,
-    embedding vector(128) NOT NULL,
+    embedding JSON NOT NULL,
     model_version VARCHAR(50) NOT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_ue_model (model_version)
@@ -882,7 +882,7 @@ CREATE TABLE IF NOT EXISTS user_embeddings (
 
 CREATE TABLE IF NOT EXISTS product_embeddings (
     product_id VARCHAR(36) PRIMARY KEY,
-    embedding vector(128) NOT NULL,
+    embedding JSON NOT NULL,
     model_version VARCHAR(50) NOT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_pe_model (model_version)

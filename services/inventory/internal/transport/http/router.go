@@ -13,9 +13,6 @@ type Router struct {
 func NewRouter(handler *Handler, authMw gin.HandlerFunc) *Router { return &Router{handler: handler, authMw: authMw} }
 
 func (r *Router) Setup(engine *gin.Engine) {
-	engine.GET("/health/live", func(c *gin.Context) { c.JSON(200, gin.H{"status": "alive"}) })
-	engine.GET("/health/ready", func(c *gin.Context) { c.JSON(200, gin.H{"status": "ready"}) })
-
 	v1 := engine.Group("/api/v1")
 	v1.Use(middleware.RequestID())
 	v1.Use(middleware.Recovery())

@@ -9,7 +9,6 @@ require (
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/segmentio/kafka-go v0.4.47
 	github.com/shopee-clone/shopee/packages/go-shared v0.0.0-00010101000000-000000000000
-	go.opentelemetry.io/otel v1.32.0
 	go.uber.org/zap v1.27.0
 )
 
@@ -47,6 +46,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.52.0 // indirect
+	go.opentelemetry.io/otel v1.32.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.28.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.28.0 // indirect
 	go.opentelemetry.io/otel/metric v1.32.0 // indirect
@@ -68,4 +68,3 @@ require (
 )
 
 replace github.com/shopee-clone/shopee/packages/go-shared => ../../packages/go-shared
-

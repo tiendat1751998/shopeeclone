@@ -41,7 +41,6 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
       timeout: 3000ms
       lettuce:
         pool:
@@ -83,8 +82,6 @@ otel:
     exporter: none
   logs:
     exporter: none
-  resource:
-    attributes: service.name=identity-auth,service.version=0.1.0
 
 # Management / Actuator
 management:

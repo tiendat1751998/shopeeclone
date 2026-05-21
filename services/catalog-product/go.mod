@@ -7,6 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/shopee-clone/shopee/packages/go-shared v0.0.0
+	github.com/shopee-clone/shopee/proto v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.11.1
 	go.mongodb.org/mongo-driver v1.15.0
 	go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.50.0
@@ -28,6 +29,7 @@ require (
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.6 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
@@ -81,5 +83,5 @@ require (
 )
 
 replace github.com/shopee-clone/shopee/packages/go-shared => ../../packages/go-shared
-replace github.com/shopee-clone/shopee/proto => ../../proto
 
+replace github.com/shopee-clone/shopee/proto => ../../proto

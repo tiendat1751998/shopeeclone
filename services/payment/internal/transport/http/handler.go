@@ -18,6 +18,7 @@ func NewHandler(paymentService *application.PaymentService) *Handler {
 }
 
 func (h *Handler) AuthorizePayment(c *gin.Context) {
+	ctx := c.Request.Context()
 	var req application.AuthorizePaymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -34,7 +35,7 @@ func (h *Handler) AuthorizePayment(c *gin.Context) {
 		return
 	}
 	req.UserID = uid
-	payment, err := h.paymentService.AuthorizePayment(c.Request.Context(), &req)
+	payment, err := h.paymentService.AuthorizePayment(ctx, &req)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -43,6 +44,7 @@ func (h *Handler) AuthorizePayment(c *gin.Context) {
 }
 
 func (h *Handler) CapturePayment(c *gin.Context) {
+	ctx := c.Request.Context()
 	paymentID := c.Param("id")
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -54,7 +56,7 @@ func (h *Handler) CapturePayment(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	payment, err := h.paymentService.CapturePayment(c.Request.Context(), paymentID, uid)
+	payment, err := h.paymentService.CapturePayment(ctx, paymentID, uid)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -63,7 +65,18 @@ func (h *Handler) CapturePayment(c *gin.Context) {
 }
 
 func (h *Handler) RefundPayment(c *gin.Context) {
+	ctx := c.Request.Context()
 	paymentID := c.Param("id")
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	var req struct {
 		Reason         string `json:"reason" binding:"required"`
 		Amount         int64  `json:"amount" binding:"required"`
@@ -73,7 +86,7 @@ func (h *Handler) RefundPayment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	refund, err := h.paymentService.RefundPayment(c.Request.Context(), paymentID, req.Reason, req.IdempotencyKey, req.Amount)
+	refund, err := h.paymentService.RefundPayment(ctx, paymentID, req.Reason, req.IdempotencyKey, req.Amount, uid)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -82,8 +95,9 @@ func (h *Handler) RefundPayment(c *gin.Context) {
 }
 
 func (h *Handler) GetPayment(c *gin.Context) {
+	ctx := c.Request.Context()
 	paymentID := c.Param("id")
-	payment, err := h.paymentService.GetPayment(c.Request.Context(), paymentID)
+	payment, err := h.paymentService.GetPayment(ctx, paymentID)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -92,12 +106,19 @@ func (h *Handler) GetPayment(c *gin.Context) {
 }
 
 func (h *Handler) HandleWebhook(c *gin.Context) {
+	ctx := c.Request.Context()
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<10)
+
 	pspProvider := c.Param("provider")
 	eventType := c.Query("event_type")
 	signature := c.GetHeader("X-Webhook-Signature")
 	idempotencyKey := c.GetHeader("X-Idempotency-Key")
-	payload, _ := c.GetRawData()
-	if err := h.paymentService.HandleWebhook(c.Request.Context(), pspProvider, eventType, payload, signature, idempotencyKey); err != nil {
+	payload, err := c.GetRawData()
+	if err != nil {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "request body too large"})
+		return
+	}
+	if err := h.paymentService.HandleWebhook(ctx, pspProvider, eventType, payload, signature, idempotencyKey); err != nil {
 		handleError(c, err)
 		return
 	}

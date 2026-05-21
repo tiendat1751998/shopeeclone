@@ -46,24 +46,45 @@ func BodySizeLimiter(maxBodySize int64) gin.HandlerFunc {
 }
 
 var (
-	sqlInjectionPattern = regexp.MustCompile(`(?i)(\b(ALTER|CREATE|DELETE|DROP|EXEC|INSERT|MERGE|SELECT|TRUNCATE|UPDATE|UNION)\b)`)
-	xssPattern          = regexp.MustCompile(`(?i)(<script|<\/script|javascript:|onerror=|onload=|onclick=)`)
-	pathTraversalPattern = regexp.MustCompile(`\.\./|\.\.\\|%2e%2e%2f|%2e%2e%5c`)
+	sqlInjectionPattern   = regexp.MustCompile(`(?i)(\b(ALTER|CREATE|DELETE|DROP|EXEC|INSERT|MERGE|SELECT|TRUNCATE|UPDATE|UNION)\b)`)
+	xssPattern            = regexp.MustCompile(`(?i)(<script|<\/script|javascript:|onerror=|onload=|onclick=)`)
+	pathTraversalPattern  = regexp.MustCompile(`\.\./|\.\.\\|%2e%2e%2f|%2e%2e%5c`)
+	quickDangerPattern    = regexp.MustCompile(`(?i)(<script|javascript:|onerror=|\.\./)`)
 )
+
+func isWriteMethod(method string) bool {
+	return method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch || method == http.MethodDelete
+}
 
 func RequestSanitizer() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		query := c.Request.URL.Query()
-		for key, values := range query {
-			for i, v := range values {
-				values[i] = sanitizeInput(v)
+		if len(query) > 0 {
+			if isWriteMethod(c.Request.Method) {
+				for key, values := range query {
+					for i, v := range values {
+						values[i] = sanitizeInput(v)
+					}
+					query[key] = values
+				}
+				c.Request.URL.RawQuery = query.Encode()
+			} else {
+				for _, values := range query {
+					for _, v := range values {
+						if quickDangerPattern.MatchString(v) {
+							c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+								"error_code": "INVALID_QUERY",
+								"message":    "malformed query parameter detected",
+							})
+							return
+						}
+					}
+				}
 			}
-			query[key] = values
 		}
-		c.Request.URL.RawQuery = query.Encode()
 
 		for _, v := range c.Request.Header.Values("X-Forwarded-For") {
-			if pathTraversalPattern.MatchString(v) || xssPattern.MatchString(v) {
+			if pathTraversalPattern.MatchString(v) {
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 					"error_code": "INVALID_HEADER",
 					"message":    "malformed header detected",
@@ -268,7 +289,7 @@ func validateRequest(c *gin.Context) error {
 		return nil
 	}
 
-	host := c.GetHeader("Host")
+	host := c.Request.Host
 	if host == "" {
 		return fmt.Errorf("Host header is required")
 	}
