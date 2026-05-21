@@ -29,14 +29,14 @@ func NewShipmentService(cfg *config.Config, repo *mysql.ShipmentRepository, stor
 }
 
 type CreateShipmentRequest struct {
-	OrderID        string      `json:"order_id" validate:"required"`
-	UserID         string      `json:"user_id" validate:"required"`
-	CarrierID      string      `json:"carrier_id"`
-	IdempotencyKey string      `json:"idempotency_key" validate:"required"`
-	Origin         domain.Address `json:"origin" validate:"required"`
-	Destination    domain.Address `json:"destination" validate:"required"`
-	Weight         float64     `json:"weight"`
-	Currency       string      `json:"currency"`
+	OrderID        string          `json:"order_id" validate:"required"`
+	UserID         string          `json:"user_id" validate:"required"`
+	CarrierID      string          `json:"carrier_id"`
+	IdempotencyKey string          `json:"idempotency_key" validate:"required"`
+	Origin         domain.Address  `json:"origin" validate:"required"`
+	Destination    domain.Address  `json:"destination" validate:"required"`
+	Weight         float64         `json:"weight"`
+	Currency       string          `json:"currency"`
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
@@ -51,20 +51,28 @@ func (s *ShipmentService) CreateShipment(ctx context.Context, req *CreateShipmen
 			return s.shipmentRepo.FindByID(ctx, existingID)
 		}
 		existing, err := s.shipmentRepo.FindByIdempotencyKey(ctx, req.IdempotencyKey)
-		if err == nil && existing != nil { return existing, nil }
+		if err == nil && existing != nil {
+			return existing, nil
+		}
 	}
 
 	carrierID := req.CarrierID
-	if carrierID == "" { carrierID = s.cfg.Shipment.DefaultCarrier }
+	if carrierID == "" {
+		carrierID = s.cfg.Shipment.DefaultCarrier
+	}
 	currency := req.Currency
-	if currency == "" { currency = "SGD" }
+	if currency == "" {
+		currency = "SGD"
+	}
 
 	shipment := domain.NewShipment(req.OrderID, req.UserID, carrierID, req.IdempotencyKey, currency, req.Origin, req.Destination, req.Weight)
 	shipment.Metadata = req.Metadata
 
 	// Acquire lock
 	locked, err := s.redisStore.AcquireShipmentLock(ctx, req.OrderID, 30*time.Second)
-	if err != nil || !locked { return nil, fmt.Errorf("failed to acquire shipment lock") }
+	if err != nil || !locked {
+		return nil, fmt.Errorf("failed to acquire shipment lock")
+	}
 	defer s.redisStore.ReleaseShipmentLock(ctx, req.OrderID)
 
 	if err := s.shipmentRepo.Create(ctx, shipment); err != nil {
@@ -79,9 +87,19 @@ func (s *ShipmentService) CreateShipment(ctx context.Context, req *CreateShipmen
 	}
 
 	event := &domain.ShipmentEvent{ShipmentID: shipment.ID, OrderID: req.OrderID, Status: shipment.Status, EventType: domain.EventShipmentCreated, Timestamp: time.Now().UTC()}
-	payload, _ := json.Marshal(event)
-	s.shipmentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("shipment", shipment.ID, string(domain.EventShipmentCreated), payload))
-	if s.kafkaProducer != nil { s.kafkaProducer.PublishEvent(ctx, event) }
+	payload, err := json.Marshal(event)
+	if err != nil {
+		zap.L().Error("failed to marshal shipment event", zap.Error(err))
+	} else {
+		if err := s.shipmentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("shipment", shipment.ID, string(domain.EventShipmentCreated), payload)); err != nil {
+			zap.L().Warn("failed to save outbox event", zap.Error(err))
+		}
+	}
+	if s.kafkaProducer != nil {
+		if err := s.kafkaProducer.PublishEvent(ctx, event); err != nil {
+			zap.L().Warn("failed to publish kafka event", zap.Error(err))
+		}
+	}
 
 	metrics.ShipmentsCreatedTotal.WithLabelValues(carrierID).Inc()
 	metrics.ActiveShipments.WithLabelValues(string(domain.ShipmentStatusPending)).Inc()
@@ -96,18 +114,32 @@ func (s *ShipmentService) UpdateStatus(ctx context.Context, shipmentID string, t
 	defer span.End()
 
 	shipment, err := s.shipmentRepo.FindByID(ctx, shipmentID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
-	if err := shipment.TransitionTo(target); err != nil { return nil, err }
+	if err := shipment.TransitionTo(target); err != nil {
+		return nil, err
+	}
 
 	if err := s.shipmentRepo.UpdateStatus(ctx, shipmentID, target, shipment.Version-1); err != nil {
 		return nil, err
 	}
 
-	event := &domain.ShipmentEvent{ShipmentID: shipment.ID, OrderID: shipment.OrderID, Status: target, EventType: domain.ShipmentEventType("shipment."+string(target)), Timestamp: time.Now().UTC()}
-	payload, _ := json.Marshal(event)
-	s.shipmentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("shipment", shipment.ID, string(event.EventType), payload))
-	if s.kafkaProducer != nil { s.kafkaProducer.PublishEvent(ctx, event) }
+	event := &domain.ShipmentEvent{ShipmentID: shipment.ID, OrderID: shipment.OrderID, Status: target, EventType: domain.ShipmentEventType("shipment." + string(target)), Timestamp: time.Now().UTC()}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		zap.L().Error("failed to marshal shipment event", zap.Error(err))
+	} else {
+		if err := s.shipmentRepo.SaveOutboxEvent(ctx, domain.NewOutboxEvent("shipment", shipment.ID, string(event.EventType), payload)); err != nil {
+			zap.L().Warn("failed to save outbox event", zap.Error(err))
+		}
+	}
+	if s.kafkaProducer != nil {
+		if err := s.kafkaProducer.PublishEvent(ctx, event); err != nil {
+			zap.L().Warn("failed to publish kafka event", zap.Error(err))
+		}
+	}
 
 	metrics.ShipmentTransitionLatency.WithLabelValues(string(shipment.Status), string(target)).Observe(0)
 	return shipment, nil
@@ -123,7 +155,10 @@ func (s *ShipmentService) GetTrackingHistory(ctx context.Context, shipmentID str
 
 func (s *ShipmentService) HandleWebhook(ctx context.Context, provider, eventType string, payload []byte, signature, idempotencyKey string) error {
 	isReplay, err := s.redisStore.CheckWebhookReplay(ctx, idempotencyKey)
-	if err == nil && isReplay { metrics.WebhookReplayCount.Inc(); return domain.ErrWebhookReplayDetected }
+	if err == nil && isReplay {
+		metrics.WebhookReplayCount.Inc()
+		return domain.ErrWebhookReplayDetected
+	}
 
 	s.shipmentRepo.SaveWebhookEvent(ctx, provider, eventType, payload, signature, idempotencyKey)
 	s.redisStore.MarkWebhookProcessed(ctx, idempotencyKey, 24*time.Hour)
@@ -132,11 +167,17 @@ func (s *ShipmentService) HandleWebhook(ctx context.Context, provider, eventType
 
 func (s *ShipmentService) ProcessOutboxEvents(ctx context.Context) error {
 	events, err := s.shipmentRepo.GetUnprocessedOutboxEvents(ctx, 100)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	for _, event := range events {
 		var shipmentEvent domain.ShipmentEvent
-		if err := json.Unmarshal(event.Payload, &shipmentEvent); err != nil { continue }
-		if err := s.kafkaProducer.PublishEvent(ctx, &shipmentEvent); err != nil { continue }
+		if err := json.Unmarshal(event.Payload, &shipmentEvent); err != nil {
+			continue
+		}
+		if err := s.kafkaProducer.PublishEvent(ctx, &shipmentEvent); err != nil {
+			continue
+		}
 		s.shipmentRepo.MarkOutboxEventProcessed(ctx, event.ID)
 	}
 	return nil

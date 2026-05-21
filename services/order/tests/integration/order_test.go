@@ -9,6 +9,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 	"github.com/shopee-clone/shopee/services/order/internal/application"
 	"github.com/shopee-clone/shopee/services/order/internal/config"
 	"github.com/shopee-clone/shopee/services/order/internal/domain"
@@ -40,8 +41,8 @@ func TestMain(m *testing.M) {
 			DB:   15,
 		},
 		Order: config.OrderConfig{
-			DefaultCurrency:    "SGD",
-			IdempotencyKeyTTL:  24 * time.Hour,
+			DefaultCurrency:   "SGD",
+			IdempotencyKeyTTL: 24 * time.Hour,
 		},
 		Kafka: config.KafkaConfig{
 			Brokers: []string{},
@@ -53,14 +54,13 @@ func TestMain(m *testing.M) {
 		fmt.Printf("WARNING: MySQL not available, skipping integration tests: %v\n", err)
 		os.Exit(0)
 	}
-	testDB = db
 
 	// Run migrations
 	runMigrations(db)
-
 	orderRepo := mysql.NewOrderRepository(db)
+	outboxRepo := mysql.NewOutboxRepository(db)
 	testRedis = redisinfra.NewStore(nil, cfg.Redis)
-	testSvc = application.NewOrderService(cfg, orderRepo, testRedis, nil)
+	testSvc = application.NewOrderService(cfg, orderRepo, outboxRepo, testRedis, nil)
 
 	code := m.Run()
 
@@ -68,7 +68,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func runMigrations(db *sql.DB) {
+func runMigrations(db *sqlx.DB) {
 	migration := `
 	CREATE TABLE IF NOT EXISTS orders (
 		id VARCHAR(36) PRIMARY KEY,
@@ -254,9 +254,9 @@ func TestIntegration_Idempotency(t *testing.T) {
 
 	ctx := context.Background()
 	req := &application.CreateOrderRequest{
-		UserID:         "user-idem-1",
-		SellerID:       "shop-idem-1",
-		IdempotencyKey: "idem-same-key-123",
+		UserID:          "user-idem-1",
+		SellerID:        "shop-idem-1",
+		IdempotencyKey:  "idem-same-key-123",
 		ShippingAddress: domain.Address{Street1: "St", City: "SG", Country: "SG"},
 		BillingAddress:  domain.Address{Street1: "St", City: "SG", Country: "SG"},
 		Items: []domain.SnapshotItem{
@@ -289,9 +289,9 @@ func TestIntegration_CancelOrder(t *testing.T) {
 
 	ctx := context.Background()
 	req := &application.CreateOrderRequest{
-		UserID:         "user-cancel-1",
-		SellerID:       "shop-cancel-1",
-		IdempotencyKey: "idem-cancel-1",
+		UserID:          "user-cancel-1",
+		SellerID:        "shop-cancel-1",
+		IdempotencyKey:  "idem-cancel-1",
 		ShippingAddress: domain.Address{Street1: "St", City: "SG", Country: "SG"},
 		BillingAddress:  domain.Address{Street1: "St", City: "SG", Country: "SG"},
 		Items: []domain.SnapshotItem{
@@ -329,9 +329,9 @@ func TestIntegration_OrderLifecycle(t *testing.T) {
 
 	ctx := context.Background()
 	req := &application.CreateOrderRequest{
-		UserID:         "user-lifecycle-1",
-		SellerID:       "shop-lifecycle-1",
-		IdempotencyKey: "idem-lifecycle-1",
+		UserID:          "user-lifecycle-1",
+		SellerID:        "shop-lifecycle-1",
+		IdempotencyKey:  "idem-lifecycle-1",
 		ShippingAddress: domain.Address{Street1: "St", City: "SG", Country: "SG"},
 		BillingAddress:  domain.Address{Street1: "St", City: "SG", Country: "SG"},
 		Items: []domain.SnapshotItem{

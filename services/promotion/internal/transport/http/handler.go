@@ -1,12 +1,13 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/promotion/internal/application"
 	"github.com/shopee-clone/shopee/services/promotion/internal/domain"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )
@@ -50,16 +51,16 @@ func (h *Handler) RedeemVoucher(c *gin.Context) {
 	ctx, _ := otel.Tracer("shopee-promotion").Start(c.Request.Context(), "http.redeem_voucher")
 
 	var req struct {
-		Code          string `json:"code" binding:"required"`
-		UserID        string `json:"user_id" binding:"required"`
-		OrderID       string `json:"order_id" binding:"required"`
+		Code           string `json:"code" binding:"required"`
+		UserID         string `json:"user_id" binding:"required"`
+		OrderID        string `json:"order_id" binding:"required"`
 		IdempotencyKey string `json:"idempotency_key"`
-		Subtotal      int64  `json:"subtotal" binding:"required,min=0"`
-		ShopID        string `json:"shop_id"`
-		CategoryID    string `json:"category_id"`
-		SKU           string `json:"sku"`
-		Region        string `json:"region"`
-		PaymentMethod string `json:"payment_method"`
+		Subtotal       int64  `json:"subtotal" binding:"required,min=0"`
+		ShopID         string `json:"shop_id"`
+		CategoryID     string `json:"category_id"`
+		SKU            string `json:"sku"`
+		Region         string `json:"region"`
+		PaymentMethod  string `json:"payment_method"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": err.Error()})
@@ -141,8 +142,16 @@ var errorStatusMap = map[error]int{
 }
 
 func handleError(c *gin.Context, err error) {
+	// Check exact match first
 	for domainErr, status := range errorStatusMap {
-		if err.Error() == domainErr.Error() || (len(err.Error()) >= len(domainErr.Error()) && err.Error()[:len(domainErr.Error())] == domainErr.Error()) {
+		if err == domainErr {
+			c.AbortWithStatusJSON(status, gin.H{"error_code": domainErr.Error(), "message": err.Error()})
+			return
+		}
+	}
+	// Check for wrapped errors using errors.Is
+	for domainErr, status := range errorStatusMap {
+		if errors.Is(err, domainErr) {
 			c.AbortWithStatusJSON(status, gin.H{"error_code": domainErr.Error(), "message": err.Error()})
 			return
 		}
