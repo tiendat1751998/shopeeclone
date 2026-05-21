@@ -60,38 +60,97 @@ All tasks have been fully processed through the pipeline:
 
 ## Platform Foundation (TASK-002) Deliverables
 
-Created production-grade infrastructure configs under `deploy/platform/`:
+Created production-grade infrastructure configs under `deploy/platform/`, `deploy/helm/`, `deploy/infrastructure/`, `.github/workflows/`:
 
+### Kubernetes Infrastructure
 | Component | Config Location |
 |-----------|----------------|
-| **Prometheus** | `deploy/platform/monitoring/prometheus/prometheus.yaml`, `rules/alerts.yaml` |
-| **Grafana** | `deploy/platform/monitoring/grafana/dashboards/`, `datasources/`, `alerting/` |
-| **Loki** | `deploy/platform/monitoring/loki/loki-config.yaml` |
-| **Tempo** | `deploy/platform/monitoring/tempo/tempo-config.yaml` |
-| **OpenTelemetry Collector** | `deploy/platform/monitoring/otel-collector/otel-collector.yaml` |
-| **Redis Cluster** | `deploy/platform/cache/redis/redis-cluster.yaml` |
-| **Kafka (Strimzi)** | `deploy/platform/messaging/kafka/strimzi/kafka-cluster.yaml` + 9 topics |
-| **MinIO** | `deploy/platform/storage/minio/minio.yaml` |
-| **PostgreSQL** | `deploy/platform/database/postgres/postgres.yaml` |
-| **MongoDB** | `deploy/platform/database/mongodb/mongodb.yaml` |
-| **Elasticsearch** | `deploy/platform/database/elasticsearch/elasticsearch.yaml` |
-| **NGINX Ingress** | `deploy/platform/ingress/nginx/nginx-ingress.yaml` |
-| **Cert Manager** | `deploy/platform/ingress/certificates/cluster-issuer.yaml` |
-| **Istio Control Plane** | `deploy/platform/istio/control-plane/istio-operator.yaml` |
-| **Istio Gateways** | `deploy/platform/istio/gateways/shopee-gateway.yaml` |
-| **mTLS** | `deploy/platform/istio/mtls/mtls-config.yaml` |
-| **K8s Namespaces** | `deploy/platform/kubernetes/namespaces/namespaces.yaml` |
-| **K8s RBAC** | `deploy/platform/kubernetes/rbac/rbac.yaml` |
-| **Network Policies** | `deploy/platform/kubernetes/network-policies/default-deny.yaml` |
-| **Resource Quotas** | `deploy/platform/kubernetes/resource-management/resource-quotas.yaml` |
-| **Pod Security** | `deploy/platform/kubernetes/pod-security/pod-security.yaml` |
-| **Storage Classes** | `deploy/platform/kubernetes/storage/storage-classes.yaml` |
-| **External Secrets** | `deploy/platform/secrets/external-secrets/external-secrets.yaml` |
-| **Vault** | `deploy/platform/secrets/vault/vault-config.yaml` |
-| **ArgoCD Config** | `deploy/platform/gitops/argocd/config/argocd-cm.yaml` |
-| **ArgoCD Projects** | `deploy/platform/gitops/argocd/projects/shopee-projects.yaml` |
-| **ArgoCD ApplicationSets** | `deploy/platform/gitops/argocd/applicationsets/shopee-services.yaml` |
-| **Bootstrap Script** | `deploy/platform/scripts/bootstrap-cluster.sh` |
+| **K8s Namespaces** | `deploy/platform/kubernetes/namespaces/namespaces.yaml` — 5 namespaces with pod-security and istio-injection labels |
+| **K8s RBAC** | `deploy/platform/kubernetes/rbac/rbac.yaml` — ServiceAccount, ClusterRole/Role, bindings |
+| **Network Policies** | `deploy/platform/kubernetes/network-policies/default-deny.yaml` — default-deny + allow-dns + allow-metrics |
+| **Resource Quotas** | `deploy/platform/kubernetes/resource-management/resource-quotas.yaml` — ResourceQuota + LimitRange |
+| **Pod Security** | `deploy/platform/kubernetes/pod-security/pod-security.yaml` — MustRunAsNonRoot, seccomp, capabilities drop |
+| **Storage Classes** | `deploy/platform/kubernetes/storage/storage-classes.yaml` — shopee-fast (gp3), shopee-standard, shopee-ssd |
+
+### Ingress & TLS
+| Component | Config Location |
+|-----------|----------------|
+| **NGINX Ingress** | `deploy/platform/ingress/nginx/nginx-ingress.yaml` + `nginx-config.yaml` — 3-replica HA, gzip, rate limiting, security headers, CORS, JSON structured logs |
+| **Cert Manager** | `deploy/platform/ingress/certificates/cluster-issuer.yaml` — Let's Encrypt production + Certificate for `*.shopee-clone.com` |
+
+### Service Mesh
+| Component | Config Location |
+|-----------|----------------|
+| **Istio Control Plane** | `deploy/platform/istio/control-plane/istio-operator.yaml` — pilot + ingress/egress gateways, HPA, tracing, access logs |
+| **Istio Gateways** | `deploy/platform/istio/gateways/shopee-gateway.yaml` — 12 service routes with timeouts/retries |
+| **Canary Routing** | `deploy/platform/istio/gateways/canary-gateway.yaml` — weighted routing (90/10, 95/5) for gateway, auth, order |
+| **mTLS** | `deploy/platform/istio/mtls/mtls-config.yaml` — PeerAuthentication STRICT, ISTIO_MUTUAL, AuthorizationPolicy |
+| **Circuit Breaker** | `deploy/platform/istio/mtls/circuit-breaker.yaml` — connection pools, outlier detection, per-service thresholds |
+
+### Observability
+| Component | Config Location |
+|-----------|----------------|
+| **Prometheus** | `deploy/platform/monitoring/prometheus/prometheus.yaml` — K8s auto-discovery, service scraping |
+| **Prometheus Rules** | `deploy/platform/monitoring/prometheus/rules/alerts.yaml` — 8 alerts: HighErrorRate, HighLatency, ServiceDown, KafkaConsumerLag, RedisMemoryHigh, etc. |
+| **Grafana** | `deploy/platform/monitoring/grafana/` — datasources (Prometheus/Loki/Tempo), dashboards (Services Overview, K8s Cluster), alerting |
+| **Loki** | `deploy/platform/monitoring/loki/loki-config.yaml` — boltdb-shipper, retention 744h, ingestion limits |
+| **Tempo** | `deploy/platform/monitoring/tempo/tempo-config.yaml` — OTLP ingestion, metrics-generator, service-graphs |
+| **OpenTelemetry Collector** | `deploy/platform/monitoring/otel-collector/otel-collector.yaml` — traces→Tempo, metrics→Prometheus, logs→Loki |
+| **Postgres Exporter** | `deploy/platform/monitoring/exporters/postgres-exporter.yaml` |
+
+### Cache & Storage
+| Component | Config Location |
+|-----------|----------------|
+| **Redis Cluster** | `deploy/platform/cache/redis/redis-cluster.yaml` — 6-node StatefulSet, anti-affinity, AOF, eviction policy |
+| **MinIO** | `deploy/platform/storage/minio/minio.yaml` — 4-node distributed, console UI, 100Gi volumes |
+
+### Messaging
+| Component | Config Location |
+|-----------|----------------|
+| **Kafka (Strimzi)** | `deploy/platform/messaging/kafka/strimzi/kafka-cluster.yaml` — 3 brokers + 3 ZK, replication factor 3, JVM tuning |
+| **Kafka Topics** | 9 topics: orders(10p), payments(10p), products(6p), inventory(10p), notifications(6p), search-indexing(6p), user-behavior(12p), fraud-events(6p), checkout(10p) |
+
+### Databases
+| Component | Config Location |
+|-----------|----------------|
+| **PostgreSQL** | `deploy/platform/database/postgres/postgres.yaml` — 3-node StatefulSet, 200 connections, WAL tuning, 100Gi |
+| **MongoDB** | `deploy/platform/database/mongodb/mongodb.yaml` — 3-node replica set, WiredTiger 4GB cache, 100Gi |
+| **Elasticsearch** | `deploy/platform/database/elasticsearch/elasticsearch.yaml` — 3-node cluster, security enabled, 200Gi |
+
+### Secrets Management
+| Component | Config Location |
+|-----------|----------------|
+| **External Secrets** | `deploy/platform/secrets/external-secrets/external-secrets.yaml` — AWS Secrets Manager, 4 ExternalSecrets |
+| **Vault** | `deploy/platform/secrets/vault/vault-config.yaml` — 3-node HA Raft, auto-unseal hooks |
+
+### GitOps
+| Component | Config Location |
+|-----------|----------------|
+| **ArgoCD Config** | `deploy/platform/gitops/argocd/config/argocd-cm.yaml` — RBAC, repositories |
+| **ArgoCD Projects** | `deploy/platform/gitops/argocd/projects/shopee-projects.yaml` — 3 projects (services, platforms, infrastructure) |
+| **ArgoCD ApplicationSets** | `deploy/platform/gitops/argocd/applicationsets/shopee-services.yaml` — 12 service + 12 platform auto-deployments |
+
+### Helm Charts
+| Component | Config Location |
+|-----------|----------------|
+| **Platform Helm Chart** | `deploy/helm/platform/Chart.yaml` + `values.yaml` — 14 sub-charts (Prometheus, Grafana, Loki, Tempo, OTel, Redis, Kafka, MinIO, NGINX, cert-manager, ArgoCD, External Secrets, Vault, cert-manager) |
+
+### Infrastructure as Code (Terraform)
+| Component | Config Location |
+|-----------|----------------|
+| **Production** | `deploy/infrastructure/terraform/environments/production/` — VPC (3 AZs), EKS (3 node groups: general/memory/burst), node group sizing |
+| **Staging** | `deploy/infrastructure/terraform/environments/staging/` — VPC (2 AZs), EKS (1 node group), single NAT |
+
+### CI/CD
+| Component | Config Location |
+|-----------|----------------|
+| **CI Pipeline** | `.github/workflows/ci.yml` — lint, test, race detection, build, gosec, trivy SARIF, Docker build matrix (11 services), helm lint, K8s validation |
+| **Deploy Pipeline** | `.github/workflows/deploy.yml` — kubectl apply, helm upgrade, terraform plan/apply, container security scan |
+
+### Scripts
+| Component | Config Location |
+|-----------|----------------|
+| **Bootstrap Script** | `deploy/platform/scripts/bootstrap-cluster.sh` — full cluster bootstrap in order: namespaces → cert-manager → ArgoCD → monitoring → databases → infrastructure → ingress → Istio → secrets → GitOps |
 
 ---
 

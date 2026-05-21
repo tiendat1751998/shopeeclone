@@ -2,6 +2,7 @@ package transport
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,12 +10,16 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/gateway/internal/discovery"
 	"github.com/shopee-clone/shopee/services/gateway/internal/middleware"
+	"github.com/shopee-clone/shopee/services/gateway/internal/resilience"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,9 +27,55 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	proxyRequestsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "shopee_gateway_proxy_requests_total",
+		Help: "Total proxy requests",
+	}, []string{"service", "method", "status"})
+
+	proxyRequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "shopee_gateway_proxy_duration_seconds",
+		Help:    "Proxy request duration",
+		Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+	}, []string{"service", "method"})
+
+	proxyRetriesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "shopee_gateway_proxy_retries_total",
+		Help: "Total proxy retries",
+	}, []string{"service"})
+
+	proxyCircuitBreakerState = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "shopee_gateway_circuit_breaker_state",
+		Help: "Circuit breaker state (0=closed, 1=half-open, 2=open)",
+	}, []string{"service"})
+
+	proxyErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "shopee_gateway_proxy_errors_total",
+		Help: "Total proxy errors by type",
+	}, []string{"service", "error_type"})
+)
+
 type Proxy struct {
-	discovery *discovery.ServiceDiscovery
-	transport *http.Transport
+	discovery       *discovery.ServiceDiscovery
+	transport       *http.Transport
+	circuitBreakers map[string]*resilience.CircuitBreaker
+	retryConfig     map[string]resilience.RetryConfig
+	cbMu            sync.RWMutex
+	timeouts        map[string]time.Duration
+}
+
+type ProxyTarget struct {
+	ServiceName string
+	PathPrefix  string
+	StripPrefix string
+	Timeout     time.Duration
+}
+
+type ProxyOption struct {
+	ServiceName     string
+	CircuitBreaker  resilience.CircuitBreakerOptions
+	RetryConfig     resilience.RetryConfig
+	Timeout         time.Duration
 }
 
 func NewProxy(
@@ -33,7 +84,10 @@ func NewProxy(
 	idleConnTimeout time.Duration,
 ) *Proxy {
 	return &Proxy{
-		discovery: svcDiscovery,
+		discovery:       svcDiscovery,
+		circuitBreakers: make(map[string]*resilience.CircuitBreaker),
+		retryConfig:     make(map[string]resilience.RetryConfig),
+		timeouts:        make(map[string]time.Duration),
 		transport: &http.Transport{
 			MaxIdleConns:        maxIdleConns,
 			MaxIdleConnsPerHost: maxIdleConns / 4,
@@ -43,11 +97,43 @@ func NewProxy(
 	}
 }
 
-type ProxyTarget struct {
-	ServiceName string
-	PathPrefix  string
-	StripPrefix string
-	Timeout     time.Duration
+func (p *Proxy) Configure(opts []ProxyOption) {
+	for _, opt := range opts {
+		cb := resilience.NewCircuitBreaker(opt.ServiceName, opt.CircuitBreaker)
+		p.cbMu.Lock()
+		p.circuitBreakers[opt.ServiceName] = cb
+		p.retryConfig[opt.ServiceName] = opt.RetryConfig
+		if opt.Timeout > 0 {
+			p.timeouts[opt.ServiceName] = opt.Timeout
+		}
+		p.cbMu.Unlock()
+
+		proxyCircuitBreakerState.WithLabelValues(opt.ServiceName).Set(float64(cb.State()))
+	}
+}
+
+func (p *Proxy) getCircuitBreaker(service string) *resilience.CircuitBreaker {
+	p.cbMu.RLock()
+	defer p.cbMu.RUnlock()
+	return p.circuitBreakers[service]
+}
+
+func (p *Proxy) getRetryConfig(service string) resilience.RetryConfig {
+	p.cbMu.RLock()
+	defer p.cbMu.RUnlock()
+	if cfg, ok := p.retryConfig[service]; ok {
+		return cfg
+	}
+	return resilience.DefaultRetryConfig()
+}
+
+func (p *Proxy) getTimeout(service string) time.Duration {
+	p.cbMu.RLock()
+	defer p.cbMu.RUnlock()
+	if t, ok := p.timeouts[service]; ok {
+		return t
+	}
+	return 30 * time.Second
 }
 
 func (p *Proxy) ReverseProxy(target *ProxyTarget) gin.HandlerFunc {
@@ -67,12 +153,11 @@ func (p *Proxy) ReverseProxy(target *ProxyTarget) gin.HandlerFunc {
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "no healthy upstream instances")
-
 			observability.GetLogger().Error("no healthy upstream instances",
 				zap.String("service", target.ServiceName),
 				zap.Error(err),
 			)
-
+			proxyErrorsTotal.WithLabelValues(target.ServiceName, "NO_HEALTHY_INSTANCE").Inc()
 			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
 				"error_code": "SERVICE_UNAVAILABLE",
 				"message":    fmt.Sprintf("service %s is currently unavailable", target.ServiceName),
@@ -87,6 +172,7 @@ func (p *Proxy) ReverseProxy(target *ProxyTarget) gin.HandlerFunc {
 			return
 		}
 
+		timeout := p.getTimeout(target.ServiceName)
 		proxy := httputil.NewSingleHostReverseProxy(upstreamURL)
 		proxy.Transport = p.transport
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
@@ -94,7 +180,7 @@ func (p *Proxy) ReverseProxy(target *ProxyTarget) gin.HandlerFunc {
 				zap.String("service", target.ServiceName),
 				zap.Error(err),
 			)
-			observability.BusinessErrorsTotal.WithLabelValues("gateway", "PROXY_ERROR").Inc()
+			proxyErrorsTotal.WithLabelValues(target.ServiceName, "PROXY_ERROR").Inc()
 			w.WriteHeader(http.StatusBadGateway)
 			json.NewEncoder(w).Encode(gin.H{
 				"error_code": "BAD_GATEWAY",
@@ -103,8 +189,77 @@ func (p *Proxy) ReverseProxy(target *ProxyTarget) gin.HandlerFunc {
 		}
 
 		p.modifyRequest(c, proxy, target)
-		proxy.ServeHTTP(c.Writer, c.Request)
+
+		retryCfg := p.getRetryConfig(target.ServiceName)
+		cb := p.getCircuitBreaker(target.ServiceName)
+
+		start := time.Now()
+		statusCode := http.StatusOK
+
+		if cb != nil {
+			err = cb.Execute(func() error {
+				return p.doProxyRequest(c, proxy, target, timeout)
+			})
+		} else if retryCfg.MaxAttempts > 1 {
+			err = resilience.DoWithRetry(c.Request.Context(), retryCfg, target.ServiceName, func(ctx context.Context) error {
+				return p.doProxyRequest(c, proxy, target, timeout)
+			})
+		} else {
+			err = p.doProxyRequest(c, proxy, target, timeout)
+		}
+
+		duration := time.Since(start)
+
+		if err != nil {
+			statusCode = http.StatusBadGateway
+			if strings.Contains(err.Error(), "circuit breaker") {
+				statusCode = http.StatusServiceUnavailable
+			}
+			proxyErrorsTotal.WithLabelValues(target.ServiceName, errorType(err)).Inc()
+		} else {
+			statusCode = c.Writer.Status()
+		}
+
+		proxyRequestsTotal.WithLabelValues(
+			target.ServiceName,
+			c.Request.Method,
+			fmt.Sprintf("%d", statusCode),
+		).Inc()
+		proxyRequestDuration.WithLabelValues(target.ServiceName, c.Request.Method).Observe(duration.Seconds())
+
+		if cb != nil {
+			proxyCircuitBreakerState.WithLabelValues(target.ServiceName).Set(float64(cb.State()))
+		}
 	}
+}
+
+func (p *Proxy) doProxyRequest(c *gin.Context, proxy *httputil.ReverseProxy, target *ProxyTarget, timeout time.Duration) error {
+	ctx := c.Request.Context()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	req := c.Request.WithContext(ctx)
+
+	recorder := &responseRecorder{ResponseWriter: c.Writer, statusCode: http.StatusOK}
+	proxy.ServeHTTP(recorder, req)
+
+	select {
+	case <-ctx.Done():
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("upstream %s timeout after %v", target.ServiceName, timeout)
+		}
+		return ctx.Err()
+	default:
+	}
+
+	if recorder.statusCode >= 500 {
+		return fmt.Errorf("upstream %s returned %d", target.ServiceName, recorder.statusCode)
+	}
+
+	return nil
 }
 
 func (p *Proxy) modifyRequest(c *gin.Context, proxy *httputil.ReverseProxy, target *ProxyTarget) {
@@ -120,7 +275,6 @@ func (p *Proxy) modifyRequest(c *gin.Context, proxy *httputil.ReverseProxy, targ
 		}
 
 		req.Host = req.URL.Host
-
 		p.injectGatewayHeaders(c, req)
 	}
 }
@@ -178,6 +332,22 @@ func (p *Proxy) HealthCheck(serviceName string) gin.HandlerFunc {
 	}
 }
 
+type responseRecorder struct {
+	http.ResponseWriter
+	statusCode int
+	body       bytes.Buffer
+}
+
+func (r *responseRecorder) WriteHeader(code int) {
+	r.statusCode = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *responseRecorder) Write(b []byte) (int, error) {
+	r.body.Write(b)
+	return r.ResponseWriter.Write(b)
+}
+
 func copyRequestBody(r *http.Request) ([]byte, error) {
 	if r.Body == nil {
 		return nil, nil
@@ -191,23 +361,20 @@ func copyRequestBody(r *http.Request) ([]byte, error) {
 	return body, nil
 }
 
-func httpClientTimeout(serviceName string) time.Duration {
-	switch serviceName {
-	case "auth":
-		return 10 * time.Second
-	case "catalog":
-		return 15 * time.Second
-	case "cart":
-		return 5 * time.Second
-	case "order":
-		return 30 * time.Second
-	case "inventory":
-		return 5 * time.Second
-	case "payment":
-		return 30 * time.Second
-	case "search":
-		return 10 * time.Second
+func errorType(err error) string {
+	errStr := err.Error()
+	switch {
+	case strings.Contains(errStr, "circuit breaker"):
+		return "CIRCUIT_BREAKER_OPEN"
+	case strings.Contains(errStr, "timeout"):
+		return "TIMEOUT"
+	case strings.Contains(errStr, "refused"):
+		return "CONNECTION_REFUSED"
+	case strings.Contains(errStr, "reset"):
+		return "CONNECTION_RESET"
+	case strings.Contains(errStr, "no such host"):
+		return "DNS_FAILURE"
 	default:
-		return 30 * time.Second
+		return "UPSTREAM_ERROR"
 	}
 }

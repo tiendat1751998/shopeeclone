@@ -2,9 +2,13 @@ package application
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"fmt"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/auth/internal/config"
 	"github.com/shopee-clone/shopee/services/auth/internal/domain"
@@ -437,6 +441,151 @@ func (s *AuthService) handleTokenReuse(ctx context.Context, userID, sessionID, i
 		trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 		userID, domain.AuditSuspicious, ip, "", "",
 	))
+}
+
+func (s *AuthService) RequestPasswordReset(ctx context.Context, req *domain.PasswordResetRequest, ip string) error {
+	ctx, span := otel.Tracer("shopee-auth").Start(ctx, "auth.request_password_reset")
+	defer span.End()
+
+	if err := s.rateLimiter.CheckPasswordReset(ctx, req.Email); err != nil {
+		span.SetStatus(codes.Error, "rate limited")
+		return err
+	}
+
+	user, err := s.userRepo.FindByEmail(ctx, req.Email)
+	if err != nil {
+		return nil
+	}
+
+	token := uuid.New().String()
+	tokenHash := sha256Hex(token)
+	resetKey := fmt.Sprintf("password_reset:%s", user.ID)
+
+	if s.redisStore != nil {
+		if err := s.redisStore.SetResetToken(ctx, user.ID, tokenHash, 15*time.Minute); err != nil {
+			observability.LogWithTrace(ctx).Warn("failed to store reset token", zap.Error(err))
+		}
+	}
+
+	s.auditRepo.Log(ctx, domain.NewAuditLog(
+		trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
+		user.ID, domain.AuditPasswordReset, ip, "", "",
+	))
+
+	metrics.PasswordResetsTotal.Inc()
+	span.SetAttributes(attribute.String("user_id", user.ID))
+	return nil
+}
+
+func (s *AuthService) ResetPassword(ctx context.Context, req *domain.ResetPasswordRequest, ip string) error {
+	ctx, span := otel.Tracer("shopee-auth").Start(ctx, "auth.reset_password")
+	defer span.End()
+
+	if req.NewPassword != req.ConfirmPassword {
+		return domain.ErrPasswordMismatch
+	}
+
+	if err := validatePassword(req.NewPassword); err != nil {
+		return err
+	}
+
+	tokenHash := sha256Hex(req.Token)
+
+	userID, err := s.redisStore.ValidateAndConsumeResetToken(ctx, tokenHash)
+	if err != nil {
+		span.SetStatus(codes.Error, "invalid reset token")
+		return domain.ErrInvalidResetToken
+	}
+
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return domain.ErrUserNotFound
+	}
+
+	passwordHash, err := s.hashService.Hash(ctx, req.NewPassword)
+	if err != nil {
+		span.SetStatus(codes.Error, "hash failed")
+		return fmt.Errorf("password hashing failed: %w", err)
+	}
+
+	if err := s.userRepo.UpdatePassword(ctx, user.ID, passwordHash); err != nil {
+		return fmt.Errorf("password update failed: %w", err)
+	}
+
+	sessions, _ := s.sessionRepo.FindActiveByUserID(ctx, user.ID)
+	for _, session := range sessions {
+		session.Revoke()
+		s.sessionRepo.Update(ctx, session)
+		if s.redisStore != nil {
+			s.redisStore.BlacklistRefreshToken(ctx, session.RefreshTokenID, s.cfg.JWT.RefreshTTL)
+		}
+	}
+
+	if s.redisStore != nil {
+		s.redisStore.RevokeAllUserSessions(ctx, user.ID)
+	}
+
+	s.auditRepo.Log(ctx, domain.NewAuditLog(
+		trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
+		user.ID, domain.AuditPasswordChange, ip, "", "",
+	))
+
+	metrics.PasswordResetsTotal.Inc()
+	span.SetAttributes(attribute.String("user_id", user.ID))
+	return nil
+}
+
+func (s *AuthService) VerifyEmail(ctx context.Context, req *domain.VerifyEmailRequest, ip string) error {
+	ctx, span := otel.Tracer("shopee-auth").Start(ctx, "auth.verify_email")
+	defer span.End()
+
+	tokenHash := sha256Hex(req.Token)
+
+	userID, err := s.redisStore.ValidateAndConsumeVerifyToken(ctx, tokenHash)
+	if err != nil {
+		span.SetStatus(codes.Error, "invalid verify token")
+		return domain.ErrInvalidVerifyToken
+	}
+
+	if err := s.userRepo.UpdateEmailVerified(ctx, userID); err != nil {
+		return fmt.Errorf("email verification update failed: %w", err)
+	}
+
+	s.auditRepo.Log(ctx, domain.NewAuditLog(
+		trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
+		userID, domain.AuditEmailVerify, ip, "", "",
+	))
+
+	metrics.EmailVerificationsTotal.Inc()
+	span.SetAttributes(attribute.String("user_id", userID))
+	return nil
+}
+
+func (s *AuthService) SendVerificationEmail(ctx context.Context, userID string) error {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return domain.ErrUserNotFound
+	}
+
+	if user.EmailVerified {
+		return nil
+	}
+
+	token := uuid.New().String()
+	tokenHash := sha256Hex(token)
+
+	if s.redisStore != nil {
+		if err := s.redisStore.SetVerifyToken(ctx, user.ID, tokenHash, 24*time.Hour); err != nil {
+			return fmt.Errorf("failed to store verify token: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func sha256Hex(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
 }
 
 func validatePassword(password string) error {

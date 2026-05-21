@@ -24,6 +24,7 @@ import (
 type Router struct {
 	cfg         *config.Config
 	proxy       *transport.Proxy
+	grpcProxy   *transport.GRPCProxy
 	rateLimiter *ratelimit.RateLimiter
 	authMW      *auth.AuthMiddleware
 	discovery   *discovery.ServiceDiscovery
@@ -34,6 +35,7 @@ type Router struct {
 func NewRouter(
 	cfg *config.Config,
 	proxy *transport.Proxy,
+	grpcProxy *transport.GRPCProxy,
 	rateLimiter *ratelimit.RateLimiter,
 	authMW *auth.AuthMiddleware,
 	svcDiscovery *discovery.ServiceDiscovery,
@@ -43,6 +45,7 @@ func NewRouter(
 	return &Router{
 		cfg:         cfg,
 		proxy:       proxy,
+		grpcProxy:   grpcProxy,
 		rateLimiter: rateLimiter,
 		authMW:      authMW,
 		discovery:   svcDiscovery,
@@ -72,6 +75,7 @@ func (r *Router) Setup(engine *gin.Engine) {
 
 	r.setupSystemEndpoints(engine)
 	r.setupUpstreamRoutes(engine)
+	r.setupGRPCRoutes(engine)
 	r.setupFallback(engine)
 }
 
@@ -98,7 +102,19 @@ func (r *Router) setupSystemEndpoints(engine *gin.Engine) {
 
 func (r *Router) setupUpstreamRoutes(engine *gin.Engine) {
 	for _, route := range RouteTable {
+		if route.Protocol == "grpc" {
+			continue
+		}
 		r.registerRouteGroup(engine, route)
+	}
+}
+
+func (r *Router) setupGRPCRoutes(engine *gin.Engine) {
+	for _, route := range RouteTable {
+		if route.Protocol != "grpc" {
+			continue
+		}
+		r.registerGRPCRoute(engine, route)
 	}
 }
 
@@ -113,9 +129,7 @@ func (r *Router) registerRouteGroup(engine *gin.Engine, route RouteGroup) {
 	}
 
 	rateLimitMW := r.rateLimiter.AuthenticatedRateLimit()
-
 	endpointRateLimit := r.rateLimiter.PerEndpointRateLimit(route.RateLimit)
-
 	handler := r.proxy.ReverseProxy(route.ToProxyTarget())
 
 	group := engine.Group(route.Prefix)
@@ -133,6 +147,14 @@ func (r *Router) registerRouteGroup(engine *gin.Engine, route RouteGroup) {
 		zap.String("target", route.Target),
 		zap.Bool("auth", route.Auth),
 		zap.Int("rate_limit", route.RateLimit),
+	)
+}
+
+func (r *Router) registerGRPCRoute(engine *gin.Engine, route RouteGroup) {
+	observability.GetLogger().Info("registered gRPC route",
+		zap.String("prefix", route.Prefix),
+		zap.String("target", route.Target),
+		zap.String("grpc_method", route.GRPCMethod),
 	)
 }
 

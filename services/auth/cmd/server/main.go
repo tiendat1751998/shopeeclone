@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	sharedRedis "github.com/shopee-clone/shopee/packages/go-shared/pkg/redis"
@@ -25,6 +26,7 @@ import (
 	grpctransport "github.com/shopee-clone/shopee/services/auth/internal/transport/grpc"
 	httptransport "github.com/shopee-clone/shopee/services/auth/internal/transport/http"
 	pb "github.com/shopee-clone/shopee/services/auth/proto/auth/v1"
+	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -84,6 +86,10 @@ func main() {
 	handler := httptransport.NewHandler(authService)
 
 	hc := health.NewChecker(cfg.AppName, version)
+	hc.AddCheck("mysql", func(ctx context.Context) error { return db.PingContext(ctx) })
+	if redisClient != nil {
+		hc.AddCheck("redis", func(ctx context.Context) error { return redisClient.Ping(ctx).Err() })
+	}
 	httpRouter := httptransport.NewRouter(handler, hc, redisClient)
 	httpRouter.Setup(engine)
 
@@ -98,7 +104,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 	grpcAuthServer := grpctransport.NewAuthGRPCServer(authService)
 	pb.RegisterAuthServiceServer(grpcServer, grpcAuthServer)
-	grpc_health_v1.RegisterHealthServer(grpcServer, &grpcHealthServer{})
+	grpc_health_v1.RegisterHealthServer(grpcServer, &grpcHealthServer{db: db, redis: redisClient})
 	reflection.Register(grpcServer)
 
 	grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPCPort))
@@ -145,10 +151,24 @@ func main() {
 	logger.Info("auth service stopped")
 }
 
-type grpcHealthServer struct{}
+type grpcHealthServer struct {
+	db    *sqlx.DB
+	redis *redis.Client
+}
 
 func (s *grpcHealthServer) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
-	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
+	status := grpc_health_v1.HealthCheckResponse_SERVING
+	if s.db != nil {
+		if err := s.db.PingContext(ctx); err != nil {
+			status = grpc_health_v1.HealthCheckResponse_NOT_SERVING
+		}
+	}
+	if status == grpc_health_v1.HealthCheckResponse_SERVING && s.redis != nil {
+		if err := s.redis.Ping(ctx).Err(); err != nil {
+			status = grpc_health_v1.HealthCheckResponse_NOT_SERVING
+		}
+	}
+	return &grpc_health_v1.HealthCheckResponse{Status: status}, nil
 }
 
 func (s *grpcHealthServer) Watch(req *grpc_health_v1.HealthCheckRequest, stream grpc_health_v1.Health_WatchServer) error {

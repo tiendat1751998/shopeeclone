@@ -11,7 +11,6 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow traffic from ingress controller
     - from:
         - namespaceSelector:
             matchLabels:
@@ -19,7 +18,6 @@ spec:
       ports:
         - port: 8080
           protocol: TCP
-    # Allow traffic from other services in the same namespace
     - from:
         - podSelector:
             matchLabels:
@@ -29,51 +27,39 @@ spec:
           protocol: TCP
         - port: 9090
           protocol: TCP
-    # Allow Prometheus scraping
     - from:
         - namespaceSelector:
             matchLabels:
-              name: monitoring
+              name: shopee-observability
       ports:
         - port: 8080
           protocol: TCP
   egress:
-    # Allow DNS
     - to: []
       ports:
         - port: 53
           protocol: UDP
         - port: 53
           protocol: TCP
-    # Allow Redis
     - to:
-        - podSelector:
-            matchLabels:
-              app: redis
+        - ipBlock:
+            cidr: 10.0.0.0/8
       ports:
         - port: 6379
           protocol: TCP
-    # Allow Kafka
-    - to:
-        - podSelector:
-            matchLabels:
-              app: kafka
-      ports:
-        - port: 9092
-          protocol: TCP
-    # Allow identity-auth service
-    - to:
-        - podSelector:
-            matchLabels:
-              app: identity-auth
-      ports:
-        - port: 8080
-          protocol: TCP
-    # Allow OTLP collector
     - to:
         - namespaceSelector:
             matchLabels:
-              name: monitoring
+              name: shopee-services
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 9090
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: shopee-observability
       ports:
         - port: 4318
           protocol: TCP

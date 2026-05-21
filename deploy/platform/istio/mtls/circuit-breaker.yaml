@@ -1,0 +1,71 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: circuit-breaker-default
+  namespace: shopee
+spec:
+  host: "*.shopee.svc.cluster.local"
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 1024
+        http2MaxRequests: 1024
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: circuit-breaker-gateway
+  namespace: shopee
+spec:
+  host: "api-gateway.shopee.svc.cluster.local"
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 200
+      http:
+        http1MaxPendingRequests: 2048
+        http2MaxRequests: 2048
+        maxRequestsPerConnection: 100
+        maxRetries: 5
+    outlierDetection:
+      consecutive5xxErrors: 10
+      interval: 30s
+      baseEjectionTime: 60s
+      maxEjectionPercent: 30
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: circuit-breaker-inventory
+  namespace: shopee
+spec:
+  host: "inventory.shopee.svc.cluster.local"
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 300
+      http:
+        http1MaxPendingRequests: 4096
+        http2MaxRequests: 4096
+        maxRequestsPerConnection: 50
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 15s
+      maxEjectionPercent: 30
+    tls:
+      mode: ISTIO_MUTUAL

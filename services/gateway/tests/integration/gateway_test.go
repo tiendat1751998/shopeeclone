@@ -24,8 +24,6 @@ func newTestRequest(method, path string) *http.Request {
 	return req
 }
 
-
-
 func setupTestRouter() *gin.Engine {
 	cfg := &config.Config{
 		AppName:  "test-gateway",
@@ -42,7 +40,7 @@ func setupTestRouter() *gin.Engine {
 			MaxBodySize: 10485760,
 		},
 		CORS: config.CORSConfig{
-			AllowedOrigins: []string{"*"},
+			AllowedOrigins: []string{"http://localhost:3000"},
 		},
 		OpenTelemetry: config.OTELConfig{
 			ServiceName: "test-gateway",
@@ -70,12 +68,14 @@ func setupTestRouter() *gin.Engine {
 		cfg.Upstreams.IdleConnTimeout,
 	)
 
+	grpcProxy := transport.NewGRPCProxy(svcDiscovery)
+
 	healthChecker := health.NewChecker("test-gateway", "1.0.0")
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 
-	router := routing.NewRouter(cfg, proxy, rateLimiter, authMiddleware, svcDiscovery, healthChecker, nil)
+	router := routing.NewRouter(cfg, proxy, grpcProxy, rateLimiter, authMiddleware, svcDiscovery, healthChecker, nil)
 	router.Setup(engine)
 
 	return engine
@@ -132,8 +132,8 @@ func TestGateway_NotFound(t *testing.T) {
 	req := newTestRequest(http.MethodGet, "/nonexistent")
 	engine.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotFound && w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 404 or 401, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
 	}
 }
 
@@ -147,6 +147,23 @@ func TestGateway_CORSHeaders(t *testing.T) {
 
 	if w.Code != http.StatusNoContent {
 		t.Errorf("expected 204, got %d", w.Code)
+	}
+
+	if w.Header().Get("Access-Control-Allow-Origin") != "http://localhost:3000" {
+		t.Errorf("expected CORS origin to be echoed, got %s", w.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
+func TestGateway_CORSRejectsInvalidOrigin(t *testing.T) {
+	engine := setupTestRouter()
+
+	w := httptest.NewRecorder()
+	req := newTestRequest(http.MethodOptions, "/api/v1/products")
+	req.Header.Set("Origin", "http://evil.com")
+	engine.ServeHTTP(w, req)
+
+	if w.Header().Get("Access-Control-Allow-Origin") == "http://evil.com" {
+		t.Error("CORS should not allow invalid origins")
 	}
 }
 
@@ -197,17 +214,6 @@ func TestGateway_RequestIDGenerated(t *testing.T) {
 	}
 }
 
-func TestGateway_MissingUserAgent(t *testing.T) {
-	engine := setupTestRouter()
-
-	w := httptest.NewRecorder()
-	req := newTestRequest(http.MethodGet, "/api/v1/products")
-	req.Header.Del("User-Agent")
-	engine.ServeHTTP(w, req)
-
-	t.Logf("user-agent enforcement returned %d", w.Code)
-}
-
 func TestGateway_UpstreamsEndpoint(t *testing.T) {
 	engine := setupTestRouter()
 
@@ -228,15 +234,29 @@ func TestGateway_UpstreamsEndpoint(t *testing.T) {
 	}
 }
 
-func TestGateway_MaxBodySize(t *testing.T) {
+func TestGateway_MissingUserAgent(t *testing.T) {
 	engine := setupTestRouter()
 
 	w := httptest.NewRecorder()
-	req := newTestRequest(http.MethodPost, "/api/v1/auth/login")
+	req := newTestRequest(http.MethodGet, "/api/v1/products")
+	req.Header.Del("User-Agent")
 	engine.ServeHTTP(w, req)
 
-	if w.Code >= 400 && w.Code < 500 {
-		t.Logf("request rejected as expected with %d", w.Code)
+	if w.Code == http.StatusOK {
+		t.Log("user-agent not enforced for this route")
+	}
+}
+
+func TestGateway_RateLimitHeaders(t *testing.T) {
+	engine := setupTestRouter()
+
+	w := httptest.NewRecorder()
+	req := newTestRequest(http.MethodGet, "/health")
+	engine.ServeHTTP(w, req)
+
+	limitHeader := w.Header().Get("X-RateLimit-Limit")
+	if limitHeader == "" {
+		t.Log("rate limit headers not present (rate limiting disabled in test)")
 	}
 }
 
@@ -256,6 +276,16 @@ func BenchmarkGatewayMetrics(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		w := httptest.NewRecorder()
 		req := newTestRequest(http.MethodGet, "/metrics")
+		engine.ServeHTTP(w, req)
+	}
+}
+
+func BenchmarkGatewayUpstreams(b *testing.B) {
+	engine := setupTestRouter()
+
+	for i := 0; i < b.N; i++ {
+		w := httptest.NewRecorder()
+		req := newTestRequest(http.MethodGet, "/upstreams")
 		engine.ServeHTTP(w, req)
 	}
 }

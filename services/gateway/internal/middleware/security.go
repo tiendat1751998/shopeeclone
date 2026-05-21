@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"fmt"
+	"html"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +45,12 @@ func BodySizeLimiter(maxBodySize int64) gin.HandlerFunc {
 	}
 }
 
+var (
+	sqlInjectionPattern = regexp.MustCompile(`(?i)(\b(ALTER|CREATE|DELETE|DROP|EXEC|INSERT|MERGE|SELECT|TRUNCATE|UPDATE|UNION)\b)`)
+	xssPattern          = regexp.MustCompile(`(?i)(<script|<\/script|javascript:|onerror=|onload=|onclick=)`)
+	pathTraversalPattern = regexp.MustCompile(`\.\./|\.\.\\|%2e%2e%2f|%2e%2e%5c`)
+)
+
 func RequestSanitizer() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		query := c.Request.URL.Query()
@@ -54,16 +62,24 @@ func RequestSanitizer() gin.HandlerFunc {
 		}
 		c.Request.URL.RawQuery = query.Encode()
 
+		for _, v := range c.Request.Header.Values("X-Forwarded-For") {
+			if pathTraversalPattern.MatchString(v) || xssPattern.MatchString(v) {
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+					"error_code": "INVALID_HEADER",
+					"message":    "malformed header detected",
+				})
+				return
+			}
+		}
+
 		c.Next()
 	}
 }
 
 func sanitizeInput(input string) string {
-	input = strings.ReplaceAll(input, "<script", "&lt;script")
-	input = strings.ReplaceAll(input, "</script>", "&lt;/script&gt;")
-	input = strings.ReplaceAll(input, "javascript:", "")
-	input = strings.ReplaceAll(input, "onerror=", "onerror-disabled=")
-	input = strings.ReplaceAll(input, "onload=", "onload-disabled=")
+	input = html.EscapeString(input)
+	input = sqlInjectionPattern.ReplaceAllString(input, "")
+	input = xssPattern.ReplaceAllString(input, "")
 	return input
 }
 
@@ -151,6 +167,13 @@ func AntiAbuse() gin.HandlerFunc {
 				})
 				return
 			}
+			if !strings.HasPrefix(contentType, "application/json") && !strings.HasPrefix(contentType, "multipart/form-data") && !strings.HasPrefix(contentType, "application/x-www-form-urlencoded") {
+				c.AbortWithStatusJSON(http.StatusUnsupportedMediaType, gin.H{
+					"error_code": "INVALID_CONTENT_TYPE",
+					"message":    "unsupported Content-Type",
+				})
+				return
+			}
 		}
 
 		query := c.Request.URL.RawQuery
@@ -165,6 +188,29 @@ func AntiAbuse() gin.HandlerFunc {
 		acceptEncoding := c.GetHeader("Accept-Encoding")
 		if strings.Contains(acceptEncoding, "gzip") {
 			c.Header("Content-Encoding", "gzip")
+		}
+
+		c.Next()
+	}
+}
+
+func CSRFProtection() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead || c.Request.Method == http.MethodOptions {
+			c.Next()
+			return
+		}
+
+		origin := c.GetHeader("Origin")
+		if origin == "" {
+			origin = c.GetHeader("Referer")
+		}
+		if origin == "" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error_code": "CSRF_ORIGIN_MISSING",
+				"message":    "Origin or Referer header required for state-changing requests",
+			})
+			return
 		}
 
 		c.Next()
@@ -206,6 +252,9 @@ func validateRequest(c *gin.Context) error {
 	if strings.Contains(path, "..") {
 		return fmt.Errorf("path traversal detected")
 	}
+	if pathTraversalPattern.MatchString(path) {
+		return fmt.Errorf("path traversal detected")
+	}
 
 	if method == http.MethodTrace {
 		return fmt.Errorf("TRACE method not allowed")
@@ -213,6 +262,10 @@ func validateRequest(c *gin.Context) error {
 
 	if method == http.MethodConnect {
 		return fmt.Errorf("CONNECT method not allowed")
+	}
+
+	if method == http.MethodOptions {
+		return nil
 	}
 
 	host := c.GetHeader("Host")
@@ -228,6 +281,16 @@ func validateRequest(c *gin.Context) error {
 		}
 		if length < 0 {
 			return fmt.Errorf("negative Content-Length")
+		}
+		if length > 10*1024*1024 {
+			return fmt.Errorf("Content-Length exceeds maximum allowed size")
+		}
+	}
+
+	if method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch {
+		contentType := c.GetHeader("Content-Type")
+		if contentType == "" {
+			return fmt.Errorf("Content-Type header required for write operations")
 		}
 	}
 

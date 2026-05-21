@@ -69,18 +69,29 @@ type OTELConfig struct {
 	MetricsPrefix string
 }
 
+type CircuitBreakerConfig struct {
+	Enabled      bool
+	MaxRequests  int
+	Interval     time.Duration
+	Timeout      time.Duration
+	FailureRatio float64
+	MinSamples   int
+}
+
 type UpstreamConfig struct {
-	AuthService         string
-	CatalogService      string
-	CartService         string
-	OrderService        string
-	InventoryService    string
-	PaymentService      string
-	SearchService       string
+	AuthService          string
+	CatalogService       string
+	CartService          string
+	OrderService         string
+	InventoryService     string
+	PaymentService       string
+	SearchService        string
 	RecommendationService string
-	DefaultTimeout      time.Duration
-	MaxIdleConns        int
-	IdleConnTimeout     time.Duration
+	DefaultTimeout       time.Duration
+	MaxIdleConns         int
+	IdleConnTimeout      time.Duration
+	MaxRetries           int
+	CircuitBreaker       CircuitBreakerConfig
 }
 
 type CORSConfig struct {
@@ -140,8 +151,8 @@ func Load() *Config {
 			RefreshTTL:        getEnvDuration("JWT_REFRESH_TTL", 168*time.Hour),
 			EnableRBAC:        getEnvBool("RBAC_ENABLED", true),
 			TokenBlacklistTTL: getEnvDuration("TOKEN_BLACKLIST_TTL", 24*time.Hour),
-			AccessTokenKey:    getEnv("JWT_ACCESS_SECRET", "change-me-in-production"),
-			RefreshTokenKey:   getEnv("JWT_REFRESH_SECRET", "change-me-too-in-production"),
+			AccessTokenKey:    getEnv("JWT_ACCESS_SECRET", ""),
+			RefreshTokenKey:   getEnv("JWT_REFRESH_SECRET", ""),
 		},
 
 		OpenTelemetry: OTELConfig{
@@ -163,10 +174,19 @@ func Load() *Config {
 			DefaultTimeout:       getEnvDuration("UPSTREAM_DEFAULT_TIMEOUT", 30*time.Second),
 			MaxIdleConns:         getEnvInt("UPSTREAM_MAX_IDLE_CONNS", 100),
 			IdleConnTimeout:      getEnvDuration("UPSTREAM_IDLE_CONN_TIMEOUT", 90*time.Second),
+			MaxRetries:           getEnvInt("UPSTREAM_MAX_RETRIES", 2),
+			CircuitBreaker: CircuitBreakerConfig{
+				Enabled:      getEnvBool("CIRCUIT_BREAKER_ENABLED", true),
+				MaxRequests:  getEnvInt("CIRCUIT_BREAKER_MAX_REQUESTS", 5),
+				Interval:     getEnvDuration("CIRCUIT_BREAKER_INTERVAL", 60*time.Second),
+				Timeout:      getEnvDuration("CIRCUIT_BREAKER_TIMEOUT", 30*time.Second),
+				FailureRatio: getEnvFloat("CIRCUIT_BREAKER_FAILURE_RATIO", 0.6),
+				MinSamples:   getEnvInt("CIRCUIT_BREAKER_MIN_SAMPLES", 5),
+			},
 		},
 
 		CORS: CORSConfig{
-			AllowedOrigins:   strings.Split(getEnv("CORS_ALLOWED_ORIGINS", "*"), ","),
+			AllowedOrigins:   splitEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,https://api.shopee-clone.com"),
 			AllowedMethods:   strings.Split(getEnv("CORS_ALLOWED_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS"), ","),
 			AllowedHeaders:   strings.Split(getEnv("CORS_ALLOWED_HEADERS", "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-Correlation-ID"), ","),
 			ExposedHeaders:   strings.Split(getEnv("CORS_EXPOSED_HEADERS", "X-Request-ID,X-Correlation-ID,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset"), ","),
@@ -236,4 +256,17 @@ func getEnvFloat(key string, fallback float64) float64 {
 		}
 	}
 	return fallback
+}
+
+func splitEnv(key, fallback string) []string {
+	val := getEnv(key, fallback)
+	parts := strings.Split(val, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }

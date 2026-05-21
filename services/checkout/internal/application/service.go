@@ -144,6 +144,7 @@ func (s *CheckoutService) executeSaga(ctx context.Context, checkoutID string, re
 
 func (s *CheckoutService) stepValidate(ctx context.Context, checkout *domain.Checkout, req InitiateRequest) error {
 	start := time.Now()
+	defer func() { metrics.CheckoutLatency.WithLabelValues(domain.StepValidate).Observe(time.Since(start).Seconds()) }()
 	checkout.AdvanceStep(domain.StepValidate)
 	checkout.Status = domain.CheckoutStatusValidating
 	s.checkoutRepo.Update(ctx, checkout)
@@ -161,6 +162,7 @@ func (s *CheckoutService) stepValidate(ctx context.Context, checkout *domain.Che
 
 func (s *CheckoutService) stepFreezePricing(ctx context.Context, checkout *domain.Checkout, req InitiateRequest) error {
 	start := time.Now()
+	defer func() { metrics.CheckoutLatency.WithLabelValues(domain.StepFreezePricing).Observe(time.Since(start).Seconds()) }()
 	checkout.AdvanceStep(domain.StepFreezePricing)
 	checkout.Status = domain.CheckoutStatusPricingFrozen
 	s.checkoutRepo.Update(ctx, checkout)
@@ -209,6 +211,7 @@ func (s *CheckoutService) stepFreezePricing(ctx context.Context, checkout *domai
 
 func (s *CheckoutService) stepReserveInventory(ctx context.Context, checkout *domain.Checkout, req InitiateRequest) ([]string, error) {
 	start := time.Now()
+	defer func() { metrics.CheckoutLatency.WithLabelValues(domain.StepReserve).Observe(time.Since(start).Seconds()) }()
 	checkout.AdvanceStep(domain.StepReserve)
 	checkout.Status = domain.CheckoutStatusReserving
 	s.checkoutRepo.Update(ctx, checkout)
@@ -248,6 +251,7 @@ func (s *CheckoutService) stepReserveInventory(ctx context.Context, checkout *do
 
 func (s *CheckoutService) stepProcess(ctx context.Context, checkout *domain.Checkout, req InitiateRequest) error {
 	start := time.Now()
+	defer func() { metrics.CheckoutLatency.WithLabelValues(domain.StepProcess).Observe(time.Since(start).Seconds()) }()
 	checkout.AdvanceStep(domain.StepProcess)
 	checkout.Status = domain.CheckoutStatusProcessing
 	s.checkoutRepo.Update(ctx, checkout)
@@ -260,6 +264,8 @@ func (s *CheckoutService) stepProcess(ctx context.Context, checkout *domain.Chec
 }
 
 func (s *CheckoutService) stepComplete(ctx context.Context, checkout *domain.Checkout, reservationKeys []string) {
+	start := time.Now()
+	defer func() { metrics.CheckoutLatency.WithLabelValues(domain.StepComplete).Observe(time.Since(start).Seconds()) }()
 	checkout.AdvanceStep(domain.StepComplete)
 	checkout.MarkCompleted(fmt.Sprintf("ORD-%s", checkout.ID[:8]))
 	s.checkoutRepo.Update(ctx, checkout)

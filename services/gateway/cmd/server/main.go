@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -18,6 +20,7 @@ import (
 	"github.com/shopee-clone/shopee/services/gateway/internal/config"
 	"github.com/shopee-clone/shopee/services/gateway/internal/discovery"
 	"github.com/shopee-clone/shopee/services/gateway/internal/ratelimit"
+	"github.com/shopee-clone/shopee/services/gateway/internal/resilience"
 	"github.com/shopee-clone/shopee/services/gateway/internal/routing"
 	"github.com/shopee-clone/shopee/services/gateway/internal/tracing"
 	"github.com/shopee-clone/shopee/services/gateway/internal/transport"
@@ -60,13 +63,17 @@ func main() {
 		cfg.Upstreams.IdleConnTimeout,
 	)
 
+	registerProxyOptions(cfg, proxy)
+
+	grpcProxy := transport.NewGRPCProxy(svcDiscovery)
+
 	healthChecker := health.NewChecker(cfg.AppName, version)
 	registerHealthChecks(healthChecker, redisClient)
 
 	gin.SetMode(getGinMode(cfg.AppEnv))
 	engine := gin.New()
 
-	router := routing.NewRouter(cfg, proxy, rateLimiter, authMiddleware, svcDiscovery, healthChecker, redisClient)
+	router := routing.NewRouter(cfg, proxy, grpcProxy, rateLimiter, authMiddleware, svcDiscovery, healthChecker, redisClient)
 	router.Setup(engine)
 
 	httpServer := &http.Server{
@@ -133,19 +140,64 @@ func main() {
 
 func registerUpstreams(cfg *config.Config, svcDiscovery *discovery.ServiceDiscovery) {
 	upstreams := map[string]*discovery.ServiceInstance{
-		"auth":           {ID: "auth-1", Name: "auth", Address: cfg.Upstreams.AuthService, Port: 8080, Weight: 10},
-		"catalog":        {ID: "catalog-1", Name: "catalog", Address: cfg.Upstreams.CatalogService, Port: 8080, Weight: 10},
-		"cart":           {ID: "cart-1", Name: "cart", Address: cfg.Upstreams.CartService, Port: 8080, Weight: 10},
-		"order":          {ID: "order-1", Name: "order", Address: cfg.Upstreams.OrderService, Port: 8080, Weight: 10},
-		"inventory":      {ID: "inventory-1", Name: "inventory", Address: cfg.Upstreams.InventoryService, Port: 8080, Weight: 10},
-		"payment":        {ID: "payment-1", Name: "payment", Address: cfg.Upstreams.PaymentService, Port: 8080, Weight: 10},
-		"search":         {ID: "search-1", Name: "search", Address: cfg.Upstreams.SearchService, Port: 8080, Weight: 10},
-		"recommendation": {ID: "rec-1", Name: "recommendation", Address: cfg.Upstreams.RecommendationService, Port: 8080, Weight: 5},
+		"auth":           {ID: "auth-1", Name: "auth", Address: extractHost(cfg.Upstreams.AuthService), Port: extractPort(cfg.Upstreams.AuthService), Weight: 10},
+		"catalog":        {ID: "catalog-1", Name: "catalog", Address: extractHost(cfg.Upstreams.CatalogService), Port: extractPort(cfg.Upstreams.CatalogService), Weight: 10},
+		"cart":           {ID: "cart-1", Name: "cart", Address: extractHost(cfg.Upstreams.CartService), Port: extractPort(cfg.Upstreams.CartService), Weight: 10},
+		"order":          {ID: "order-1", Name: "order", Address: extractHost(cfg.Upstreams.OrderService), Port: extractPort(cfg.Upstreams.OrderService), Weight: 10},
+		"inventory":      {ID: "inventory-1", Name: "inventory", Address: extractHost(cfg.Upstreams.InventoryService), Port: extractPort(cfg.Upstreams.InventoryService), Weight: 10},
+		"payment":        {ID: "payment-1", Name: "payment", Address: extractHost(cfg.Upstreams.PaymentService), Port: extractPort(cfg.Upstreams.PaymentService), Weight: 10},
+		"search":         {ID: "search-1", Name: "search", Address: extractHost(cfg.Upstreams.SearchService), Port: extractPort(cfg.Upstreams.SearchService), Weight: 10},
+		"recommendation": {ID: "rec-1", Name: "recommendation", Address: extractHost(cfg.Upstreams.RecommendationService), Port: extractPort(cfg.Upstreams.RecommendationService), Weight: 5},
 	}
 
 	for name, instance := range upstreams {
 		svcDiscovery.RegisterStatic(name, []*discovery.ServiceInstance{instance})
 	}
+}
+
+func registerProxyOptions(cfg *config.Config, proxy *transport.Proxy) {
+	services := []string{"auth", "catalog", "cart", "order", "inventory", "payment", "search", "recommendation"}
+	opts := make([]transport.ProxyOption, 0, len(services))
+
+	timeouts := map[string]time.Duration{
+		"auth":           10 * time.Second,
+		"catalog":        15 * time.Second,
+		"cart":           5 * time.Second,
+		"order":          30 * time.Second,
+		"inventory":      5 * time.Second,
+		"payment":        30 * time.Second,
+		"search":         10 * time.Second,
+		"recommendation": 15 * time.Second,
+	}
+
+	for _, svc := range services {
+		opt := transport.ProxyOption{
+			ServiceName: svc,
+			Timeout:     timeouts[svc],
+			RetryConfig: resilience.RetryConfig{
+				MaxAttempts:     cfg.Upstreams.MaxRetries + 1,
+				InitialInterval: 50 * time.Millisecond,
+				MaxInterval:     5 * time.Second,
+				Multiplier:      2.0,
+				JitterFactor:    0.1,
+				RetryableErrors: resilience.DefaultRetryableCheck,
+			},
+		}
+
+		if cfg.Upstreams.CircuitBreaker.Enabled {
+			opt.CircuitBreaker = resilience.CircuitBreakerOptions{
+				MaxRequests:  cfg.Upstreams.CircuitBreaker.MaxRequests,
+				Interval:     cfg.Upstreams.CircuitBreaker.Interval,
+				Timeout:      cfg.Upstreams.CircuitBreaker.Timeout,
+				FailureRatio: cfg.Upstreams.CircuitBreaker.FailureRatio,
+				MinSamples:   cfg.Upstreams.CircuitBreaker.MinSamples,
+			}
+		}
+
+		opts = append(opts, opt)
+	}
+
+	proxy.Configure(opts)
 }
 
 func registerHealthChecks(healthChecker *health.Checker, redisClient *redis.Client) {
@@ -185,11 +237,34 @@ func (s *gatewayHealthServer) Watch(req *grpc_health_v1.HealthCheckRequest, stre
 
 func getGinMode(env string) string {
 	switch env {
-	case "production":
-		return gin.ReleaseMode
-	case "staging":
+	case "production", "staging":
 		return gin.ReleaseMode
 	default:
 		return gin.DebugMode
 	}
+}
+
+func extractHost(addr string) string {
+	parts := splitHostPort(addr)
+	return parts[0]
+}
+
+func extractPort(addr string) int {
+	parts := splitHostPort(addr)
+	if len(parts) >= 2 {
+		p, err := strconv.Atoi(parts[1])
+		if err == nil && p > 0 {
+			return p
+		}
+	}
+	return 8080
+}
+
+func splitHostPort(addr string) []string {
+	for i := len(addr) - 1; i >= 0; i-- {
+		if addr[i] == ':' {
+			return []string{addr[:i], addr[i+1:]}
+		}
+	}
+	return []string{addr}
 }

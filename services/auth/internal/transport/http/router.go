@@ -1,6 +1,7 @@
 package http
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,34 @@ func NewRouter(handler *Handler, healthChecker *health.Checker, redisClient *red
 	}
 }
 
+func SecurityHeaders() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("X-XSS-Protection", "1; mode=block")
+		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		c.Next()
+	}
+}
+
+func RequestSanitizer() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ct := c.GetHeader("Content-Type")
+		if c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH" {
+			if ct == "" || len(ct) > 256 {
+				c.AbortWithStatusJSON(http.StatusUnsupportedMediaType, gin.H{
+					"error_code": "INVALID_CONTENT_TYPE",
+					"message":    "content-type header is required",
+				})
+				return
+			}
+		}
+		c.Next()
+	}
+}
+
 func (r *Router) Setup(engine *gin.Engine) {
 	engine.Use(
 		middleware.Recovery(),
@@ -32,10 +61,13 @@ func (r *Router) Setup(engine *gin.Engine) {
 		middleware.CORS(),
 		middleware.OTelMiddleware("shopee-auth"),
 		observability.ObserveHTTPMetrics("shopee-auth"),
+		SecurityHeaders(),
+		RequestSanitizer(),
 	)
 
 	engine.GET("/health", r.health.LivenessHandler())
 	engine.GET("/ready", r.health.ReadinessHandler())
+	engine.GET("/startup", r.health.LivenessHandler())
 	engine.GET("/metrics", observability.MetricsHandler())
 
 	api := engine.Group("/api/v1/auth")
@@ -52,5 +84,10 @@ func (r *Router) Setup(engine *gin.Engine) {
 		api.DELETE("/sessions/:session_id", r.handler.RevokeSession)
 		api.GET("/profile", r.handler.GetProfile)
 		api.POST("/validate", r.handler.ValidateToken)
+
+		api.POST("/password-reset/request", r.handler.RequestPasswordReset)
+		api.POST("/password-reset/reset", r.handler.ResetPassword)
+		api.POST("/verify-email", r.handler.VerifyEmail)
+		api.POST("/verify-email/send", r.handler.SendVerificationEmail)
 	}
 }
