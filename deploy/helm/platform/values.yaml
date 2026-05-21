@@ -1,0 +1,217 @@
+prometheus:
+  enabled: true
+  server:
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    extraFlags:
+      - storage.tsdb.retention.time=30d
+    resources:
+      requests:
+        cpu: 1
+        memory: 4Gi
+      limits:
+        cpu: 4
+        memory: 8Gi
+    persistentVolume:
+      enabled: true
+      size: 100Gi
+    service:
+      type: ClusterIP
+
+grafana:
+  enabled: true
+  adminPassword: admin
+  persistence:
+    enabled: true
+    size: 10Gi
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-server:80
+          isDefault: true
+        - name: Loki
+          type: loki
+          url: http://loki:3100
+        - name: Tempo
+          type: tempo
+          url: http://tempo:3200
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: shopee
+          orgId: 1
+          folder: Shopee
+          type: file
+          disableDeletion: true
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/shopee
+
+loki:
+  enabled: true
+  config:
+    auth_enabled: false
+    limits_config:
+      ingestion_rate_mb: 10
+      ingestion_burst_size_mb: 20
+    storage:
+      type: filesystem
+  persistence:
+    enabled: true
+    size: 50Gi
+
+tempo:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 50Gi
+  config:
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /data/tempo/blocks
+    overrides:
+      metrics_generator_processors:
+        - service-graphs
+        - span-metrics
+
+otel:
+  enabled: true
+  mode: deployment
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      batch:
+        timeout: 1s
+        send_batch_size: 1024
+    exporters:
+      prometheus:
+        endpoint: 0.0.0.0:8889
+      otlp/tempo:
+        endpoint: tempo:4317
+
+redis:
+  enabled: true
+  cluster:
+    enabled: true
+    nodes: 6
+    replicas: 1
+  persistence:
+    enabled: true
+    size: 50Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 4Gi
+
+kafka:
+  enabled: true
+  replicas: 3
+  persistence:
+    enabled: true
+    size: 100Gi
+  resources:
+    requests:
+      cpu: 1
+      memory: 4Gi
+    limits:
+      cpu: 4
+      memory: 8Gi
+  zookeeper:
+    replicas: 3
+    persistence:
+      enabled: true
+      size: 20Gi
+
+minio:
+  enabled: true
+  mode: distributed
+  replicas: 4
+  persistence:
+    enabled: true
+    size: 100Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      cpu: 2
+      memory: 8Gi
+
+ingress:
+  enabled: true
+  controller:
+    config:
+      proxy-body-size: "10m"
+      proxy-read-timeout: "60"
+      use-forwarded-headers: "true"
+      ssl-protocols: "TLSv1.2 TLSv1.3"
+      ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+      gzip-level: "6"
+      gzip-types: "application/json application/javascript text/css text/plain"
+      limit-rate-after: "10m"
+      limit-rate: "100k"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+
+cert-manager:
+  enabled: true
+  installCRDs: true
+
+argocd:
+  enabled: true
+  configs:
+    params:
+      server.insecure: true
+    rbac:
+      policy.default: role:readonly
+      policy.csv: |
+        p, role:devops, applications, *, */*, allow
+        p, role:devops, clusters, get, *, allow
+        p, role:devops, repositories, *, *, allow
+        p, role:devops, projects, *, *, allow
+        g, devops, role:devops
+
+external-secrets:
+  enabled: true
+  installCRDs: true
+
+vault:
+  enabled: true
+  server:
+    ha:
+      enabled: true
+      replicas: 3
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+    dataStorage:
+      enabled: true
+      size: 10Gi

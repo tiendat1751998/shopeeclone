@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: shopee-infra
+data:
+  postgresql.conf: |
+    max_connections = 200
+    shared_buffers = 2GB
+    effective_cache_size = 6GB
+    maintenance_work_mem = 512MB
+    checkpoint_completion_target = 0.9
+    wal_buffers = 16MB
+    default_statistics_target = 100
+    random_page_cost = 1.1
+    effective_io_concurrency = 200
+    work_mem = 10485kB
+    min_wal_size = 2GB
+    max_wal_size = 8GB
+    max_worker_processes = 8
+    max_parallel_workers_per_gather = 4
+    max_parallel_workers = 8
+    max_parallel_maintenance_workers = 4
+    log_min_duration_statement = 1000
+    log_line_prefix = '%t [%p]: [%l] %u@%d '
+    log_checkpoints = on
+    log_connections = on
+    log_disconnections = on
+    log_lock_waits = on
+    log_temp_files = 0
+    log_autovacuum_min_duration = 0
+    track_functions = all
+    track_activity_query_size = 4096
+    idle_in_transaction_session_timeout = 60000
+    statement_timeout = 30000
+    lock_timeout = 30000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: shopee-infra
+  labels:
+    app: postgres
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: shopee-infra
+spec:
+  serviceName: postgres
+  replicas: 3
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - postgres
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_DB
+              value: shopee
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
+          ports:
+            - containerPort: 5432
+              name: postgres
+          resources:
+            requests:
+              cpu: 1
+              memory: 4Gi
+            limits:
+              cpu: 4
+              memory: 16Gi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/postgresql/postgresql.conf
+              subPath: postgresql.conf
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: postgres-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: shopee-fast
+        resources:
+          requests:
+            storage: 100Gi

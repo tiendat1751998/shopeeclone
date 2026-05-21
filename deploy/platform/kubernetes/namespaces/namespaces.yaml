@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shopee
+  labels:
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shopee-infra
+  labels:
+    istio-injection: disabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shopee-observability
+  labels:
+    istio-injection: disabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shopee-gitops
+  labels:
+    istio-injection: disabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shopee-ingress
+  labels:
+    istio-injection: disabled

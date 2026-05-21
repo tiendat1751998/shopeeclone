@@ -1,4 +1,3 @@
-# Default Gateway Configuration
 app:
   name: shopee-gateway
   env: development
@@ -66,6 +65,7 @@ upstreams:
   idle_conn_timeout: 90s
   max_retries: 2
   circuit_breaker:
+    enabled: true
     max_requests: 5
     interval: 60s
     timeout: 30s
@@ -74,7 +74,8 @@ upstreams:
 
 cors:
   allowed_origins:
-    - "*"
+    - http://localhost:3000
+    - https://api.shopee-clone.com
   allowed_methods:
     - GET
     - POST

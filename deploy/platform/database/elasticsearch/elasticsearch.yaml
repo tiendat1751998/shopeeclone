@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elasticsearch-config
+  namespace: shopee-infra
+data:
+  elasticsearch.yml: |
+    cluster.name: shopee-search
+    node.name: "${HOSTNAME}"
+    network.host: 0.0.0.0
+    discovery.seed_hosts: elasticsearch-0.elasticsearch.shopee-infra.svc.cluster.local,elasticsearch-1.elasticsearch.shopee-infra.svc.cluster.local,elasticsearch-2.elasticsearch.shopee-infra.svc.cluster.local
+    cluster.initial_master_nodes: elasticsearch-0,elasticsearch-1,elasticsearch-2
+    xpack.security.enabled: true
+    xpack.security.transport.ssl.enabled: true
+    xpack.security.transport.ssl.verification_mode: certificate
+    xpack.security.transport.ssl.keystore.path: /usr/share/elasticsearch/config/certs/elastic-certificates.p12
+    xpack.security.transport.ssl.truststore.path: /usr/share/elasticsearch/config/certs/elastic-certificates.p12
+    indices.memory.index_buffer_size: 10%
+    indices.fielddata.cache.size: 20%
+    search.max_buckets: 10000
+    thread_pool.search.queue_size: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: shopee-infra
+  labels:
+    app: elasticsearch
+spec:
+  clusterIP: None
+  ports:
+    - name: http
+      port: 9200
+      targetPort: 9200
+    - name: transport
+      port: 9300
+      targetPort: 9300
+  selector:
+    app: elasticsearch
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+  namespace: shopee-infra
+spec:
+  serviceName: elasticsearch
+  replicas: 3
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - elasticsearch
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: elasticsearch
+          image: elasticsearch:8.12.0
+          env:
+            - name: ES_JAVA_OPTS
+              value: "-Xms4g -Xmx4g"
+            - name: node.store.allow_mmap
+              value: "false"
+          ports:
+            - containerPort: 9200
+              name: http
+            - containerPort: 9300
+              name: transport
+          resources:
+            requests:
+              cpu: 2
+              memory: 8Gi
+            limits:
+              cpu: 4
+              memory: 16Gi
+          volumeMounts:
+            - name: config
+              mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+              subPath: elasticsearch.yml
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
+          livenessProbe:
+            httpGet:
+              path: /_cluster/health?local=true
+              port: 9200
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health?local=true
+              port: 9200
+            initialDelaySeconds: 30
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: elasticsearch-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: shopee-fast
+        resources:
+          requests:
+            storage: 200Gi

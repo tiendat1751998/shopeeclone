@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongodb-config
+  namespace: shopee-infra
+data:
+  mongod.conf: |
+    storage:
+      dbPath: /data/db
+      wiredTiger:
+        engineConfig:
+          cacheSizeGB: 4
+    systemLog:
+      destination: file
+      logAppend: true
+      path: /data/db/mongod.log
+    net:
+      bindIp: 0.0.0.0
+      port: 27017
+    replication:
+      replSetName: rs0
+    security:
+      authorization: enabled
+    setParameter:
+      allowDiskUseByDefault: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: shopee-infra
+  labels:
+    app: mongodb
+spec:
+  clusterIP: None
+  ports:
+    - name: mongo
+      port: 27017
+      targetPort: 27017
+  selector:
+    app: mongodb
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: shopee-infra
+spec:
+  serviceName: mongodb
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - mongodb
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: mongodb
+          image: mongo:7
+          args:
+            - --config
+            - /etc/mongod.conf
+          ports:
+            - containerPort: 27017
+              name: mongo
+          resources:
+            requests:
+              cpu: 1
+              memory: 4Gi
+            limits:
+              cpu: 4
+              memory: 16Gi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/mongod.conf
+              subPath: mongod.conf
+            - name: data
+              mountPath: /data/db
+          livenessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: mongodb-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: shopee-fast
+        resources:
+          requests:
+            storage: 100Gi
