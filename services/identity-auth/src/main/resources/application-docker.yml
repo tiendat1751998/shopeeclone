@@ -1,16 +1,8 @@
-server:
-  port: 8080
-  shutdown: graceful
-
 spring:
-  application:
-    name: identity-auth
-  lifecycle:
-    timeout-per-shutdown-phase: 30s
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:shopee_auth}
-    username: ${POSTGRES_USER:shopee}
-    password: ${POSTGRES_PASSWORD:shopee_dev}
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:shopee_auth}
+    username: ${MYSQL_USER:shopee}
+    password: ${MYSQL_PASSWORD:shopee_dev}
     hikari:
       maximum-pool-size: 25
       minimum-idle: 5
@@ -24,7 +16,7 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+        dialect: org.hibernate.dialect.MySQLDialect
         jdbc:
           batch_size: 25
         order_inserts: true
@@ -49,18 +41,15 @@ spring:
           min-idle: 8
           time-between-eviction-runs: 30s
 
-# JWT Configuration (15 min access, 7 day refresh)
 jwt:
   access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:900}
   refresh-ttl-seconds: ${JWT_REFRESH_TTL_SECONDS:604800}
   rsa:
     private-key: ${JWT_RSA_PRIVATE_KEY:}
     public-key: ${JWT_RSA_PUBLIC_KEY:}
-  # HMAC fallback if RSA keys not provided
   access-secret: ${JWT_ACCESS_SECRET:}
   refresh-secret: ${JWT_REFRESH_SECRET:}
 
-# Rate Limiting
 rate-limit:
   login:
     max-attempts: ${RATE_LIMIT_LOGIN_MAX:5}
@@ -69,12 +58,10 @@ rate-limit:
     max-attempts: ${RATE_LIMIT_IP_MAX:20}
     window-seconds: ${RATE_LIMIT_IP_WINDOW:60}
 
-# Account Lockout
 account-lockout:
   max-failed-attempts: ${ACCOUNT_LOCKOUT_MAX:5}
   lockout-duration-minutes: ${ACCOUNT_LOCKOUT_DURATION:15}
 
-# OpenTelemetry
 otel:
   traces:
     exporter: otlp
@@ -83,7 +70,6 @@ otel:
   logs:
     exporter: none
 
-# Management / Actuator
 management:
   endpoints:
     web:
@@ -112,17 +98,8 @@ management:
       slo:
         http.server.requests: 5ms,10ms,25ms,50ms,100ms,200ms,500ms,1s,2s
 
-# Logging - Structured JSON
 logging:
   level:
     com.shopee: ${LOG_LEVEL:INFO}
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
-  pattern:
-    console: "${LOGGING_PATTERN_CONSOLE:%d{yyyy-MM-dd HH:mm:ss.SSS} ${LOG_LEVEL_PATTERN:%5p} ${PID: } --- [%15.15t] %-40.40logger{39} : %m%n}"
-  file:
-    name: ${LOG_FILE:}
-  logback:
-    rollingpolicy:
-      max-history: 7
-      max-file-size: 100MB

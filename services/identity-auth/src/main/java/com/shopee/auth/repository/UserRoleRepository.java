@@ -1,22 +1,43 @@
 package com.shopee.auth.repository;
 
+import com.shopee.auth.entity.Permission;
 import com.shopee.auth.entity.Role;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 @Repository
-public interface UserRoleRepository extends JpaRepository<Object, UUID> {
+public class UserRoleRepository {
 
-    @Query(value = "SELECT r.* FROM roles r JOIN user_roles ur ON r.role_id = ur.role_id WHERE ur.user_id = ?1", nativeQuery = true)
-    Set<Role> findRolesByUserId(UUID userId);
+    @PersistenceContext
+    private EntityManager em;
 
-    @Query(value = "SELECT p.* FROM permissions p " +
-           "JOIN role_permissions rp ON p.permission_id = rp.permission_id " +
-           "JOIN user_roles ur ON rp.role_id = ur.role_id " +
-           "WHERE ur.user_id = ?1", nativeQuery = true)
-    Set<Object> findPermissionsByUserId(UUID userId);
+    @SuppressWarnings("unchecked")
+    public Set<Role> findRolesByUserId(UUID userId) {
+        Query query = em.createNativeQuery(
+                "SELECT r.* FROM roles r JOIN user_roles ur ON r.role_id = ur.role_id WHERE ur.user_id = ?1",
+                Role.class);
+        query.setParameter(1, userId.toString());
+        List<Role> results = query.getResultList();
+        return new HashSet<>(results);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Set<Permission> findPermissionsByUserId(UUID userId) {
+        Query query = em.createNativeQuery(
+                "SELECT DISTINCT p.* FROM permissions p " +
+                "JOIN role_permissions rp ON p.permission_id = rp.permission_id " +
+                "JOIN user_roles ur ON rp.role_id = ur.role_id " +
+                "WHERE ur.user_id = ?1",
+                Permission.class);
+        query.setParameter(1, userId.toString());
+        List<Permission> results = query.getResultList();
+        return new HashSet<>(results);
+    }
 }
