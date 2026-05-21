@@ -7,7 +7,17 @@ import (
 	"time"
 
 	"github.com/shopee-clone/shopee/services/product/internal/domain"
+	app "github.com/shopee-clone/shopee/services/product/internal/application"
 )
+
+// Type aliases for application types
+type (
+	CreateProductRequest = app.CreateProductRequest
+	CreateSKURequest     = app.CreateSKURequest
+	UpdateProductRequest = app.UpdateProductRequest
+)
+
+var NewProductService = app.NewProductService
 
 // Mock ProductRepository
 type mockProductRepo struct {
@@ -275,7 +285,7 @@ func TestProductService_CreateProduct(t *testing.T) {
 			if resp.SPUID == "" {
 				t.Error("SPUID should not be empty")
 			}
-			if resp.Status != domain.ProductStatusDraft {
+			if resp.Status != string(domain.ProductStatusDraft) {
 				t.Errorf("Status = %q, want %q", resp.Status, domain.ProductStatusDraft)
 			}
 		})

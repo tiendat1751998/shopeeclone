@@ -1,6 +1,6 @@
 module github.com/shopee-clone/shopee/platforms/billing
 
-go 1.23.0
+go 1.26.3
 
 require (
 	github.com/gin-gonic/gin v1.10.0
@@ -73,3 +73,4 @@ require (
 )
 
 replace github.com/shopee-clone/shopee/packages/go-shared => ../../packages/go-shared
+

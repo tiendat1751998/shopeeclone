@@ -1,6 +1,6 @@
 module github.com/shopee-clone/shopee/packages/go-shared
 
-go 1.23.0
+go 1.26.3
 
 require (
 	github.com/gin-gonic/gin v1.10.0
@@ -66,3 +66,4 @@ require (
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
