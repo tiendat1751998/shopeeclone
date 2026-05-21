@@ -24,6 +24,7 @@ use (
 	./platforms/search-indexing
 	./platforms/service-mesh
 	./platforms/sre
+	./platforms/user-behavior
 	./services/auth
 	./services/cart
 	./services/catalog-product

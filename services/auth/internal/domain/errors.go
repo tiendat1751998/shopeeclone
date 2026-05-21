@@ -28,4 +28,7 @@ var (
 	ErrMFARequired         = errors.New("multi-factor authentication required")
 	ErrInvalidMFACode      = errors.New("invalid MFA code")
 	ErrEmailSendFailed     = errors.New("failed to send verification email")
+	ErrInvalidResetToken   = errors.New("invalid or expired password reset token")
+	ErrInvalidVerifyToken  = errors.New("invalid or expired email verification token")
+	ErrPasswordMismatch    = errors.New("passwords do not match")
 )

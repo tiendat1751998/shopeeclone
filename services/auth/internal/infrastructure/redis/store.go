@@ -179,6 +179,46 @@ func (s *Store) Close() error {
 	return s.rdb.Close()
 }
 
+func (s *Store) SetResetToken(ctx context.Context, userID, tokenHash string, ttl time.Duration) error {
+	key := fmt.Sprintf("password_reset:%s:%s", userID, tokenHash)
+	return s.rdb.Set(ctx, key, userID, ttl).Err()
+}
+
+func (s *Store) ValidateAndConsumeResetToken(ctx context.Context, tokenHash string) (string, error) {
+	keys, err := s.rdb.Keys(ctx, "password_reset:*:"+tokenHash).Result()
+	if err != nil || len(keys) == 0 {
+		return "", fmt.Errorf("reset token not found or expired")
+	}
+	pipe := s.rdb.Pipeline()
+	userID := pipe.Get(ctx, keys[0])
+	pipe.Del(ctx, keys[0])
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return "", err
+	}
+	return userID.Val(), nil
+}
+
+func (s *Store) SetVerifyToken(ctx context.Context, userID, tokenHash string, ttl time.Duration) error {
+	key := fmt.Sprintf("email_verify:%s:%s", userID, tokenHash)
+	return s.rdb.Set(ctx, key, userID, ttl).Err()
+}
+
+func (s *Store) ValidateAndConsumeVerifyToken(ctx context.Context, tokenHash string) (string, error) {
+	keys, err := s.rdb.Keys(ctx, "email_verify:*:"+tokenHash).Result()
+	if err != nil || len(keys) == 0 {
+		return "", fmt.Errorf("verify token not found or expired")
+	}
+	pipe := s.rdb.Pipeline()
+	userID := pipe.Get(ctx, keys[0])
+	pipe.Del(ctx, keys[0])
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return "", err
+	}
+	return userID.Val(), nil
+}
+
 func hashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])

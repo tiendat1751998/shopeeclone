@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -245,6 +246,91 @@ func (h *Handler) ValidateToken(c *gin.Context) {
 	})
 }
 
+func (h *Handler) RequestPasswordReset(c *gin.Context) {
+	ctx, span := otel.Tracer("shopee-auth").Start(c.Request.Context(), "http.request_password_reset")
+	defer span.End()
+
+	var req domain.PasswordResetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error_code": "INVALID_REQUEST",
+			"message":    "valid email is required",
+		})
+		return
+	}
+
+	ip := c.ClientIP()
+	if err := h.authService.RequestPasswordReset(ctx, &req, ip); err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "password reset email sent if account exists"})
+}
+
+func (h *Handler) ResetPassword(c *gin.Context) {
+	ctx, span := otel.Tracer("shopee-auth").Start(c.Request.Context(), "http.reset_password")
+	defer span.End()
+
+	var req domain.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error_code": "INVALID_REQUEST",
+			"message":    "token, new_password, and confirm_password are required",
+		})
+		return
+	}
+
+	ip := c.ClientIP()
+	if err := h.authService.ResetPassword(ctx, &req, ip); err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "password reset successfully"})
+}
+
+func (h *Handler) VerifyEmail(c *gin.Context) {
+	ctx, span := otel.Tracer("shopee-auth").Start(c.Request.Context(), "http.verify_email")
+	defer span.End()
+
+	var req domain.VerifyEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error_code": "INVALID_REQUEST",
+			"message":    "token is required",
+		})
+		return
+	}
+
+	ip := c.ClientIP()
+	if err := h.authService.VerifyEmail(ctx, &req, ip); err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "email verified successfully"})
+}
+
+func (h *Handler) SendVerificationEmail(c *gin.Context) {
+	ctx, span := otel.Tracer("shopee-auth").Start(c.Request.Context(), "http.send_verification_email")
+	defer span.End()
+
+	accessToken := extractToken(c)
+	claims, err := h.authService.ValidateAccessToken(ctx, accessToken)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+
+	if err := h.authService.SendVerificationEmail(ctx, claims.UserID); err != nil {
+		handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "verification email sent if not already verified"})
+}
+
 var errorStatusMap = map[error]int{
 	domain.ErrInvalidCredentials:  http.StatusUnauthorized,
 	domain.ErrInvalidToken:        http.StatusUnauthorized,
@@ -265,27 +351,25 @@ var errorStatusMap = map[error]int{
 	domain.ErrInsufficientPerms:   http.StatusForbidden,
 	domain.ErrMaxSessions:         http.StatusConflict,
 	domain.ErrUserNotFound:        http.StatusNotFound,
+	domain.ErrInvalidResetToken:   http.StatusBadRequest,
+	domain.ErrInvalidVerifyToken:  http.StatusBadRequest,
+	domain.ErrPasswordMismatch:    http.StatusUnprocessableEntity,
 }
 
 func handleError(c *gin.Context, err error) {
-	status, ok := errorStatusMap[err]
-	if !ok {
-		status = http.StatusInternalServerError
-		zap.L().Error("unhandled auth error", zap.Error(err))
-		c.AbortWithStatusJSON(status, gin.H{
-			"error_code": "INTERNAL_ERROR",
-			"message":    "An unexpected error occurred",
-		})
-		return
-	}
-
-	// Find the matching domain error for the error code
 	errCode := "INTERNAL_ERROR"
-	for k := range errorStatusMap {
-		if err == k {
-			errCode = k.Error()
+	status := http.StatusInternalServerError
+
+	for domainErr, httpStatus := range errorStatusMap {
+		if errors.Is(err, domainErr) {
+			status = httpStatus
+			errCode = domainErr.Error()
 			break
 		}
+	}
+
+	if status == http.StatusInternalServerError {
+		zap.L().Error("unhandled auth error", zap.Error(err))
 	}
 
 	c.AbortWithStatusJSON(status, gin.H{

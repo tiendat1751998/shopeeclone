@@ -1,0 +1,53 @@
+server:
+  http_listen_port: 3200
+  grpc_listen_port: 4317
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+ingester:
+  max_block_duration: 30m
+  max_block_bytes: 1_000_000_000
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+
+compactor:
+  compaction:
+    block_retention: 336h
+
+querier:
+  max_concurrent_queries: 10
+  frontend_worker:
+    frontend_address: tempo-query-frontend:9095
+
+metrics_generator:
+  registry:
+    external_labels:
+      cluster: shopee-clone
+  storage:
+    path: /data/tempo/generator
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /data/tempo/blocks
+    wal:
+      path: /data/tempo/wal
+
+overrides:
+  metrics_generator_processors:
+    - service-graphs
+    - span-metrics

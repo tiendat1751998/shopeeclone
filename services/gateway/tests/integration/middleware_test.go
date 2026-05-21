@@ -121,3 +121,108 @@ func TestRequestSanitizer(t *testing.T) {
 		t.Log("sanitizer processed request without error")
 	}
 }
+
+func TestAntiAbuse_MissingUserAgent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(middleware.AntiAbuse())
+	engine.GET("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Del("User-Agent")
+	engine.ServeHTTP(w, req)
+
+	if w.Code == http.StatusBadRequest {
+		t.Log("anti-abuse correctly rejected missing User-Agent")
+	}
+}
+
+func TestAntiAbuse_LongUserAgent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(middleware.AntiAbuse())
+	engine.GET("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("User-Agent", string(make([]byte, 600)))
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for long User-Agent, got %d", w.Code)
+	}
+}
+
+func TestCSRFProtection_AllowsGET(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(middleware.CSRFProtection())
+	engine.GET("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for GET, got %d", w.Code)
+	}
+}
+
+func TestCSRFProtection_RejectsPOSTWithoutOrigin(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(middleware.CSRFProtection())
+	engine.POST("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/test", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for POST without Origin, got %d", w.Code)
+	}
+}
+
+func TestRequestValidation_RejectsTRACE(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(middleware.RequestValidation())
+	engine.Any("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodTrace, "/test", nil)
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for TRACE, got %d", w.Code)
+	}
+}
+
+func TestRequestValidation_RejectsPathTraversal(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(middleware.RequestValidation())
+	engine.Any("/test", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/../../../etc/passwd", nil)
+	req.Header.Set("Host", "localhost")
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for path traversal, got %d", w.Code)
+	}
+}

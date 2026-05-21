@@ -3,12 +3,14 @@ package routing
 import "github.com/shopee-clone/shopee/services/gateway/internal/transport"
 
 type RouteGroup struct {
-	Prefix    string
-	Target    string
-	Strip     string
-	Auth      bool
-	RateLimit int
-	Roles     []string
+	Prefix      string
+	Target      string
+	Strip       string
+	Auth        bool
+	RateLimit   int
+	Roles       []string
+	Protocol    string
+	GRPCMethod  string
 }
 
 var RouteTable = []RouteGroup{
@@ -18,7 +20,6 @@ var RouteTable = []RouteGroup{
 		Strip:     "/api/v1/auth",
 		Auth:      false,
 		RateLimit: 50,
-		Roles:     nil,
 	},
 	{
 		Prefix:    "/api/v1/products",
@@ -26,7 +27,6 @@ var RouteTable = []RouteGroup{
 		Strip:     "/api/v1/products",
 		Auth:      false,
 		RateLimit: 200,
-		Roles:     nil,
 	},
 	{
 		Prefix:    "/api/v1/categories",
@@ -34,7 +34,6 @@ var RouteTable = []RouteGroup{
 		Strip:     "/api/v1/categories",
 		Auth:      false,
 		RateLimit: 200,
-		Roles:     nil,
 	},
 	{
 		Prefix:    "/api/v1/cart",
@@ -42,7 +41,6 @@ var RouteTable = []RouteGroup{
 		Strip:     "/api/v1/cart",
 		Auth:      true,
 		RateLimit: 100,
-		Roles:     nil,
 	},
 	{
 		Prefix:    "/api/v1/orders",
@@ -50,7 +48,6 @@ var RouteTable = []RouteGroup{
 		Strip:     "/api/v1/orders",
 		Auth:      true,
 		RateLimit: 50,
-		Roles:     nil,
 	},
 	{
 		Prefix:    "/api/v1/checkout",
@@ -58,7 +55,6 @@ var RouteTable = []RouteGroup{
 		Strip:     "/api/v1/checkout",
 		Auth:      true,
 		RateLimit: 10,
-		Roles:     nil,
 	},
 	{
 		Prefix:    "/api/v1/inventory",
@@ -74,7 +70,6 @@ var RouteTable = []RouteGroup{
 		Strip:     "/api/v1/payments",
 		Auth:      true,
 		RateLimit: 20,
-		Roles:     nil,
 	},
 	{
 		Prefix:    "/api/v1/search",
@@ -82,7 +77,6 @@ var RouteTable = []RouteGroup{
 		Strip:     "/api/v1/search",
 		Auth:      false,
 		RateLimit: 200,
-		Roles:     nil,
 	},
 	{
 		Prefix:    "/api/v1/recommendations",
@@ -90,7 +84,16 @@ var RouteTable = []RouteGroup{
 		Strip:     "/api/v1/recommendations",
 		Auth:      true,
 		RateLimit: 50,
-		Roles:     nil,
+	},
+	{
+		Prefix:      "/api/v1/grpc/inventory",
+		Target:      "inventory",
+		Strip:       "/api/v1/grpc/inventory",
+		Auth:        true,
+		RateLimit:   200,
+		Roles:       []string{"service"},
+		Protocol:    "grpc",
+		GRPCMethod:  "/shopee.inventory.InventoryService/ReserveStock",
 	},
 }
 
