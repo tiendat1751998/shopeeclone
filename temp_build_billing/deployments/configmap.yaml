@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopee-billing-config
+data:
+  APP_NAME: "shopee-billing"
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  BILLING_HTTP_PORT: "8099"
+  BILLING_GRPC_PORT: "9099"
+  REDIS_ADDR: "redis-master.cache:6379"
+  KAFKA_BROKERS: "kafka-headless.kafka:9092"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.monitoring:4318"

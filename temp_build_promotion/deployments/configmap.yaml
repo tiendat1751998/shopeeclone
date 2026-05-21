@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: promotion-config
-data:
-  kafka-brokers: "kafka-headless.kafka:9092"
