@@ -79,11 +79,11 @@ func (s *CatalogService) GetProduct(ctx context.Context, id string) (*domain.Pro
 	if data, err := s.redis.GetProduct(ctx, id); err == nil && len(data) > 0 {
 		metrics.CacheHitsTotal.WithLabelValues("catalog", "redis").Inc()
 		var cached domain.Product
-		if unmarshalErr := json.Unmarshal(data, &cached); unmarshalErr == nil {
+		if err := json.Unmarshal(data, &cached); err == nil {
 			return &cached, nil
 		}
 		observability.LogWithTrace(ctx).Warn("failed to unmarshal cached product",
-			zap.String("product_id", id), zap.Error(unmarshalErr))
+			zap.String("product_id", id), zap.Error(err))
 	}
 	metrics.CacheMissesTotal.WithLabelValues("catalog", "redis").Inc()
 	p, err := s.productRepo.FindByID(ctx, id)
@@ -186,10 +186,10 @@ func (s *CatalogService) DeleteProduct(ctx context.Context, id string) error {
 func (s *CatalogService) GetCategoryTree(ctx context.Context) ([]*domain.Category, error) {
 	if data, err := s.redis.GetCategoryTree(ctx); err == nil && len(data) > 0 {
 		var cats []*domain.Category
-		if unmarshalErr := json.Unmarshal(data, &cats); unmarshalErr == nil {
+		if err := json.Unmarshal(data, &cats); err == nil {
 			return cats, nil
 		}
-		observability.LogWithTrace(ctx).Warn("failed to unmarshal cached category tree", zap.Error(unmarshalErr))
+		observability.LogWithTrace(ctx).Warn("failed to unmarshal cached category tree", zap.Error(err))
 	}
 	cats, err := s.categoryRepo.GetTree(ctx)
 	if err != nil {
