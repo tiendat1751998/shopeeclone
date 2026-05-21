@@ -1,0 +1,80 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: shopee-istio
+  namespace: shopee-infra
+spec:
+  profile: default
+  meshConfig:
+    accessLogFile: /dev/stdout
+    accessLogEncoding: JSON
+    enableTracing: true
+    extensionProviders:
+      - name: ocel
+        envoyOtelAls:
+          service: otel-collector.shopee-observability:4317
+          port: 4317
+    defaultConfig:
+      holdApplicationUntilProxyStarts: true
+      tracing:
+        zipkin:
+          address: otel-collector.shopee-observability:4317
+    outboundTrafficPolicy:
+      mode: REGISTRY_ONLY
+  components:
+    pilot:
+      k8s:
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+        hpaSpec:
+          minReplicas: 2
+          maxReplicas: 5
+          metrics:
+            - type: Resource
+              resource:
+                name: cpu
+                targetAverageUtilization: 80
+    ingressGateways:
+      - name: istio-ingressgateway
+        enabled: true
+        k8s:
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2
+              memory: 4Gi
+          hpaSpec:
+            minReplicas: 3
+            maxReplicas: 10
+            metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  targetAverageUtilization: 70
+          service:
+            ports:
+              - port: 80
+                targetPort: 8080
+                name: http2
+              - port: 443
+                targetPort: 8443
+                name: https
+    egressGateways:
+      - name: istio-egressgateway
+        enabled: true
+  values:
+    global:
+      meshID: shopee-clone
+      multiCluster:
+        clusterName: shopee-primary
+      network: shopee-network
+    pilot:
+      env:
+        PILOT_ENABLE_STATUS: true

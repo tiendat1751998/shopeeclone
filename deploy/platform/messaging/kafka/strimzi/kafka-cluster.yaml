@@ -1,0 +1,219 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: dual-role
+  namespace: shopee
+  labels:
+    strimzi.io/cluster: shopee-kafka
+spec:
+  replicas: 3
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 100Gi
+        deleteClaim: false
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: shopee-kafka
+  namespace: shopee
+spec:
+  kafka:
+    version: 3.7.0
+    replicas: 3
+    authorization:
+      type: simple
+    config:
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      default.replication.factor: 3
+      min.insync.replicas: 2
+      auto.create.topics.enable: false
+      log.retention.hours: 168
+      log.retention.bytes: -1
+      log.segment.bytes: 1073741824
+      log.retention.check.interval.ms: 300000
+      num.io.threads: 8
+      num.network.threads: 8
+      num.partitions: 10
+      message.max.bytes: 1048576
+      compression.type: snappy
+      unclean.leader.election.enable: false
+    resources:
+      requests:
+        cpu: 1
+        memory: 4Gi
+      limits:
+        cpu: 4
+        memory: 8Gi
+    livenessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    readinessProbe:
+      initialDelaySeconds: 15
+      periodSeconds: 5
+    jvmOptions:
+      -Xms: 2g
+      -Xmx: 4g
+    template:
+      pod:
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                      - key: app.kubernetes.io/name
+                        operator: In
+                        values:
+                          - shopee-kafka
+                  topologyKey: kubernetes.io/hostname
+  zookeeper:
+    replicas: 3
+    storage:
+      type: persistent-claim
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1
+        memory: 2Gi
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: orders
+  namespace: shopee
+  labels:
+    strimzi.io/cluster: shopee-kafka
+spec:
+  partitions: 10
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: payments
+  namespace: shopee
+  labels:
+    strimzi.io/cluster: shopee-kafka
+spec:
+  partitions: 10
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: products
+  namespace: shopee
+  labels:
+    strimzi.io/cluster: shopee-kafka
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: inventory
+  namespace: shopee
+  labels:
+    strimzi.io/cluster: shopee-kafka
+spec:
+  partitions: 10
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: notifications
+  namespace: shopee
+  labels:
+    strimzi.io/cluster: shopee-kafka
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: search-indexing
+  namespace: shopee
+  labels:
+    strimzi.io/cluster: shopee-kafka
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 604800000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: user-behavior
+  namespace: shopee
+  labels:
+    strimzi.io/cluster: shopee-kafka
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 336000000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: fraud-events
+  namespace: shopee
+  labels:
+    strimzi.io/cluster: shopee-kafka
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 336000000
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: checkout
+  namespace: shopee
+  labels:
+    strimzi.io/cluster: shopee-kafka
+spec:
+  partitions: 10
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 604800000

@@ -1,0 +1,167 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+  allow-parallel-runners: true
+
+output:
+  formats: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - decorder
+    - dupl
+    - durationcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exportloopref
+    - forbidigo
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - godox
+    - gofmt
+    - gofumpt
+    - goheader
+    - goimports
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - grouper
+    - importas
+    - ireturn
+    - loggercheck
+    - makezero
+    - mirror
+    - musttag
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nosprintfhostport
+    - prealloc
+    - predeclared
+    - promlinter
+    - reassign
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - stylecheck
+    - tagalign
+    - tagliatelle
+    - tenv
+    - testableexamples
+    - testifylint
+    - testpackage
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+    - zerologlint
+
+linters-settings:
+  gofmt:
+    simplify: true
+  gofumpt:
+    extra-rules: true
+  goimports:
+    local-prefixes: github.com/shopee-clone/shopee
+  gocyclo:
+    min-complexity: 15
+  gocognit:
+    min-complexity: 30
+  nestif:
+    min-complexity: 5
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  misspell:
+    locale: US
+  lll:
+    line-length: 140
+  godox:
+    keywords:
+      - FIXME
+      - HACK
+  gosec:
+    excludes:
+      - G404
+  tagliatelle:
+    case:
+      rules:
+        json: snake
+        yaml: kebab
+        db: snake
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+      - name: package-comments
+        disabled: true
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: deep-exit
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: redefines-builtin-id
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude:
+    - "should have a package comment"
+  exclude-dirs:
+    - vendor
+    - node_modules
+    - validate-tmp
+  exclude-dirs-use-default: true
+
+severity:
+  default-severity: warning
+  case-sensitive: false

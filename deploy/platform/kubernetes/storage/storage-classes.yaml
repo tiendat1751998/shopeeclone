@@ -1,0 +1,42 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: shopee-fast
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  iops: "3000"
+  throughput: "125"
+  fsType: ext4
+  encrypted: "true"
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: shopee-standard
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  fsType: ext4
+  encrypted: "true"
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: shopee-ssd
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  iops: "16000"
+  throughput: "1000"
+  fsType: ext4
+  encrypted: "true"
+allowVolumeExpansion: false
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
