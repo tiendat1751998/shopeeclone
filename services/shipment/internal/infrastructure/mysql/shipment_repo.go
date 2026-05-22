@@ -117,3 +117,79 @@ func (r *ShipmentRepository) SaveWebhookEvent(ctx context.Context, provider, eve
 	_, err := r.db.ExecContext(ctx, query, idempotencyKey[:36], provider, eventType, payload, signature, idempotencyKey)
 	return err
 }
+
+// --- QR Code methods ---
+
+func (r *ShipmentRepository) CreateQRCode(ctx context.Context, qr *domain.QRCode) error {
+	query := `INSERT INTO qr_codes (id, shipment_id, type, code, status, signed_token, expires_at, scanned_at, scanned_by, scan_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, qr.ID, qr.ShipmentID, qr.Type, qr.Code, qr.Status, qr.SignedToken, qr.ExpiresAt, qr.ScannedAt, qr.ScannedBy, qr.ScanCount, qr.CreatedAt, qr.UpdatedAt)
+	return err
+}
+
+func (r *ShipmentRepository) FindQRCodeByCode(ctx context.Context, code string) (*domain.QRCode, error) {
+	var qr domain.QRCode
+	if err := r.db.GetContext(ctx, &qr, "SELECT * FROM qr_codes WHERE code = ?", code); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrQRCodeNotFound
+		}
+		return nil, err
+	}
+	return &qr, nil
+}
+
+func (r *ShipmentRepository) FindQRCodeByShipmentAndType(ctx context.Context, shipmentID string, qrType domain.QRCodeType) (*domain.QRCode, error) {
+	var qr domain.QRCode
+	if err := r.db.GetContext(ctx, &qr, "SELECT * FROM qr_codes WHERE shipment_id = ? AND type = ?", shipmentID, qrType); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrQRCodeNotFound
+		}
+		return nil, err
+	}
+	return &qr, nil
+}
+
+func (r *ShipmentRepository) FindQRCodesByShipment(ctx context.Context, shipmentID string) ([]*domain.QRCode, error) {
+	var codes []*domain.QRCode
+	err := r.db.SelectContext(ctx, &codes, "SELECT * FROM qr_codes WHERE shipment_id = ? ORDER BY created_at DESC", shipmentID)
+	return codes, err
+}
+
+func (r *ShipmentRepository) UpdateQRCodeStatus(ctx context.Context, id string, status domain.QRCodeStatus, scannedAt *time.Time, scannedBy string, scanCount int32) error {
+	query := `UPDATE qr_codes SET status = ?, scanned_at = ?, scanned_by = ?, scan_count = ?, updated_at = ? WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, query, status, scannedAt, scannedBy, scanCount, time.Now().UTC(), id)
+	return err
+}
+
+func (r *ShipmentRepository) RevokeQRCode(ctx context.Context, id string) error {
+	query := `UPDATE qr_codes SET status = 'revoked', updated_at = ? WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, query, time.Now().UTC(), id)
+	return err
+}
+
+func (r *ShipmentRepository) ExpireOldQRCodes(ctx context.Context, before time.Time) (int64, error) {
+	result, err := r.db.ExecContext(ctx, "UPDATE qr_codes SET status = 'expired', updated_at = ? WHERE expires_at < ? AND status = 'active'", time.Now().UTC(), before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+// --- Scan Event methods ---
+
+func (r *ShipmentRepository) SaveScanEvent(ctx context.Context, event *domain.ScanEvent) error {
+	query := `INSERT INTO scan_events (id, qr_code_id, shipment_id, shipper_id, shipper_name, shipper_role, scan_type, latitude, longitude, device_info, ip_address, is_valid, fail_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, event.ID, event.QRCodeID, event.ShipmentID, event.ShipperID, event.ShipperName, event.ShipperRole, event.ScanType, event.Latitude, event.Longitude, event.DeviceInfo, event.IPAddress, event.IsValid, event.FailReason, event.CreatedAt)
+	return err
+}
+
+func (r *ShipmentRepository) GetScanHistory(ctx context.Context, shipmentID string) ([]*domain.ScanEvent, error) {
+	var events []*domain.ScanEvent
+	err := r.db.SelectContext(ctx, &events, "SELECT * FROM scan_events WHERE shipment_id = ? ORDER BY created_at DESC LIMIT 200", shipmentID)
+	return events, err
+}
+
+func (r *ShipmentRepository) GetScanHistoryByShipper(ctx context.Context, shipperID string, limit int) ([]*domain.ScanEvent, error) {
+	var events []*domain.ScanEvent
+	err := r.db.SelectContext(ctx, &events, "SELECT * FROM scan_events WHERE shipper_id = ? ORDER BY created_at DESC LIMIT ?", shipperID, limit)
+	return events, err
+}

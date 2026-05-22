@@ -23,11 +23,10 @@ func (r *Router) Setup(e *gin.Engine) {
 	e.GET("/ready", r.health.ReadinessHandler())
 	e.GET("/metrics", observability.MetricsHandler())
 
-	api := e.Group("/api/v1")
 	{
-		api.POST("/recommendations", r.handler.GetRecommendations)
-		api.POST("/recommendations/batch", r.handler.BatchRecommendations)
-		api.POST("/feedback", r.handler.RecordFeedback)
-		api.GET("/trending", r.handler.GetTrending)
+		e.POST("/", r.handler.GetRecommendations)
+		e.POST("/batch", r.handler.BatchRecommendations)
+		e.POST("/feedback", r.handler.RecordFeedback)
+		e.GET("/trending", r.handler.GetTrending)
 	}
 }

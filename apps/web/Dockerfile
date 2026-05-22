@@ -1,6 +1,9 @@
 # Stage 1: Build
 FROM node:20-alpine AS builder
 
+ARG API_GATEWAY_URL
+ENV API_GATEWAY_URL=${API_GATEWAY_URL}
+
 WORKDIR /app
 
 # Copy package files

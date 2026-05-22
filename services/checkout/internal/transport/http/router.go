@@ -35,21 +35,20 @@ func (r *Router) Setup(engine *gin.Engine) {
 	engine.GET("/ready", r.health.ReadinessHandler())
 	engine.GET("/metrics", observability.MetricsHandler())
 
-	api := engine.Group("/api/v1")
-
 	// [SECURITY] Authentication is mandatory. If JWT secret is not configured,
 	// we fail fast in production rather than allowing unauthenticated access.
 	if r.jwtSecret == "" {
 		log.Fatal("JWT_ACCESS_SECRET is required - cannot start checkout service without authentication")
 	}
-	api.Use(auth.GinJWTAuth(r.jwtSecret))
 
+	authMw := auth.GinJWTAuth(r.jwtSecret)
 	{
-		api.POST("/checkout",
+		engine.POST("/checkout",
+			authMw,
 			middleware.RedisSlidingWindowLimiter(r.redis, 1, 5*time.Second, "checkout"),
 			r.handler.InitiateCheckout,
 		)
-		api.GET("/checkout/:checkout_id/status", r.handler.GetCheckoutStatus)
-		api.POST("/checkout/:checkout_id/retry", r.handler.RetryCheckout)
+		engine.GET("/checkout/:checkout_id/status", authMw, r.handler.GetCheckoutStatus)
+		engine.POST("/checkout/:checkout_id/retry", authMw, r.handler.RetryCheckout)
 	}
 }

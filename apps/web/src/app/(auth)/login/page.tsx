@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useAuthStore } from "@/lib/store/auth";
 import { ApiError } from "@/lib/api/client";
+import { sha256Hex } from "@/lib/crypto";
 
 function validateEmail(email: string): string | null {
   if (!email || typeof email !== "string") return "Email is required";
@@ -50,7 +51,8 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      await login(sanitizeInput(email), password);
+      const hashedPassword = await sha256Hex(password);
+      await login(sanitizeInput(email), hashedPassword);
       router.push("/");
     } catch (e: unknown) {
       if (e instanceof ApiError && e.status === 429) {

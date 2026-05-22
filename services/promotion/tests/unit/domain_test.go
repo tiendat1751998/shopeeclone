@@ -101,7 +101,7 @@ func TestVoucher_CanRedeem_Scope(t *testing.T) {
 	now := time.Now()
 	v := domain.NewVoucher("SHOP", "Shop Voucher", domain.VoucherTypeFixed, 5000, 0, 0, now.Add(-1*time.Hour), now.Add(1*time.Hour))
 	v.Scope = domain.VoucherScopeShop
-	v.ShopID = "SHOP-001"
+	v.ShopID = strPtr("SHOP-001")
 	err := v.CanRedeem("USER-001", 10000, "SHOP-002", "", "", "", "")
 	if err == nil {
 		t.Error("expected error for wrong shop scope")
@@ -111,9 +111,11 @@ func TestVoucher_CanRedeem_Scope(t *testing.T) {
 func TestVoucher_CanRedeem_Region(t *testing.T) {
 	now := time.Now()
 	v := domain.NewVoucher("SG", "SG Only", domain.VoucherTypeFixed, 5000, 0, 0, now.Add(-1*time.Hour), now.Add(1*time.Hour))
-	v.Region = "SG"
+	v.Region = strPtr("SG")
 	err := v.CanRedeem("USER-001", 10000, "", "", "", "MY", "")
 	if err == nil {
 		t.Error("expected error for wrong region")
 	}
 }
+
+func strPtr(s string) *string { return &s }

@@ -79,7 +79,9 @@ func (s *PaymentService) AuthorizePayment(ctx context.Context, req *AuthorizePay
 	if currency == "" { currency = "SGD" }
 
 	payment := domain.NewPayment(req.OrderID, req.UserID, req.Amount, currency, req.PaymentMethod, s.cfg.Payment.DefaultPSP, req.IdempotencyKey)
-	payment.Metadata = req.Metadata
+	if len(req.Metadata) > 0 {
+		payment.Metadata = &req.Metadata
+	}
 
 	// Fraud check via domain service
 	fraudResult, err := s.fraudDetector.Assess(ctx, payment.ID, req.UserID, req.Amount, req.PaymentMethod)

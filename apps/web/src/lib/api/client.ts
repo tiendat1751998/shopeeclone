@@ -1,6 +1,9 @@
 import type { ApiResponse } from "@/lib/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/gateway";
+const isServer = typeof window === "undefined";
+const API_BASE = isServer
+  ? (process.env.API_GATEWAY_URL || "http://gateway:8080") + "/api/v1"
+  : (process.env.NEXT_PUBLIC_API_URL || "/api/gateway");
 
 class ApiError extends Error {
   public code: string;
@@ -45,22 +48,28 @@ async function request<T>(path: string, options: RequestInit = {}, signal?: Abor
     throw new ApiError(429, "RATE_LIMITED", "Too many requests. Please try again later.");
   }
 
-  let data: ApiResponse<T>;
+  let data: Record<string, unknown>;
   try {
     data = await res.json();
   } catch {
     throw new ApiError(res.status, "PARSE_ERROR", `Server returned ${res.status}`);
   }
 
-  if (!res.ok || !data.success) {
+  if (!res.ok) {
     throw new ApiError(
       res.status,
       (data as unknown as { code?: string }).code || "UNKNOWN",
-      data.error || `Request failed with status ${res.status}`
+      (data as unknown as { error?: string; message?: string }).error ||
+        (data as unknown as { message?: string }).message ||
+        `Request failed with status ${res.status}`
     );
   }
 
-  return data.data as T;
+  if (data && typeof data === "object" && "success" in data) {
+    return (data as unknown as ApiResponse<T>).data as T;
+  }
+
+  return data as unknown as T;
 }
 
 export const api = {

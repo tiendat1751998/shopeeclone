@@ -16,11 +16,11 @@ function validateId(id: string): string {
 
 export const cartApi = {
   get: () => api.get<Cart>("/cart"),
-  addItem: (productId: string, skuId: string, quantity: number) => {
+  addItem: (productId: string, skuId: string, quantity: number, name?: string, price?: number, shopId?: string, shopName?: string, imageUrl?: string) => {
     const safePid = validateId(productId);
     const safeSid = validateId(skuId);
     const safeQty = validateQuantity(quantity);
-    return api.post<Cart>(`/cart/items`, { product_id: safePid, sku_id: safeSid, quantity: safeQty });
+    return api.post<Cart>(`/cart/items`, { product_id: safePid, sku_id: safeSid, quantity: safeQty, name, price, shop_id: shopId, shop_name: shopName, image_url: imageUrl });
   },
   updateItem: (itemId: string, quantity: number) => {
     const safeId = validateId(itemId);

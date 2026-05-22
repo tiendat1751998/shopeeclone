@@ -1,13 +1,14 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Price } from "@/components/ui/Price";
 import { Badge } from "@/components/ui/Badge";
 import { RatingStars } from "@/components/ui/RatingStars";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useCartStore } from "@/lib/store/cart";
-import { productsApi, skusApi } from "@/lib/api/products";
+import { productsApi } from "@/lib/api/products";
 import type { Product, SKU } from "@/lib/types";
 
 function sanitizeHTML(text: string): string {
@@ -25,6 +26,7 @@ function safeQuantity(value: number, min: number, max: number): number {
 }
 
 export default function ProductDetailPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
   const [skus, setSkus] = useState<SKU[]>([]);
   const [selectedSKU, setSelectedSKU] = useState<SKU | null>(null);
@@ -49,15 +51,13 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     setIsLoading(true);
     setError(null);
 
-    Promise.all([
-      productsApi.getById(id, controller.signal),
-      skusApi.getByProduct(id, controller.signal),
-    ])
-      .then(([p, s]) => {
+    productsApi.getById(id, controller.signal)
+      .then((p) => {
         if (!controller.signal.aborted) {
           setProduct(p);
-          setSkus(s);
-          if (s.length > 0) setSelectedSKU(s[0]);
+          const productSkus = p.skus || [];
+          setSkus(productSkus);
+          if (productSkus.length > 0) setSelectedSKU(productSkus[0]);
           setIsLoading(false);
         }
       })
@@ -75,9 +75,22 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
     if (!product || !selectedSKU) return;
     setIsAdding(true);
     try {
-      await addItem(product.id, selectedSKU.id, quantity);
+      await addItem(product.id, selectedSKU.id, quantity, selectedSKU.name, selectedSKU.price, product.shop?.id || "", product.shop?.name || "", images[0]?.url || "");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to add to cart");
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!product || !selectedSKU) return;
+    setIsAdding(true);
+    try {
+      await addItem(product.id, selectedSKU.id, 1, selectedSKU.name, selectedSKU.price, product.shop?.id || "", product.shop?.name || "", images[0]?.url || "");
+      router.push("/checkout");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to process");
     } finally {
       setIsAdding(false);
     }
@@ -106,7 +119,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
   }
 
   const images = product.media?.filter((m) => m.type === "image" && m.status === "active") || [];
-  const currentImage = images[selectedImage]?.url || "/images/placeholder.png";
+  const currentImage = images[selectedImage]?.url || "/images/placeholder.svg";
   const displayPrice = selectedSKU?.price || skus[0]?.price || 0;
   const displayComparePrice = selectedSKU?.compare_price || skus[0]?.compare_price;
   const availableStock = selectedSKU ? Math.max(0, selectedSKU.stock - selectedSKU.reserved_stock) : 0;
@@ -171,7 +184,7 @@ export default function ProductDetailPage({ params: paramsPromise }: { params: P
           </div>
           <div className="flex gap-3 pt-2">
             <Button variant="outline" fullWidth isLoading={isAdding} onClick={handleAddToCart} disabled={availableStock === 0}>Add to Cart</Button>
-            <Button variant="primary" fullWidth disabled={availableStock === 0}>Buy Now</Button>
+            <Button variant="primary" fullWidth disabled={availableStock === 0} onClick={handleBuyNow}>Buy Now</Button>
           </div>
           {product.description && (
             <div className="border-t border-[#e8e8e8] pt-4">

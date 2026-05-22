@@ -34,6 +34,7 @@ type Variation struct {
 type Category struct {
 	CategoryID string     `json:"category_id" bson:"category_id"`
 	Name       string     `json:"name" bson:"name"`
+	Slug       string     `json:"slug,omitempty" bson:"slug,omitempty"`
 	ParentID   string     `json:"parent_id,omitempty" bson:"parent_id,omitempty"`
 	Level      int32      `json:"level" bson:"level"`
 	SortOrder  int32      `json:"sort_order" bson:"sort_order"`

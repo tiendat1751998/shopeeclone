@@ -9,7 +9,7 @@ interface ProductCardProps { product: Product; priority?: boolean; }
 
 export function ProductCard({ product, priority = false }: ProductCardProps) {
   const mainImage = product.media?.find((m) => m.type === "image" && m.status === "active");
-  const imageUrl = mainImage?.url || mainImage?.thumbnail_url || "/images/placeholder.png";
+  const imageUrl = mainImage?.url || mainImage?.thumbnail_url || "/images/placeholder.svg";
   const lowestPrice = product.skus && product.skus.length > 0
     ? Math.min(...product.skus.map((s) => s.price))
     : 0;

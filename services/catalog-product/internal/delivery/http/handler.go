@@ -1,10 +1,15 @@
 package http
 
 import (
+	"math"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/errors"
 	"github.com/shopee-clone/shopee/services/catalog-product/internal/domain"
 	"github.com/shopee-clone/shopee/services/catalog-product/internal/usecase"
@@ -23,6 +28,123 @@ func NewHandler(productUC *usecase.ProductUseCase, categoryUC *usecase.CategoryU
 	}
 }
 
+var reNonASCII = regexp.MustCompile(`[^\x00-\x7F]+`)
+
+func slugify(s string) string {
+	slug := strings.ToLower(s)
+	slug = strings.ReplaceAll(slug, "đ", "d")
+	slug = strings.ReplaceAll(slug, " ", "-")
+	slug = strings.ReplaceAll(slug, "&", "va")
+	slug = reNonASCII.ReplaceAllString(slug, "")
+	slug = regexp.MustCompile(`-+`).ReplaceAllString(slug, "-")
+	slug = strings.Trim(slug, "-")
+	return slug
+}
+
+func toTimeStr(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.RFC3339)
+}
+
+func toProductResponse(p *domain.Product) ProductResponse {
+	var brand string
+	if p.Attributes != nil {
+		brand = p.Attributes["brand"]
+	}
+
+	skus := make([]SKUResponse, 0, len(p.SKUs))
+	for _, s := range p.SKUs {
+		attrs := make(map[string]string)
+		for _, v := range s.Variations {
+			attrs[v.Name] = v.Value
+		}
+		var skuName string
+		for _, v := range s.Variations {
+			skuName = v.Value
+			break
+		}
+
+		skus = append(skus, SKUResponse{
+			ID:            s.SKUID,
+			ProductID:     p.SPUID,
+			Name:          skuName,
+			Price:         s.Price,
+			ComparePrice:  0,
+			Currency:      "VND",
+			Stock:         s.Stock,
+			ReservedStock: 0,
+			Weight:        0,
+			Dimensions:    "",
+			Status:        strings.ToLower(s.Status),
+			SortOrder:     0,
+			Attributes:    attrs,
+			CreatedAt:     toTimeStr(p.CreatedAt),
+			UpdatedAt:     toTimeStr(p.UpdatedAt),
+		})
+	}
+
+	media := make([]MediaResponse, 0, len(p.Images))
+	for i, img := range p.Images {
+		media = append(media, MediaResponse{
+			ID:           uuid.New().String(),
+			ProductID:    p.SPUID,
+			Type:         "image",
+			URL:          img,
+			ThumbnailURL: img,
+			AltText:      p.Title,
+			SortOrder:    int32(i),
+			Status:       "active",
+		})
+	}
+
+	return ProductResponse{
+		ID:          p.SPUID,
+		Name:        p.Title,
+		Description: p.Description,
+		CategoryID:  p.CategoryID,
+		Brand:       brand,
+		Status:      strings.ToLower(p.Status),
+		Condition:   "new",
+		Weight:      0,
+		Dimensions:  "",
+		Version:     1,
+		CreatedAt:   toTimeStr(p.CreatedAt),
+		UpdatedAt:   toTimeStr(p.UpdatedAt),
+		ShopID:      p.SellerID,
+		SKUs:        skus,
+		Media:       media,
+		Attributes:  p.Attributes,
+		SoldCount:   0,
+	}
+}
+
+func toCategoryResponse(c domain.Category) CategoryResponse {
+	children := make([]CategoryResponse, 0, len(c.Children))
+	for _, child := range c.Children {
+		children = append(children, toCategoryResponse(child))
+	}
+	slug := c.Slug
+	if slug == "" {
+		slug = slugify(c.Name)
+	}
+	return CategoryResponse{
+		ID:           c.CategoryID,
+		Name:         c.Name,
+		Slug:         slug,
+		ParentID:     c.ParentID,
+		Description:  "",
+		ImageURL:     "",
+		SortOrder:    c.SortOrder,
+		IsActive:     true,
+		Depth:        c.Level,
+		Path:         "",
+		Children:     children,
+		ProductCount: 0,
+	}
+}
+
 func (h *Handler) GetProduct(c *gin.Context) {
 	ctx, span := otel.Tracer("catalog-product").Start(c.Request.Context(), "handler.product.get")
 	defer span.End()
@@ -35,11 +157,11 @@ func (h *Handler) GetProduct(c *gin.Context) {
 
 	product, err := h.productUseCase.GetByID(ctx, spuID)
 	if err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, product)
+	c.JSON(http.StatusOK, toProductResponse(product))
 }
 
 func (h *Handler) ListProducts(c *gin.Context) {
@@ -64,16 +186,113 @@ func (h *Handler) ListProducts(c *gin.Context) {
 
 	result, err := h.productUseCase.List(ctx, filter)
 	if err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		return
 	}
 
+	products := make([]ProductResponse, 0, len(result.Products))
+	for _, p := range result.Products {
+		products = append(products, toProductResponse(&p))
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"products": result.Products,
+		"products": products,
 		"total":    result.Total,
 		"page":     result.Page,
 		"size":     result.Size,
 	})
+}
+
+func (h *Handler) SearchProducts(c *gin.Context) {
+	ctx, span := otel.Tracer("catalog-product").Start(c.Request.Context(), "handler.product.search")
+	defer span.End()
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "24"))
+	minPrice, _ := strconv.ParseFloat(c.Query("min_price"), 64)
+	maxPrice, _ := strconv.ParseFloat(c.Query("max_price"), 64)
+
+	filter := domain.ProductFilter{
+		Page:       page,
+		Size:       pageSize,
+		CategoryID: c.Query("category_id"),
+		SellerID:   c.Query("shop_id"),
+		Search:     c.Query("q"),
+		MinPrice:   minPrice,
+		MaxPrice:   maxPrice,
+		SortBy:     c.Query("sort_by"),
+	}
+
+	result, err := h.productUseCase.List(ctx, filter)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	products := make([]ProductResponse, 0, len(result.Products))
+	for _, p := range result.Products {
+		products = append(products, toProductResponse(&p))
+	}
+
+	totalPages := int(math.Ceil(float64(result.Total) / float64(pageSize)))
+
+	c.JSON(http.StatusOK, SearchResultResponse{
+		Products:   products,
+		Total:      result.Total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	})
+}
+
+func (h *Handler) GetFeaturedProducts(c *gin.Context) {
+	ctx, span := otel.Tracer("catalog-product").Start(c.Request.Context(), "handler.product.featured")
+	defer span.End()
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	filter := domain.ProductFilter{
+		Page: 1,
+		Size: limit,
+	}
+
+	result, err := h.productUseCase.List(ctx, filter)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	products := make([]ProductResponse, 0, len(result.Products))
+	for _, p := range result.Products {
+		products = append(products, toProductResponse(&p))
+	}
+
+	c.JSON(http.StatusOK, products)
+}
+
+func (h *Handler) GetDealsProducts(c *gin.Context) {
+	ctx, span := otel.Tracer("catalog-product").Start(c.Request.Context(), "handler.product.deals")
+	defer span.End()
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	filter := domain.ProductFilter{
+		Page: 1,
+		Size: limit,
+	}
+
+	result, err := h.productUseCase.List(ctx, filter)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	products := make([]ProductResponse, 0, len(result.Products))
+	for _, p := range result.Products {
+		products = append(products, toProductResponse(&p))
+	}
+
+	c.JSON(http.StatusOK, products)
 }
 
 func (h *Handler) CreateProduct(c *gin.Context) {
@@ -107,11 +326,11 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 
 	created, err := h.productUseCase.Create(ctx, product)
 	if err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, created)
+	c.JSON(http.StatusCreated, toProductResponse(created))
 }
 
 func (h *Handler) UpdateProduct(c *gin.Context) {
@@ -147,7 +366,7 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 	}
 
 	if err := h.productUseCase.Update(ctx, product); err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -165,7 +384,7 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 	}
 
 	if err := h.productUseCase.Delete(ctx, spuID); err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		return
 	}
 
@@ -188,13 +407,16 @@ func (h *Handler) ListCategories(c *gin.Context) {
 
 	categories, err := h.categoryUseCase.List(ctx, parentID, level)
 	if err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"categories": categories,
-	})
+	resp := make([]CategoryResponse, 0, len(categories))
+	for _, cat := range categories {
+		resp = append(resp, toCategoryResponse(cat))
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *Handler) GetCategory(c *gin.Context) {
@@ -209,9 +431,52 @@ func (h *Handler) GetCategory(c *gin.Context) {
 
 	category, err := h.categoryUseCase.GetByID(ctx, categoryID)
 	if err != nil {
-		c.Error(err)
+		_ = c.Error(err)
 		return
 	}
 
-	c.JSON(http.StatusOK, category)
+	c.JSON(http.StatusOK, toCategoryResponse(*category))
+}
+
+func (h *Handler) GetCategoryBySlug(c *gin.Context) {
+	ctx, span := otel.Tracer("catalog-product").Start(c.Request.Context(), "handler.category.get_by_slug")
+	defer span.End()
+
+	slug := c.Param("slug")
+	if slug == "" {
+		c.Error(domain.ErrInvalidCategory)
+		return
+	}
+
+	categories, err := h.categoryUseCase.List(ctx, "", 0)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+
+	var found *domain.Category
+	var flatten func(cats []domain.Category)
+	flatten = func(cats []domain.Category) {
+		for i := range cats {
+			catSlug := cats[i].Slug
+			if catSlug == "" {
+				catSlug = slugify(cats[i].Name)
+			}
+			if catSlug == slug || cats[i].CategoryID == slug {
+				found = &cats[i]
+				return
+			}
+			if len(cats[i].Children) > 0 {
+				flatten(cats[i].Children)
+			}
+		}
+	}
+	flatten(categories)
+
+	if found == nil {
+		c.Error(domain.ErrCategoryNotFound)
+		return
+	}
+
+	c.JSON(http.StatusOK, toCategoryResponse(*found))
 }

@@ -1,10 +1,36 @@
 import { api } from "./client";
-import type { Order, PaginatedResponse, ShippingAddress } from "@/lib/types";
+import type { Order, PaginatedResponse } from "@/lib/types";
+
+export interface CheckoutItem {
+  product_id: string;
+  sku_id: string;
+  shop_id: string;
+  name: string;
+  quantity: number;
+  unit_price: number;
+  image_url?: string;
+}
 
 export interface CheckoutRequest {
-  items: { product_id: string; sku_id: string; quantity: number }[];
-  shipping_address: Omit<ShippingAddress, "id" | "is_default">;
-  payment_method: string;
+  items: CheckoutItem[];
+  seller_id: string;
+  shipping_address: {
+    street1: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    country: string;
+    phone: string;
+  };
+  billing_address: {
+    street1: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    country: string;
+    phone: string;
+  };
+  payment_method?: string;
   coupon_code?: string;
   idempotency_key: string;
 }

@@ -33,7 +33,14 @@ func (s *Service) Hash(ctx context.Context, password string) (string, error) {
 func (s *Service) Verify(ctx context.Context, password, hash string) bool {
 	switch {
 	case len(hash) >= 60 && (hash[:4] == "$2a$" || hash[:4] == "$2b$"):
-		return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+		// Try direct compare first (new format: bcrypt(sha256(password)))
+		if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil {
+			return true
+		}
+		// Backward compat: if password looks like SHA-256 hex, it won't match old bcrypt(password).
+		// There's no way to recover the original password from SHA-256, so this is intentionally
+		// a breaking change for users registered before client-side hashing was introduced.
+		return false
 	default:
 		return s.verifyArgon2id(password, hash)
 	}

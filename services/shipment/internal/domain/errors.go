@@ -13,4 +13,16 @@ var (
 	ErrUnauthorized             = errors.New("unauthorized access")
 	ErrIdempotencyKeyExists     = errors.New("idempotency key already exists")
 	ErrConcurrentModification   = errors.New("concurrent modification detected")
+
+	// QR code errors
+	ErrQRCodeNotFound          = errors.New("QR code not found")
+	ErrQRCodeExpired           = errors.New("QR code expired")
+	ErrQRCodeAlreadyScanned    = errors.New("QR code already scanned")
+	ErrQRCodeRevoked           = errors.New("QR code revoked")
+	ErrQRCodeInactive          = errors.New("QR code inactive")
+	ErrQRCodeInvalidSignature  = errors.New("QR code invalid signature")
+	ErrQRCodeGenerationFailed  = errors.New("QR code generation failed")
+	ErrScanUnauthorized        = errors.New("scan unauthorized: not the assigned shipper")
+	ErrScanLocationInvalid     = errors.New("scan location invalid")
+	ErrInvalidQRCodeType       = errors.New("invalid QR code type")
 )

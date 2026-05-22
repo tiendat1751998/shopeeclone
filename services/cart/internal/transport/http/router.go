@@ -36,17 +36,17 @@ func (r *Router) Setup(engine *gin.Engine) {
 	engine.GET("/ready", r.health.ReadinessHandler())
 	engine.GET("/metrics", observability.MetricsHandler())
 
-	api := engine.Group("/api/v1")
+	api := engine.Group("/")
 	if r.jwtAuth != nil {
 		api.Use(r.jwtAuth)
 	}
 	{
-		api.GET("/carts/:cart_id", r.handler.GetCart)
-		api.POST("/carts/:cart_id/items", r.handler.AddItem)
-		api.PUT("/carts/:cart_id/items/:item_id", r.handler.UpdateItem)
-		api.DELETE("/carts/:cart_id/items/:item_id", r.handler.RemoveItem)
-		api.DELETE("/carts/:cart_id/items", r.handler.ClearCart)
-		api.POST("/carts/merge", r.handler.MergeCarts)
-		api.POST("/carts/:cart_id/checkout-preview", r.handler.CheckoutPreview)
+		api.GET("/", r.handler.GetCart)
+		api.POST("/items", r.handler.AddItem)
+		api.PATCH("/items/:item_id", r.handler.UpdateItem)
+		api.DELETE("/items/:item_id", r.handler.RemoveItem)
+		api.DELETE("/", r.handler.ClearCart)
+		api.POST("/merge", r.handler.MergeCarts)
+		api.POST("/checkout-preview", r.handler.CheckoutPreview)
 	}
 }

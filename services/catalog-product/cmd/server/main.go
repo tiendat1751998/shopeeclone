@@ -96,6 +96,9 @@ func main() {
 		products := api.Group("/products")
 		{
 			products.GET("", httpHandler.ListProducts)
+			products.GET("/search", httpHandler.SearchProducts)
+			products.GET("/featured", httpHandler.GetFeaturedProducts)
+			products.GET("/deals", httpHandler.GetDealsProducts)
 			products.GET("/:spu_id", httpHandler.GetProduct)
 			products.POST("", httpHandler.CreateProduct)
 			products.PUT("/:spu_id", httpHandler.UpdateProduct)
@@ -104,7 +107,7 @@ func main() {
 		categories := api.Group("/categories")
 		{
 			categories.GET("", httpHandler.ListCategories)
-			categories.GET("/:category_id", httpHandler.GetCategory)
+			categories.GET("/:slug", httpHandler.GetCategoryBySlug)
 		}
 	}
 

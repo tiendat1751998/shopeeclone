@@ -18,7 +18,7 @@ interface CartState {
   isLoading: boolean;
   error: string | null;
   fetchCart: () => Promise<void>;
-  addItem: (productId: string, skuId: string, quantity: number) => Promise<void>;
+  addItem: (productId: string, skuId: string, quantity: number, name?: string, price?: number, shopId?: string, shopName?: string, imageUrl?: string) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   toggleSelect: (itemId: string) => void;
@@ -46,11 +46,11 @@ export const useCartStore = create<CartState>()(
         }
       },
 
-      addItem: async (productId, skuId, quantity) => {
+      addItem: async (productId, skuId, quantity, name?, price?, shopId?, shopName?, imageUrl?) => {
         const safeQty = clampQuantity(quantity, MAX_QUANTITY);
         set({ isLoading: true, error: null });
         try {
-          const cart = await cartApi.addItem(productId, skuId, safeQty);
+          const cart = await cartApi.addItem(productId, skuId, safeQty, name, price, shopId, shopName, imageUrl);
           set({ items: cart.items || [], isLoading: false });
         } catch (e: unknown) {
           set({ isLoading: false, error: e instanceof Error ? e.message : "Failed to add item" });

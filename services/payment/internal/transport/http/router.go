@@ -16,21 +16,19 @@ func NewRouter(handler *Handler, authMw gin.HandlerFunc, webhookMiddlewares ...g
 }
 
 func (r *Router) Setup(engine *gin.Engine) {
-	v1 := engine.Group("/api/v1")
-	v1.Use(middleware.RequestID())
-	v1.Use(middleware.Recovery())
+	engine.Use(middleware.RequestID())
+	engine.Use(middleware.Recovery())
 
-	payments := v1.Group("/payments")
-	if r.authMw != nil { payments.Use(r.authMw) }
+	if r.authMw != nil { engine.Use(r.authMw) }
 	{
-		payments.POST("", r.handler.AuthorizePayment)
-		payments.GET("/:id", r.handler.GetPayment)
-		payments.POST("/:id/capture", r.handler.CapturePayment)
-		payments.POST("/:id/refund", r.handler.RefundPayment)
+		engine.POST("/", r.handler.AuthorizePayment)
+		engine.GET("/:id", r.handler.GetPayment)
+		engine.POST("/:id/capture", r.handler.CapturePayment)
+		engine.POST("/:id/refund", r.handler.RefundPayment)
 	}
 
 	// Webhook endpoint (no auth, uses signature verification)
-	webhooks := v1.Group("/webhooks")
+	webhooks := engine.Group("/webhooks")
 	for _, mw := range r.webhookMiddlewares {
 		webhooks.Use(mw)
 	}
