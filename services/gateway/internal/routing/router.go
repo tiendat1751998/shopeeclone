@@ -106,6 +106,7 @@ func (r *Router) setupUpstreamRoutes(engine *gin.Engine) {
 		}
 		r.registerRouteGroup(engine, route)
 	}
+
 }
 
 func (r *Router) setupGRPCRoutes(engine *gin.Engine) {

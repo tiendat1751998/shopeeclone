@@ -1,0 +1,40 @@
+CREATE TABLE IF NOT EXISTS qr_codes (
+    id VARCHAR(36) PRIMARY KEY,
+    shipment_id VARCHAR(36) NOT NULL,
+    type ENUM('pickup', 'delivery') NOT NULL,
+    code VARCHAR(255) NOT NULL,
+    status ENUM('active', 'scanned', 'expired', 'revoked') NOT NULL DEFAULT 'active',
+    signed_token VARCHAR(128) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    scanned_at TIMESTAMP NULL,
+    scanned_by VARCHAR(36) DEFAULT '',
+    scan_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_qr_codes_shipment_id (shipment_id),
+    INDEX idx_qr_codes_code (code),
+    INDEX idx_qr_codes_status (status),
+    INDEX idx_qr_codes_expires_at (expires_at),
+    UNIQUE INDEX idx_qr_codes_shipment_type (shipment_id, type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS scan_events (
+    id VARCHAR(36) PRIMARY KEY,
+    qr_code_id VARCHAR(36) NOT NULL,
+    shipment_id VARCHAR(36) NOT NULL,
+    shipper_id VARCHAR(36) NOT NULL,
+    shipper_name VARCHAR(255) DEFAULT '',
+    shipper_role VARCHAR(64) NOT NULL,
+    scan_type VARCHAR(64) NOT NULL,
+    latitude DOUBLE NOT NULL DEFAULT 0,
+    longitude DOUBLE NOT NULL DEFAULT 0,
+    device_info VARCHAR(512) DEFAULT '',
+    ip_address VARCHAR(64) DEFAULT '',
+    is_valid BOOLEAN NOT NULL DEFAULT TRUE,
+    fail_reason VARCHAR(512) DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_scan_events_qr_code_id (qr_code_id),
+    INDEX idx_scan_events_shipment_id (shipment_id),
+    INDEX idx_scan_events_shipper_id (shipper_id),
+    INDEX idx_scan_events_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

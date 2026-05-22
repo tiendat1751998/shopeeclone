@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useAuthStore } from "@/lib/store/auth";
 import { ApiError } from "@/lib/api/client";
+import { sha256Hex } from "@/lib/crypto";
 
 function validateEmail(email: string): string | null {
   if (!email?.trim()) return "Email is required";
@@ -64,9 +65,10 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
+      const hashedPassword = await sha256Hex(form.password);
       await register({
         email: sanitize(form.email.toLowerCase()),
-        password: form.password,
+        password: hashedPassword,
         username: sanitize(form.username),
         display_name: sanitize(form.display_name),
       });

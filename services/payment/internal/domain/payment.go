@@ -59,7 +59,7 @@ type Payment struct {
 	IdempotencyKey    string            `db:"idempotency_key" json:"idempotency_key"`
 	AmountRefunded    int64             `db:"amount_refunded" json:"amount_refunded"`
 	FailureReason     string            `db:"failure_reason" json:"failure_reason,omitempty"`
-	Metadata          json.RawMessage   `db:"metadata" json:"metadata,omitempty"`
+	Metadata          *json.RawMessage  `db:"metadata" json:"metadata,omitempty"`
 	Version           int               `db:"version" json:"version"`
 	AuthorizedAt      *time.Time        `db:"authorized_at" json:"authorized_at,omitempty"`
 	CapturedAt        *time.Time        `db:"captured_at" json:"captured_at,omitempty"`

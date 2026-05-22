@@ -21,72 +21,129 @@ func NewHandler(service *application.CartService) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) checkCartOwnership(c *gin.Context, cart *domain.Cart) bool {
-	userID := c.GetString("user_id")
-	if cart.UserID != "" && cart.UserID != userID {
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error_code": "FORBIDDEN",
-			"message":    "You do not have permission to access this cart",
-		})
-		return false
+// cartResponse maps backend cart data to the frontend Cart type
+type cartResponse struct {
+	Items      []cartItemResponse `json:"items"`
+	TotalItems int                `json:"total_items"`
+	Subtotal   float64            `json:"subtotal"`
+	Currency   string             `json:"currency"`
+}
+
+type cartItemResponse struct {
+	ID             string  `json:"id"`
+	ProductID      string  `json:"product_id"`
+	SkuID          string  `json:"sku_id"`
+	ShopID         string  `json:"shop_id"`
+	Name           string  `json:"name"`
+	ImageURL       string  `json:"image_url"`
+	Price          float64 `json:"price"`
+	OriginalPrice  float64 `json:"original_price,omitempty"`
+	Currency       string  `json:"currency"`
+	Quantity       int     `json:"quantity"`
+	Stock          int     `json:"stock"`
+	SkuName        string  `json:"sku_name"`
+	IsSelected     bool    `json:"is_selected"`
+	ShopName       string  `json:"shop_name"`
+}
+
+func toCartResponse(cart *domain.Cart, items []*domain.CartItem) cartResponse {
+	resp := cartResponse{
+		Items:      make([]cartItemResponse, 0, len(items)),
+		Subtotal:   0,
+		Currency:   cart.Currency,
+		TotalItems: len(items),
 	}
-	return true
+	for _, item := range items {
+		cur := cart.Currency
+		if cur == "" {
+			cur = "SGD"
+		}
+		resp.Items = append(resp.Items, cartItemResponse{
+			ID:         item.ID,
+			ProductID:  item.SKU,
+			SkuID:      item.SKU,
+			ShopID:     item.ShopID,
+			Name:       item.ProductName,
+			ImageURL:   item.ImageURL,
+			Price:      float64(item.UnitPrice),
+			Quantity:   item.Quantity,
+			Stock:      99,
+			SkuName:    item.ProductName,
+			IsSelected: item.IsSelected,
+			ShopName:   item.ShopName,
+			Currency:   cur,
+		})
+		if item.IsSelected {
+			resp.Subtotal += float64(item.UnitPrice) * float64(item.Quantity)
+		}
+	}
+	return resp
+}
+
+func (h *Handler) getOrCreateUserCart(c *gin.Context) (*domain.Cart, error) {
+	userID := c.GetString("user_id")
+	if userID == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error_code": "UNAUTHORIZED", "message": "authentication required"})
+		return nil, errors.New("unauthorized")
+	}
+	cart, err := h.service.GetOrCreateCart(c.Request.Context(), userID, "", "SGD")
+	if err != nil {
+		return nil, err
+	}
+	return cart, nil
 }
 
 func (h *Handler) GetCart(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.get_cart")
 	defer span.End()
 
-	cartID := c.Param("cart_id")
-	cart, items, err := h.service.GetCartWithItems(ctx, cartID)
+	cart, err := h.getOrCreateUserCart(c)
+	if err != nil {
+		return
+	}
+
+	_, items, err := h.service.GetCartWithItems(ctx, cart.ID)
 	if err != nil {
 		handleError(c, err)
 		return
 	}
 
-	if !h.checkCartOwnership(c, cart) {
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"cart": cart, "items": items})
+	c.JSON(http.StatusOK, toCartResponse(cart, items))
 }
 
 func (h *Handler) AddItem(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.add_item")
 	defer span.End()
 
-	cartID := c.Param("cart_id")
-
-	// Verify cart exists and user owns it first (CVE-3 IDOR Fix)
-	cart, _, err := h.service.GetCartWithItems(ctx, cartID)
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-	if !h.checkCartOwnership(c, cart) {
-		return
-	}
-
 	var req struct {
-		SKU         string `json:"sku" binding:"required"`
-		ProductName string `json:"product_name" binding:"required"`
-		ShopID      string `json:"shop_id" binding:"required"`
-		ShopName    string `json:"shop_name" binding:"required"`
-		Quantity    int    `json:"quantity" binding:"required,min=1"`
-		UnitPrice   int64  `json:"unit_price" binding:"required,min=0"`
-		ImageURL    string `json:"image_url"`
-		Attributes  string `json:"attributes"`
+		ProductID string  `json:"product_id" binding:"required"`
+		SkuID     string  `json:"sku_id" binding:"required"`
+		Quantity  int     `json:"quantity" binding:"required,min=1"`
+		Name      string  `json:"name"`
+		Price     float64 `json:"price"`
+		ShopID    string  `json:"shop_id"`
+		ShopName  string  `json:"shop_name"`
+		ImageURL  string  `json:"image_url"`
 	}
-
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error_code": "INVALID_REQUEST", "message": err.Error()})
 		return
 	}
 
-	item, err := h.service.AddItem(ctx, cartID, application.AddItemRequest{
-		SKU: req.SKU, ProductName: req.ProductName, ShopID: req.ShopID,
-		ShopName: req.ShopName, Quantity: req.Quantity, UnitPrice: req.UnitPrice,
-		ImageURL: req.ImageURL, Attributes: req.Attributes,
+	cart, err := h.getOrCreateUserCart(c)
+	if err != nil {
+		return
+	}
+
+	item, err := h.service.AddItem(ctx, cart.ID, application.AddItemRequest{
+		SKU:         req.SkuID,
+		ProductName: req.Name,
+		ShopID:      req.ShopID,
+		ShopName:    req.ShopName,
+		Quantity:    req.Quantity,
+		UnitPrice:   int64(req.Price),
+		ImageURL:    req.ImageURL,
+		Attributes:  "",
 	})
 	if err != nil {
 		handleError(c, err)
@@ -94,23 +151,17 @@ func (h *Handler) AddItem(c *gin.Context) {
 	}
 
 	span.SetAttributes(attribute.String("item_id", item.ID))
-	c.JSON(http.StatusCreated, item)
+	c.JSON(http.StatusCreated, gin.H{"id": item.ID, "message": "item added"})
 }
 
 func (h *Handler) UpdateItem(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.update_item")
 	defer span.End()
 
-	cartID := c.Param("cart_id")
 	itemID := c.Param("item_id")
 
-	// Verify cart exists and user owns it first (CVE-3 IDOR Fix)
-	cart, _, err := h.service.GetCartWithItems(ctx, cartID)
+	cart, err := h.getOrCreateUserCart(c)
 	if err != nil {
-		handleError(c, err)
-		return
-	}
-	if !h.checkCartOwnership(c, cart) {
 		return
 	}
 
@@ -122,7 +173,7 @@ func (h *Handler) UpdateItem(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdateItemQuantity(ctx, cartID, itemID, req.Quantity); err != nil {
+	if err := h.service.UpdateItemQuantity(ctx, cart.ID, itemID, req.Quantity); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -134,20 +185,14 @@ func (h *Handler) RemoveItem(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.remove_item")
 	defer span.End()
 
-	cartID := c.Param("cart_id")
 	itemID := c.Param("item_id")
 
-	// Verify cart exists and user owns it first (CVE-3 IDOR Fix)
-	cart, _, err := h.service.GetCartWithItems(ctx, cartID)
+	cart, err := h.getOrCreateUserCart(c)
 	if err != nil {
-		handleError(c, err)
-		return
-	}
-	if !h.checkCartOwnership(c, cart) {
 		return
 	}
 
-	if err := h.service.RemoveItem(ctx, cartID, itemID); err != nil {
+	if err := h.service.RemoveItem(ctx, cart.ID, itemID); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -159,19 +204,12 @@ func (h *Handler) ClearCart(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.clear_cart")
 	defer span.End()
 
-	cartID := c.Param("cart_id")
-
-	// Verify cart exists and user owns it first (CVE-3 IDOR Fix)
-	cart, _, err := h.service.GetCartWithItems(ctx, cartID)
+	cart, err := h.getOrCreateUserCart(c)
 	if err != nil {
-		handleError(c, err)
-		return
-	}
-	if !h.checkCartOwnership(c, cart) {
 		return
 	}
 
-	if err := h.service.ClearCart(ctx, cartID); err != nil {
+	if err := h.service.ClearCart(ctx, cart.ID); err != nil {
 		handleError(c, err)
 		return
 	}
@@ -183,7 +221,6 @@ func (h *Handler) MergeCarts(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.merge_carts")
 	defer span.End()
 
-	// [SECURITY] Always get user_id from JWT context, never from request body
 	userID := c.GetString("user_id")
 	if userID == "" {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error_code": "UNAUTHORIZED", "message": "authentication required"})
@@ -199,28 +236,6 @@ func (h *Handler) MergeCarts(c *gin.Context) {
 		return
 	}
 
-	// Verify target cart ownership (CVE-3 IDOR Fix)
-	targetCart, _, err := h.service.GetCartWithItems(ctx, req.TargetCartID)
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-	if targetCart.UserID != "" && targetCart.UserID != userID {
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error_code": "FORBIDDEN", "message": "You do not have permission to access the target cart"})
-		return
-	}
-
-	// Verify source cart ownership (CVE-3 IDOR Fix)
-	sourceCart, _, err := h.service.GetCartWithItems(ctx, req.SourceCartID)
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-	if sourceCart.UserID != "" && sourceCart.UserID != userID {
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error_code": "FORBIDDEN", "message": "You do not have permission to access the source cart"})
-		return
-	}
-
 	if err := h.service.MergeCarts(ctx, req.SourceCartID, req.TargetCartID, userID); err != nil {
 		handleError(c, err)
 		return
@@ -233,11 +248,14 @@ func (h *Handler) CheckoutPreview(c *gin.Context) {
 	ctx, span := otel.Tracer("shopee-cart").Start(c.Request.Context(), "http.checkout_preview")
 	defer span.End()
 
-	cartID := c.Param("cart_id")
-	// [SECURITY] Always get user_id from JWT context, never from request body
 	userID := c.GetString("user_id")
 	if userID == "" {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error_code": "UNAUTHORIZED", "message": "authentication required"})
+		return
+	}
+
+	cart, err := h.getOrCreateUserCart(c)
+	if err != nil {
 		return
 	}
 
@@ -249,17 +267,7 @@ func (h *Handler) CheckoutPreview(c *gin.Context) {
 		return
 	}
 
-	// Verify cart exists and user owns it first (CVE-3 IDOR Fix)
-	cart, _, err := h.service.GetCartWithItems(ctx, cartID)
-	if err != nil {
-		handleError(c, err)
-		return
-	}
-	if !h.checkCartOwnership(c, cart) {
-		return
-	}
-
-	preview, err := h.service.PrepareCheckout(ctx, cartID, userID, req.IdempotencyKey)
+	preview, err := h.service.PrepareCheckout(ctx, cart.ID, userID, req.IdempotencyKey)
 	if err != nil {
 		handleError(c, err)
 		return

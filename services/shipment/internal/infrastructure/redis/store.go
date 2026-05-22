@@ -47,3 +47,39 @@ func (s *Store) ReleaseShipmentLock(ctx context.Context, shipmentID string) erro
 	if s.client == nil { return nil }
 	return s.client.Del(ctx, fmt.Sprintf("lock:shipment:%s", shipmentID)).Err()
 }
+
+// --- QR Code Redis methods ---
+
+func (s *Store) StoreQRCodeState(ctx context.Context, code string, qrID string, ttl time.Duration) error {
+	if s.client == nil { return nil }
+	key := fmt.Sprintf("shipment:qr:%s", code)
+	return s.client.Set(ctx, key, qrID, ttl).Err()
+}
+
+func (s *Store) GetQRCodeState(ctx context.Context, code string) (string, error) {
+	if s.client == nil { return "", nil }
+	return s.client.Get(ctx, fmt.Sprintf("shipment:qr:%s", code)).Result()
+}
+
+func (s *Store) InvalidateQRCodeState(ctx context.Context, code string) error {
+	if s.client == nil { return nil }
+	return s.client.Del(ctx, fmt.Sprintf("shipment:qr:%s", code)).Err()
+}
+
+func (s *Store) AcquireScanLock(ctx context.Context, code string, ttl time.Duration) (bool, error) {
+	if s.client == nil { return true, nil }
+	key := fmt.Sprintf("shipment:qr:scan_lock:%s", code)
+	return s.client.SetNX(ctx, key, "1", ttl).Result()
+}
+
+func (s *Store) ReleaseScanLock(ctx context.Context, code string) error {
+	if s.client == nil { return nil }
+	key := fmt.Sprintf("shipment:qr:scan_lock:%s", code)
+	return s.client.Del(ctx, key).Err()
+}
+
+func (s *Store) IncrementScanCounter(ctx context.Context, shipmentID string) (int64, error) {
+	if s.client == nil { return 0, nil }
+	key := fmt.Sprintf("shipment:scan_count:%s", shipmentID)
+	return s.client.Incr(ctx, key).Result()
+}

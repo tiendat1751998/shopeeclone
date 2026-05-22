@@ -39,18 +39,35 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
     setError("");
     try {
+      const items = selectedItems();
+      const firstItem = items[0];
       await ordersApi.checkout({
-        items: selectedItems().map((i) => ({ product_id: i.product_id, sku_id: i.sku_id, quantity: i.quantity })),
+        items: items.map((i) => ({
+          product_id: i.product_id,
+          sku_id: i.sku_id,
+          shop_id: i.shop_id,
+          name: i.name,
+          quantity: i.quantity,
+          unit_price: i.price,
+          image_url: i.image_url,
+        })),
+        seller_id: firstItem?.shop_id || "",
         shipping_address: {
-          name: sanitizeAddressValue(address.name),
-          phone: sanitizeAddressValue(address.phone),
-          address_line1: sanitizeAddressValue(address.address_line1),
+          street1: sanitizeAddressValue(address.address_line1),
           city: sanitizeAddressValue(address.city),
           state: sanitizeAddressValue(address.state),
           postal_code: sanitizeAddressValue(address.postal_code),
           country: "SG",
+          phone: sanitizeAddressValue(address.phone),
         },
-        payment_method: paymentMethod,
+        billing_address: {
+          street1: sanitizeAddressValue(address.address_line1),
+          city: sanitizeAddressValue(address.city),
+          state: sanitizeAddressValue(address.state),
+          postal_code: sanitizeAddressValue(address.postal_code),
+          country: "SG",
+          phone: sanitizeAddressValue(address.phone),
+        },
       });
       clearCart();
       router.push("/account");

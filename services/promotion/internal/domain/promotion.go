@@ -21,11 +21,11 @@ type Voucher struct {
 	UsageCount     int64     `db:"usage_count" json:"usage_count"`
 	PerUserLimit   int       `db:"per_user_limit" json:"per_user_limit"`
 	Scope          string    `db:"scope" json:"scope"`
-	ShopID         string    `db:"shop_id" json:"shop_id,omitempty"`
-	CategoryID     string    `db:"category_id" json:"category_id,omitempty"`
-	SKU            string    `db:"sku" json:"sku,omitempty"`
-	Region         string    `db:"region" json:"region,omitempty"`
-	PaymentMethod  string    `db:"payment_method" json:"payment_method,omitempty"`
+	ShopID         *string   `db:"shop_id" json:"shop_id,omitempty"`
+	CategoryID     *string   `db:"category_id" json:"category_id,omitempty"`
+	SKU            *string   `db:"sku" json:"sku,omitempty"`
+	Region         *string   `db:"region" json:"region,omitempty"`
+	PaymentMethod  *string   `db:"payment_method" json:"payment_method,omitempty"`
 	StartTime      time.Time `db:"start_time" json:"start_time"`
 	EndTime        time.Time `db:"end_time" json:"end_time"`
 	Status         string    `db:"status" json:"status"`
@@ -90,19 +90,19 @@ func (v *Voucher) CanRedeem(userID string, subtotal int64, shopID, categoryID, s
 	if subtotal < v.MinSpend {
 		return fmt.Errorf("%w: subtotal %d < min spend %d", ErrVoucherMinSpend, subtotal, v.MinSpend)
 	}
-	if v.Scope == VoucherScopeShop && v.ShopID != shopID {
+	if v.Scope == VoucherScopeShop && (v.ShopID == nil || *v.ShopID != shopID) {
 		return fmt.Errorf("%w: voucher not valid for this shop", ErrVoucherScope)
 	}
-	if v.Scope == VoucherScopeCategory && v.CategoryID != categoryID {
+	if v.Scope == VoucherScopeCategory && (v.CategoryID == nil || *v.CategoryID != categoryID) {
 		return fmt.Errorf("%w: voucher not valid for this category", ErrVoucherScope)
 	}
-	if v.Scope == VoucherScopeSKU && v.SKU != sku {
+	if v.Scope == VoucherScopeSKU && (v.SKU == nil || *v.SKU != sku) {
 		return fmt.Errorf("%w: voucher not valid for this SKU", ErrVoucherScope)
 	}
-	if v.Region != "" && v.Region != region {
+	if v.Region != nil && *v.Region != "" && *v.Region != region {
 		return fmt.Errorf("%w: voucher not valid for this region", ErrVoucherRegion)
 	}
-	if v.PaymentMethod != "" && v.PaymentMethod != paymentMethod {
+	if v.PaymentMethod != nil && *v.PaymentMethod != "" && *v.PaymentMethod != paymentMethod {
 		return fmt.Errorf("%w: voucher not valid for this payment method", ErrVoucherPaymentMethod)
 	}
 	return nil

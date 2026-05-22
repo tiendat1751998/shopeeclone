@@ -133,13 +133,19 @@ func (r *CategoryRepository) buildTree(categories []domain.Category) []domain.Ca
 		categoryMap[categories[i].CategoryID] = &categories[i]
 	}
 
-	var roots []domain.Category
 	for i := range categories {
 		c := &categories[i]
+		if c.ParentID != "" {
+			if parent, ok := categoryMap[c.ParentID]; ok {
+				parent.Children = append(parent.Children, *c)
+			}
+		}
+	}
+
+	var roots []domain.Category
+	for _, c := range categories {
 		if c.ParentID == "" {
-			roots = append(roots, *c)
-		} else if parent, ok := categoryMap[c.ParentID]; ok {
-			parent.Children = append(parent.Children, *c)
+			roots = append(roots, c)
 		}
 	}
 

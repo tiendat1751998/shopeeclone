@@ -40,6 +40,39 @@ type CreateShipmentRequest struct {
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
+// --- QR Code request/response types ---
+
+type GenerateQRCodeRequest struct {
+	ShipmentID string          `json:"shipment_id" validate:"required"`
+	Type       domain.QRCodeType `json:"type" validate:"required"`
+	TTLSeconds int             `json:"ttl_seconds"`
+}
+
+type GenerateQRCodeResponse struct {
+	QRCode     *domain.QRCode `json:"qr_code"`
+	ImageData  string         `json:"qr_image_base64"`
+	ImageURL   string         `json:"qr_image_url,omitempty"`
+}
+
+type ScanQRCodeRequest struct {
+	Code        string  `json:"code" validate:"required"`
+	ShipperID   string  `json:"shipper_id" validate:"required"`
+	ShipperName string  `json:"shipper_name"`
+	ShipperRole string  `json:"shipper_role" validate:"required,oneof=pickup_driver delivery_driver"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
+	DeviceInfo  string  `json:"device_info"`
+	IPAddress   string  `json:"ip_address"`
+}
+
+type ScanQRCodeResponse struct {
+	Success    bool               `json:"success"`
+	ShipmentID string             `json:"shipment_id,omitempty"`
+	Shipment   *domain.Shipment   `json:"shipment,omitempty"`
+	ScanEvent  *domain.ScanEvent  `json:"scan_event,omitempty"`
+	Message    string             `json:"message"`
+}
+
 func (s *ShipmentService) CreateShipment(ctx context.Context, req *CreateShipmentRequest) (*domain.Shipment, error) {
 	ctx, span := otel.Tracer("shopee-shipment").Start(ctx, "ShipmentService.CreateShipment")
 	defer span.End()

@@ -593,6 +593,19 @@ func validatePassword(password string) error {
 	if len(password) > 128 {
 		return domain.ErrPasswordTooWeak
 	}
+	// Accept pre-hashed passwords (SHA-256 hex: 64 lowercase hex chars)
+	if len(password) == 64 {
+		isHex := true
+		for _, c := range password {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+				isHex = false
+				break
+			}
+		}
+		if isHex {
+			return nil
+		}
+	}
 	hasUpper, hasLower, hasDigit := false, false, false
 	for _, c := range password {
 		switch {

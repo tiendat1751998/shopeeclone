@@ -35,7 +35,7 @@ export default function CartPage() {
             <div key={item.id} className="card p-4 flex gap-4">
               <input type="checkbox" checked={item.is_selected} onChange={() => toggleSelect(item.id)} className="w-4 h-4 accent-[#ee4d2d] mt-2" />
               <div className="w-20 h-20 flex-shrink-0 rounded overflow-hidden bg-gray-100">
-                <Image src={item.image_url || "/images/placeholder.png"} alt={item.name} width={80} height={80} className="w-full h-full object-cover" />
+                <Image src={item.image_url || "/images/placeholder.svg"} alt={item.name} width={80} height={80} className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 min-w-0">
                 <Link href={`/products/${item.product_id}`} className="text-sm text-[#222] hover:text-[#ee4d2d] line-clamp-2">{item.name}</Link>

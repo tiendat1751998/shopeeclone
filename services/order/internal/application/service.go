@@ -116,7 +116,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *CreateOrderRequest)
 		orderItems,
 	)
 	order.OrderNumber = s.numberGen.Generate()
-	order.Metadata = req.Metadata
+	if len(req.Metadata) > 0 {
+		order.Metadata = &req.Metadata
+	}
 
 	// Create snapshot
 	cartSnapshot := &domain.CartSnapshot{

@@ -206,11 +206,6 @@ func AntiAbuse() gin.HandlerFunc {
 			return
 		}
 
-		acceptEncoding := c.GetHeader("Accept-Encoding")
-		if strings.Contains(acceptEncoding, "gzip") {
-			c.Header("Content-Encoding", "gzip")
-		}
-
 		c.Next()
 	}
 }

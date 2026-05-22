@@ -18,24 +18,20 @@ func NewRouter(handler *Handler, authMw gin.HandlerFunc) *Router {
 }
 
 func (r *Router) Setup(engine *gin.Engine) {
-	// API v1
-	v1 := engine.Group("/api/v1")
-	v1.Use(middleware.RequestID())
-	v1.Use(middleware.Logger())
-	v1.Use(middleware.Recovery())
+	engine.Use(middleware.RequestID())
+	engine.Use(middleware.Logger())
+	engine.Use(middleware.Recovery())
 
-	// Protected routes
-	orders := v1.Group("/orders")
 	if r.authMw != nil {
-		orders.Use(r.authMw)
+		engine.Use(r.authMw)
 	}
 	{
-		orders.POST("", r.handler.CreateOrder)
-		orders.GET("", r.handler.ListOrders)
-		orders.GET("/:id", r.handler.GetOrder)
-		orders.GET("/:id/status", r.handler.GetOrderStatus)
-		orders.POST("/:id/cancel", r.handler.CancelOrder)
-		orders.GET("/:id/history", r.handler.GetOrderHistory)
-		orders.GET("/:id/reconciliation", r.handler.GetReconciliationStatus)
+		engine.POST("/", r.handler.CreateOrder)
+		engine.GET("/", r.handler.ListOrders)
+		engine.GET("/:id", r.handler.GetOrder)
+		engine.GET("/:id/status", r.handler.GetOrderStatus)
+		engine.POST("/:id/cancel", r.handler.CancelOrder)
+		engine.GET("/:id/history", r.handler.GetOrderHistory)
+		engine.GET("/:id/reconciliation", r.handler.GetReconciliationStatus)
 	}
 }

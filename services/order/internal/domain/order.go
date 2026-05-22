@@ -85,7 +85,7 @@ type Order struct {
 	IdempotencyKey   string          `db:"idempotency_key" json:"idempotency_key"`
 	SnapshotID       string          `db:"snapshot_id" json:"snapshot_id"`
 	ParentOrderID    *string         `db:"parent_order_id" json:"parent_order_id,omitempty"`
-	Metadata         json.RawMessage `db:"metadata" json:"metadata,omitempty"`
+	Metadata         *json.RawMessage `db:"metadata" json:"metadata,omitempty"`
 	Version             int             `db:"version" json:"version"`
 	CreatedAt        time.Time       `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time       `db:"updated_at" json:"updated_at"`
