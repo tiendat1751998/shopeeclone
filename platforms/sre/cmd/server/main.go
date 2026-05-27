@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/health"
 	"go.uber.org/zap"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/shopee-clone/shopee/platforms/sre/internal/alerting"
 	"github.com/shopee-clone/shopee/platforms/sre/internal/deployment"
@@ -26,8 +27,18 @@ import (
 var version = "1.0.0"
 var port = 8080
 
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
+
 func main() {
 	logger, _ := zap.NewProduction()
+	// Auto-tune GOMAXPROCS for container environments
+	_, _ = automaxprocs.Set()
+
 	defer logger.Sync()
 
 	incidentRepo := incident.NewInMemoryRepository()
@@ -60,9 +71,9 @@ func main() {
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	var wg sync.WaitGroup

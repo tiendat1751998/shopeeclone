@@ -2,9 +2,10 @@ package kafka
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/bytedance/sonic"
 	"github.com/segmentio/kafka-go"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.uber.org/zap"
@@ -17,37 +18,40 @@ const (
 )
 
 type Producer struct {
-	eventsWriter  *kafka.Writer
-	chatWriter    *kafka.Writer
+	eventsWriter    *kafka.Writer
+	chatWriter      *kafka.Writer
 	analyticsWriter *kafka.Writer
-	service       string
+	service         string
 }
 
 func NewProducer(brokers []string, service string) *Producer {
 	return &Producer{
-		eventsWriter: newWriter(brokers, TopicLiveEvents),
-		chatWriter:   newWriter(brokers, TopicChatMessages),
+		eventsWriter:    newWriter(brokers, TopicLiveEvents),
+		chatWriter:      newWriter(brokers, TopicChatMessages),
 		analyticsWriter: newWriter(brokers, TopicAnalytics),
-		service:      service,
+		service:         service,
 	}
 }
 
 func newWriter(brokers []string, topic string) *kafka.Writer {
 	return &kafka.Writer{
-		Addr:          kafka.TCP(brokers...),
-		Topic:         topic,
-		Balancer:      &kafka.Hash{},
-		BatchTimeout:  10 * time.Millisecond,
-		WriteTimeout:  10 * time.Second,
-		BatchSize:     100,
-		Async:         false,
-		RequiredAcks:  kafka.RequireAll,
-		MaxAttempts:   3,
+		Addr:         kafka.TCP(brokers...),
+		Topic:        topic,
+		Balancer:     &kafka.Hash{},
+		BatchTimeout: 5 * time.Millisecond,
+		WriteTimeout: 10 * time.Second,
+		BatchSize:    100,
+		Async:        false,
+		RequiredAcks: kafka.RequireAll,
+		MaxAttempts:  3,
+		// Tuned: increased buffer for flash-sale traffic spikes
+		BatchSize:    256,
+		BatchTimeout: 2 * time.Millisecond,
 	}
 }
 
 func (p *Producer) Publish(ctx context.Context, eventType string, payload interface{}) error {
-	body, err := json.Marshal(map[string]interface{}{
+	body, err := sonic.Marshal(map[string]interface{}{
 		"type":    eventType,
 		"payload": payload,
 		"time":    time.Now().UnixMilli(),
@@ -81,7 +85,7 @@ func (p *Producer) Publish(ctx context.Context, eventType string, payload interf
 }
 
 func (p *Producer) PublishAnalytics(ctx context.Context, payload interface{}) error {
-	body, err := json.Marshal(payload)
+	body, err := sonic.Marshal(payload)
 	if err != nil {
 		return err
 	}

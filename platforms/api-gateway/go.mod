@@ -5,6 +5,7 @@ go 1.26.3
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/uuid v1.6.0
+	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/zap v1.27.0
 )
 

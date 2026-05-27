@@ -26,8 +26,8 @@ public class User {
 
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Id
-    @Column(name = "user_id", nullable = false, updatable = false)
-    private UUID userId;
+    @Column(name = "id", nullable = false, updatable = false)
+    private UUID id;
 
     @Column(name = "email", nullable = false, unique = true, length = 255)
     private String email;
@@ -63,8 +63,8 @@ public class User {
 
     @PrePersist
     public void prePersist() {
-        if (userId == null) {
-            userId = UUID.randomUUID();
+        if (id == null) {
+            id = UUID.randomUUID();
         }
     }
 }

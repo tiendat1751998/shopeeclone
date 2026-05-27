@@ -21,7 +21,9 @@ func Logger() gin.HandlerFunc {
 			zap.String("path", path),
 		}
 		if requestID, exists := c.Get("request_id"); exists {
-			fields = append(fields, zap.String("request_id", requestID.(string)))
+			if rid, ok := requestID.(string); ok {
+				fields = append(fields, zap.String("request_id", rid))
+			}
 		}
 		if c.Writer.Status() >= 500 {
 			zap.L().Error("request failed", fields...)

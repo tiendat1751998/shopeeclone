@@ -2,10 +2,10 @@ package kafka
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/segmentio/kafka-go"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.uber.org/zap"
@@ -111,5 +111,5 @@ var _ EventPublisher = (*Producer)(nil)
 
 // MarshalEvent is a helper to marshal events
 func MarshalEvent(event interface{}) ([]byte, error) {
-	return json.Marshal(event)
+	return sonic.Marshal(event)
 }

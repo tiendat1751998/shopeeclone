@@ -54,6 +54,7 @@ type Claims struct {
 	Scope     string   `json:"scope"`
 	DeviceID  string   `json:"device_id"`
 	SessionID string   `json:"session_id"`
+	Type      string   `json:"type"`
 	jwt.RegisteredClaims
 }
 
@@ -311,7 +312,29 @@ func (v *JWTValidator) ValidateToken(ctx context.Context, tokenString string) (*
 			if v.cfg.JWKSEndpoint != "" {
 				return nil, fmt.Errorf("HMAC signing not allowed when JWKS is configured")
 			}
-			return []byte(v.cfg.AccessTokenKey), nil
+			// Try access token key first, then refresh token key.
+			// We don't know the token type until after parsing, so we attempt
+			// both keys: first the access key, then the refresh key.
+			// This is safe because access and refresh tokens have different
+			// claims (type: "access" vs type: "refresh").
+			accessKey := []byte(v.cfg.AccessTokenKey)
+			refreshKey := []byte(v.cfg.RefreshTokenKey)
+			if len(refreshKey) > 0 {
+				// Try access key first, fall back to refresh key
+				testToken, parseErr := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+					return accessKey, nil
+				}, jwt.WithLeeway(30*time.Second))
+				if parseErr != nil || !testToken.Valid || claims.Type != "access" {
+					// Access key didn't work or token is not an access token, try refresh key
+					testToken, parseErr = jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+						return refreshKey, nil
+					}, jwt.WithLeeway(30*time.Second))
+					if parseErr == nil && testToken.Valid {
+						return refreshKey, nil
+					}
+				}
+			}
+			return accessKey, nil
 		default:
 			return nil, fmt.Errorf("unexpected signing method: %s", alg)
 		}

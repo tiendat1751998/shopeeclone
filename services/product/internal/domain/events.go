@@ -1,8 +1,9 @@
 package domain
 
 import (
-	"encoding/json"
 	"time"
+
+	"github.com/bytedance/sonic"
 )
 
 // EventType identifies the type of domain event.
@@ -26,7 +27,7 @@ type DomainEvent struct {
 
 // Marshal serializes the event to JSON
 func (e DomainEvent) Marshal() ([]byte, error) {
-	return json.Marshal(e)
+	return sonic.Marshal(e)
 }
 
 // ProductCreatedEvent is emitted when a new product is created.
@@ -149,9 +150,9 @@ func NewProductModerationEvent(spuID string, status ModerationStatus, reason, re
 }
 
 // Marshal methods for each event type
-func (e ProductCreatedEvent) Marshal() ([]byte, error)    { return json.Marshal(e) }
-func (e ProductUpdatedEvent) Marshal() ([]byte, error)    { return json.Marshal(e) }
-func (e ProductDeletedEvent) Marshal() ([]byte, error)    { return json.Marshal(e) }
-func (e SKUUpdatedEvent) Marshal() ([]byte, error)        { return json.Marshal(e) }
-func (e CategoryUpdatedEvent) Marshal() ([]byte, error)   { return json.Marshal(e) }
-func (e ProductModerationEvent) Marshal() ([]byte, error) { return json.Marshal(e) }
+func (e ProductCreatedEvent) Marshal() ([]byte, error)    { return sonic.Marshal(e) }
+func (e ProductUpdatedEvent) Marshal() ([]byte, error)    { return sonic.Marshal(e) }
+func (e ProductDeletedEvent) Marshal() ([]byte, error)    { return sonic.Marshal(e) }
+func (e SKUUpdatedEvent) Marshal() ([]byte, error)        { return sonic.Marshal(e) }
+func (e CategoryUpdatedEvent) Marshal() ([]byte, error)   { return sonic.Marshal(e) }
+func (e ProductModerationEvent) Marshal() ([]byte, error) { return sonic.Marshal(e) }

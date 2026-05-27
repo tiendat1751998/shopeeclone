@@ -73,15 +73,15 @@ public class AuthService {
 
         user = userRepository.save(user);
 
-        roleService.assignDefaultRole(user.getUserId());
+        roleService.assignDefaultRole(user.getId());
 
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         String refreshToken = jwtTokenProvider.generateRefreshToken(user);
 
-        sessionService.createRefreshToken(user.getUserId(), refreshToken);
+        sessionService.createRefreshToken(user.getId(), refreshToken);
 
-        outboxPublisher.publish("user", user.getUserId().toString(), "user.registered", Map.of(
-            "user_id", user.getUserId().toString(),
+        outboxPublisher.publish("user", user.getId().toString(), "user.registered", Map.of(
+            "user_id", user.getId().toString(),
             "email", user.getEmail(),
             "role", user.getRole()
         ));
@@ -144,10 +144,10 @@ public class AuthService {
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         String refreshToken = jwtTokenProvider.generateRefreshToken(user);
 
-        sessionService.createRefreshToken(user.getUserId(), refreshToken);
+        sessionService.createRefreshToken(user.getId(), refreshToken);
 
-        outboxPublisher.publish("user", user.getUserId().toString(), "user.logged_in", Map.of(
-            "user_id", user.getUserId().toString(),
+        outboxPublisher.publish("user", user.getId().toString(), "user.logged_in", Map.of(
+            "user_id", user.getId().toString(),
             "email", user.getEmail(),
             "ip", ipAddress
         ));
@@ -184,7 +184,7 @@ public class AuthService {
         String newAccessToken = jwtTokenProvider.generateAccessToken(user);
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user);
 
-        sessionService.createRefreshToken(user.getUserId(), newRefreshToken);
+        sessionService.createRefreshToken(user.getId(), newRefreshToken);
 
         authMetrics.incrementTokenRefreshes();
         log.info("Token refreshed for user: {}", userId);
@@ -212,7 +212,7 @@ public class AuthService {
             .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userId));
 
         return UserResponse.builder()
-            .userId(user.getUserId())
+            .userId(user.getId())
             .email(user.getEmail())
             .phone(user.getPhone())
             .fullName(user.getFullName())
@@ -230,7 +230,7 @@ public class AuthService {
 
     private AuthResponse buildAuthResponse(User user, String accessToken, String refreshToken) {
         return AuthResponse.builder()
-            .userId(user.getUserId())
+            .userId(user.getId())
             .email(user.getEmail())
             .phone(user.getPhone())
             .fullName(user.getFullName())

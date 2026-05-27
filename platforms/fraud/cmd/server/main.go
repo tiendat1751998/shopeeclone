@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"fmt"
 	"go.uber.org/zap"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/shopee-clone/shopee/platforms/fraud/internal/blacklist"
 	fraudcase "github.com/shopee-clone/shopee/platforms/fraud/internal/case"
@@ -27,8 +28,19 @@ import (
 	"github.com/shopee-clone/shopee/platforms/fraud/internal/verification"
 )
 
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
+
 func main() {
 	cfg := config.Load()
+	// Auto-tune GOMAXPROCS for container environments
+	_, _ = automaxprocs.Set()
+
+
 	logger := logging.NewLogger(cfg.AppEnv)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -79,9 +91,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
 		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
+		ReadTimeout:       5 * time.Second,
 		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {

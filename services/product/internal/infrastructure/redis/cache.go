@@ -2,14 +2,29 @@ package redis
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopee-clone/shopee/services/product/internal/domain"
 )
+
+var productPool = sync.Pool{
+	New: func() interface{} {
+		return &domain.Product{}
+	},
+}
+
+func getProductFromPool() *domain.Product {
+	return productPool.Get().(*domain.Product)
+}
+
+func putProductToPool(p *domain.Product) {
+	*p = domain.Product{}
+	productPool.Put(p)
+}
 
 // Cache implements ProductCache and CategoryCache using Redis
 type Cache struct {
@@ -94,7 +109,7 @@ func (c *Cache) Get(ctx context.Context, key string) (*domain.Product, error) {
 	}
 
 	var product domain.Product
-	if err := json.Unmarshal(data, &product); err != nil {
+	if err := sonic.Unmarshal(data, &product); err != nil {
 		return nil, fmt.Errorf("unmarshal product: %w", err)
 	}
 	return &product, nil
@@ -102,7 +117,7 @@ func (c *Cache) Get(ctx context.Context, key string) (*domain.Product, error) {
 
 // Set stores a product in cache
 func (c *Cache) Set(ctx context.Context, key string, product *domain.Product, ttl time.Duration) error {
-	data, err := json.Marshal(product)
+	data, err := sonic.Marshal(product)
 	if err != nil {
 		return fmt.Errorf("marshal product: %w", err)
 	}
@@ -134,12 +149,12 @@ func (c *Cache) GetOrFetch(ctx context.Context, key string, ttl time.Duration, f
 		return nil, nil
 	}
 
-	// Cache the result (bounded concurrency)
+	// Cache the result (bounded concurrency, propagate caller context)
 	select {
 	case c.sem <- struct{}{}:
 		go func() {
 			defer func() { <-c.sem }()
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
 			c.Set(ctx, key, product, ttl)
 		}()
@@ -157,7 +172,7 @@ func (c *Cache) GetOrFetchCategory(ctx context.Context, key string, ttl time.Dur
 	}
 	if err == nil {
 		var category domain.Category
-		if err := json.Unmarshal(data, &category); err == nil {
+		if err := sonic.Unmarshal(data, &category); err == nil {
 			return &category, nil
 		}
 	}
@@ -174,9 +189,9 @@ func (c *Cache) GetOrFetchCategory(ctx context.Context, key string, ttl time.Dur
 	case c.sem <- struct{}{}:
 		go func() {
 			defer func() { <-c.sem }()
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
-			if data, err := json.Marshal(category); err == nil {
+			if data, err := sonic.Marshal(category); err == nil {
 				c.client.Set(ctx, c.prefix+key, data, ttl)
 			}
 		}()
@@ -194,7 +209,7 @@ func (c *Cache) GetOrFetchTree(ctx context.Context, key string, ttl time.Duratio
 	}
 	if err == nil {
 		var tree domain.CategoryTree
-		if err := json.Unmarshal(data, &tree); err == nil {
+		if err := sonic.Unmarshal(data, &tree); err == nil {
 			return &tree, nil
 		}
 	}
@@ -211,9 +226,9 @@ func (c *Cache) GetOrFetchTree(ctx context.Context, key string, ttl time.Duratio
 	case c.sem <- struct{}{}:
 		go func() {
 			defer func() { <-c.sem }()
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
-			if data, err := json.Marshal(tree); err == nil {
+			if data, err := sonic.Marshal(tree); err == nil {
 				c.client.Set(ctx, c.prefix+key, data, ttl)
 			}
 		}()
@@ -263,14 +278,14 @@ func (c *CategoryRedisCache) Get(ctx context.Context, key string) (*domain.Categ
 	}
 
 	var category domain.Category
-	if err := json.Unmarshal(data, &category); err != nil {
+	if err := sonic.Unmarshal(data, &category); err != nil {
 		return nil, fmt.Errorf("unmarshal category: %w", err)
 	}
 	return &category, nil
 }
 
 func (c *CategoryRedisCache) Set(ctx context.Context, key string, category *domain.Category, ttl time.Duration) error {
-	data, err := json.Marshal(category)
+	data, err := sonic.Marshal(category)
 	if err != nil {
 		return fmt.Errorf("marshal category: %w", err)
 	}
@@ -297,14 +312,14 @@ func (c *AttributeRedisCache) Get(ctx context.Context, key string) (*domain.Attr
 	}
 
 	var attr domain.Attribute
-	if err := json.Unmarshal(data, &attr); err != nil {
+	if err := sonic.Unmarshal(data, &attr); err != nil {
 		return nil, fmt.Errorf("unmarshal attribute: %w", err)
 	}
 	return &attr, nil
 }
 
 func (c *AttributeRedisCache) Set(ctx context.Context, key string, attr *domain.Attribute, ttl time.Duration) error {
-	data, err := json.Marshal(attr)
+	data, err := sonic.Marshal(attr)
 	if err != nil {
 		return fmt.Errorf("marshal attribute: %w", err)
 	}

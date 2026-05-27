@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,7 +33,7 @@ type User struct {
 	LastLoginIP    string     `db:"last_login_ip" json:"-"`
 	FailedAttempts int        `db:"failed_attempts" json:"-"`
 	LockedUntil    *time.Time `db:"locked_until" json:"-"`
-	Metadata       string     `db:"metadata" json:"-"`
+	Metadata       sql.NullString `db:"metadata" json:"-"`
 	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
 }

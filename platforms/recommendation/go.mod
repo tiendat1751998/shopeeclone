@@ -8,6 +8,7 @@ require (
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/segmentio/kafka-go v0.4.47
 	github.com/shopee-clone/shopee/packages/go-shared v0.0.0-00010101000000-000000000000
+	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/zap v1.27.0
 )
 

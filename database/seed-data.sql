@@ -52,12 +52,12 @@ WHERE r.name = 'BUYER'
 -- ============================================================
 USE shopee_platform;
 
-INSERT IGNORE INTO users (id, email, phone, username, password_hash, display_name, status, email_verified, phone_verified) VALUES
-('usr-001', 'admin@shopee.com', '+6590001001', 'admin', '$2a$12$LJ3m4ys3Lk8nFgQOIc/MNOxHBMGxPJsGK5bHJKzCQvGJmZ3mFJXi', 'Super Admin', 'active', 1, 1),
-('usr-002', 'seller@shopee.com', '+6590001002', 'seller1', '$2a$12$LJ3m4ys3Lk8nFgQOIc/MNOxHBMGxPJsGK5bHJKzCQvGJmZ3mFJXi', 'Demo Seller', 'active', 1, 1),
-('usr-003', 'buyer@shopee.com', '+6590001003', 'buyer1', '$2a$12$LJ3m4ys3Lk8nFgQOIc/MNOxHBMGxPJsGK5bHJKzCQvGJmZ3mFJXi', 'Demo Buyer', 'active', 1, 1),
-('usr-004', 'john.doe@email.com', '+6590001004', 'johndoe', '$2a$12$LJ3m4ys3Lk8nFgQOIc/MNOxHBMGxPJsGK5bHJKzCQvGJmZ3mFJXi', 'John Doe', 'active', 1, 1),
-('usr-005', 'jane.smith@email.com', '+6590001005', 'janesmith', '$2a$12$LJ3m4ys3Lk8nFgQOIc/MNOxHBMGxPJsGK5bHJKzCQvGJmZ3mFJXi', 'Jane Smith', 'active', 1, 1);
+INSERT IGNORE INTO users (id, email, phone, username, password_hash, display_name, avatar_url, status, email_verified, phone_verified) VALUES
+('usr-001', 'admin@shopee.com', '+6590001001', 'admin', '$2a$12$LJ3m4ys3Lk8nFgQOIc/MNOxHBMGxPJsGK5bHJKzCQvGJmZ3mFJXi', 'Super Admin', '/images/avatars/default-avatar.png', 'active', 1, 1),
+('usr-002', 'seller@shopee.com', '+6590001002', 'seller1', '$2a$12$LJ3m4ys3Lk8nFgQOIc/MNOxHBMGxPJsGK5bHJKzCQvGJmZ3mFJXi', 'Demo Seller', '/images/avatars/default-avatar.png', 'active', 1, 1),
+('usr-003', 'buyer@shopee.com', '+6590001003', 'buyer1', '$2a$12$LJ3m4ys3Lk8nFgQOIc/MNOxHBMGxPJsGK5bHJKzCQvGJmZ3mFJXi', 'Demo Buyer', '/images/avatars/default-avatar.png', 'active', 1, 1),
+('usr-004', 'john.doe@email.com', '+6590001004', 'johndoe', '$2a$12$LJ3m4ys3Lk8nFgQOIc/MNOxHBMGxPJsGK5bHJKzCQvGJmZ3mFJXi', 'John Doe', '/images/avatars/default-avatar.png', 'active', 1, 1),
+('usr-005', 'jane.smith@email.com', '+6590001005', 'janesmith', '$2a$12$LJ3m4ys3Lk8nFgQOIc/MNOxHBMGxPJsGK5bHJKzCQvGJmZ3mFJXi', 'Jane Smith', '/images/avatars/default-avatar.png', 'active', 1, 1);
 
 -- ============================================================
 -- 3. SHOPEE_PRODUCT - Categories, Products, SKUs
@@ -65,24 +65,24 @@ INSERT IGNORE INTO users (id, email, phone, username, password_hash, display_nam
 USE shopee_product;
 
 -- Categories (Electronics)
-INSERT INTO categories (category_id, name, slug, parent_id, level, sort_order, is_active) VALUES
-('cat-001', 'Electronics', 'electronics', NULL, 1, 1, 1),
-('cat-002', 'Mobile Phones', 'mobile-phones', 'cat-001', 2, 1, 1),
-('cat-003', 'Laptops', 'laptops', 'cat-001', 2, 2, 1),
-('cat-004', 'Audio', 'audio', 'cat-001', 2, 3, 1);
+INSERT INTO categories (category_id, name, slug, parent_id, level, sort_order, image_url, is_active) VALUES
+('cat-001', 'Electronics', 'electronics', NULL, 1, 1, '/images/categories/default-category.png', 1),
+('cat-002', 'Mobile Phones', 'mobile-phones', 'cat-001', 2, 1, '/images/categories/default-category.png', 1),
+('cat-003', 'Laptops', 'laptops', 'cat-001', 2, 2, '/images/categories/default-category.png', 1),
+('cat-004', 'Audio', 'audio', 'cat-001', 2, 3, '/images/categories/default-category.png', 1);
 
 -- Categories (Fashion)
-INSERT INTO categories (category_id, name, slug, parent_id, level, sort_order, is_active) VALUES
-('cat-005', 'Fashion', 'fashion', NULL, 1, 2, 1),
-('cat-006', 'Men\'s Clothing', 'mens-clothing', 'cat-005', 2, 1, 1),
-('cat-007', 'Women\'s Clothing', 'womens-clothing', 'cat-005', 2, 2, 1),
-('cat-008', 'Shoes', 'shoes', 'cat-005', 2, 3, 1);
+INSERT INTO categories (category_id, name, slug, parent_id, level, sort_order, image_url, is_active) VALUES
+('cat-005', 'Fashion', 'fashion', NULL, 1, 2, '/images/categories/default-category.png', 1),
+('cat-006', 'Men\'s Clothing', 'mens-clothing', 'cat-005', 2, 1, '/images/categories/default-category.png', 1),
+('cat-007', 'Women\'s Clothing', 'womens-clothing', 'cat-005', 2, 2, '/images/categories/default-category.png', 1),
+('cat-008', 'Shoes', 'shoes', 'cat-005', 2, 3, '/images/categories/default-category.png', 1);
 
 -- Categories (Home & Living)
-INSERT INTO categories (category_id, name, slug, parent_id, level, sort_order, is_active) VALUES
-('cat-009', 'Home & Living', 'home-living', NULL, 1, 3, 1),
-('cat-010', 'Furniture', 'furniture', 'cat-009', 2, 1, 1),
-('cat-011', 'Kitchen', 'kitchen', 'cat-009', 2, 2, 1);
+INSERT INTO categories (category_id, name, slug, parent_id, level, sort_order, image_url, is_active) VALUES
+('cat-009', 'Home & Living', 'home-living', NULL, 1, 3, '/images/categories/default-category.png', 1),
+('cat-010', 'Furniture', 'furniture', 'cat-009', 2, 1, '/images/categories/default-category.png', 1),
+('cat-011', 'Kitchen', 'kitchen', 'cat-009', 2, 2, '/images/categories/default-category.png', 1);
 
 -- Products
 INSERT INTO products (spu_id, title, description, category_id, brand_id, seller_id, status) VALUES
@@ -128,17 +128,17 @@ INSERT INTO skus (sku_id, spu_id, price, sale_price, stock, weight, length, widt
 
 -- Product images
 INSERT INTO product_images (spu_id, url, alt_text, sort_order, is_primary) VALUES
-('spu-001', 'https://cdn.example.com/iphone15pm-1.jpg', 'iPhone 15 Pro Max', 1, 1),
-('spu-001', 'https://cdn.example.com/iphone15pm-2.jpg', 'iPhone 15 Pro Max Back', 2, 0),
-('spu-002', 'https://cdn.example.com/s24ultra-1.jpg', 'Samsung Galaxy S24 Ultra', 1, 1),
-('spu-003', 'https://cdn.example.com/macbook-pro-1.jpg', 'MacBook Pro 14', 1, 1),
-('spu-004', 'https://cdn.example.com/sony-xm5-1.jpg', 'Sony WH-1000XM5', 1, 1),
-('spu-005', 'https://cdn.example.com/nike-am270-1.jpg', 'Nike Air Max 270', 1, 1),
-('spu-006', 'https://cdn.example.com/adidas-ub22-1.jpg', 'Adidas Ultraboost 22', 1, 1),
-('spu-007', 'https://cdn.example.com/office-chair-1.jpg', 'Ergonomic Office Chair', 1, 1),
-('spu-008', 'https://cdn.example.com/cookware-1.jpg', 'Non-Stick Cookware Set', 1, 1),
-('spu-009', 'https://cdn.example.com/tshirt-1.jpg', 'Cotton Crew Neck T-Shirt', 1, 1),
-('spu-010', 'https://cdn.example.com/dress-1.jpg', 'Floral Summer Dress', 1, 1);
+('spu-001', '/images/products/product-1.jpg', 'iPhone 15 Pro Max', 1, 1),
+('spu-001', '/images/products/product-1.jpg', 'iPhone 15 Pro Max Back', 2, 0),
+('spu-002', '/images/products/product-2.jpg', 'Samsung Galaxy S24 Ultra', 1, 1),
+('spu-003', '/images/products/product-3.jpg', 'MacBook Pro 14', 1, 1),
+('spu-004', '/images/products/product-4.jpg', 'Sony WH-1000XM5', 1, 1),
+('spu-005', '/images/products/product-5.jpg', 'Nike Air Max 270', 1, 1),
+('spu-006', '/images/products/product-6.jpg', 'Adidas Ultraboost 22', 1, 1),
+('spu-007', '/images/products/product-7.jpg', 'Ergonomic Office Chair', 1, 1),
+('spu-008', '/images/products/product-8.jpg', 'Non-Stick Cookware Set', 1, 1),
+('spu-009', '/images/products/product-9.jpg', 'Cotton Crew Neck T-Shirt', 1, 1),
+('spu-010', '/images/products/product-10.jpg', 'Floral Summer Dress', 1, 1);
 
 -- ============================================================
 -- 4. SHOPEE_INVENTORY - Stock
@@ -169,17 +169,17 @@ INSERT INTO stock (id, product_id, sku_id, warehouse_id, quantity, reserved_qty,
 USE shopee_cart;
 
 INSERT INTO carts (id, user_id, session_id, status, currency, item_count, subtotal, expires_at) VALUES
-('cart-001', 'usr-003', NULL, 'active', 'SGD', 3, 173380, DATE_ADD(NOW(), INTERVAL 7 DAY)),
-('cart-002', 'usr-004', NULL, 'active', 'SGD', 2, 58800, DATE_ADD(NOW(), INTERVAL 7 DAY)),
-('cart-003', NULL, 'sess-guest-001', 'active', 'SGD', 1, 34900, DATE_ADD(NOW(), INTERVAL 1 DAY));
+('cart-001', 'usr-003', NULL, 'active', 'VND', 3, 173380, DATE_ADD(NOW(), INTERVAL 7 DAY)),
+('cart-002', 'usr-004', NULL, 'active', 'VND', 2, 58800, DATE_ADD(NOW(), INTERVAL 7 DAY)),
+('cart-003', NULL, 'sess-guest-001', 'active', 'VND', 1, 34900, DATE_ADD(NOW(), INTERVAL 1 DAY));
 
 INSERT INTO cart_items (id, cart_id, sku, product_name, shop_id, shop_name, quantity, unit_price, total_price, image_url, is_selected, is_available) VALUES
-('ci-001', 'cart-001', 'sku-001', 'iPhone 15 Pro Max 256GB', 'shop-001', 'Apple Store SG', 1, 169900, 169900, 'https://cdn.example.com/iphone15pm-1.jpg', 1, 1),
-('ci-002', 'cart-001', 'sku-007', 'Sony WH-1000XM5 Headphones', 'shop-001', 'Tech Haven', 1, 34900, 34900, 'https://cdn.example.com/sony-xm5-1.jpg', 1, 1),
-('ci-003', 'cart-001', 'sku-013', 'Cotton Crew Neck T-Shirt', 'shop-002', 'Fashion Hub', 2, 1490, 2980, 'https://cdn.example.com/tshirt-1.jpg', 0, 1),
-('ci-004', 'cart-002', 'sku-003', 'Samsung Galaxy S24 Ultra', 'shop-001', 'Samsung Official', 1, 149900, 149900, 'https://cdn.example.com/s24ultra-1.jpg', 1, 1),
-('ci-005', 'cart-002', 'sku-008', 'Nike Air Max 270', 'shop-002', 'Sports World', 2, 15900, 31800, 'https://cdn.example.com/nike-am270-1.jpg', 1, 1),
-('ci-006', 'cart-003', 'sku-007', 'Sony WH-1000XM5 Headphones', 'shop-001', 'Tech Haven', 1, 34900, 34900, 'https://cdn.example.com/sony-xm5-1.jpg', 1, 1);
+('ci-001', 'cart-001', 'sku-001', 'iPhone 15 Pro Max 256GB', 'shop-001', 'Apple Store SG', 1, 169900, 169900, '/images/products/product-1.jpg', 1, 1),
+('ci-002', 'cart-001', 'sku-007', 'Sony WH-1000XM5 Headphones', 'shop-001', 'Tech Haven', 1, 34900, 34900, '/images/products/product-4.jpg', 1, 1),
+('ci-003', 'cart-001', 'sku-013', 'Cotton Crew Neck T-Shirt', 'shop-002', 'Fashion Hub', 2, 1490, 2980, '/images/products/product-9.jpg', 0, 1),
+('ci-004', 'cart-002', 'sku-003', 'Samsung Galaxy S24 Ultra', 'shop-001', 'Samsung Official', 1, 149900, 149900, '/images/products/product-2.jpg', 1, 1),
+('ci-005', 'cart-002', 'sku-008', 'Nike Air Max 270', 'shop-002', 'Sports World', 2, 15900, 31800, '/images/products/product-5.jpg', 1, 1),
+('ci-006', 'cart-003', 'sku-007', 'Sony WH-1000XM5 Headphones', 'shop-001', 'Tech Haven', 1, 34900, 34900, '/images/products/product-4.jpg', 1, 1);
 
 -- ============================================================
 -- 6. SHOPEE_ORDER - Orders & Order Items
@@ -187,16 +187,16 @@ INSERT INTO cart_items (id, cart_id, sku, product_name, shop_id, shop_name, quan
 USE shopee_order;
 
 INSERT INTO orders (id, order_number, user_id, seller_id, status, total_amount, currency, shipping_address, billing_address) VALUES
-('ord-001', 'SP-20260521-00001', 'usr-003', 'usr-002', 'delivered', 173390, 'SGD',
+('ord-001', 'SP-20260521-00001', 'usr-003', 'usr-002', 'delivered', 173390, 'VND',
  '{"name":"Demo Buyer","phone":"+6590001003","address":"123 Orchard Road, Singapore 238863","postal":"238863"}',
  '{"name":"Demo Buyer","phone":"+6590001003","address":"123 Orchard Road, Singapore 238863","postal":"238863"}'),
-('ord-002', 'SP-20260521-00002', 'usr-003', 'usr-005', 'shipped', 89900, 'SGD',
+('ord-002', 'SP-20260521-00002', 'usr-003', 'usr-005', 'shipped', 89900, 'VND',
  '{"name":"Demo Buyer","phone":"+6590001003","address":"123 Orchard Road, Singapore 238863","postal":"238863"}',
  '{"name":"Demo Buyer","phone":"+6590001003","address":"123 Orchard Road, Singapore 238863","postal":"238863"}'),
-('ord-003', 'SP-20260521-00003', 'usr-004', 'usr-002', 'processing', 149900, 'SGD',
+('ord-003', 'SP-20260521-00003', 'usr-004', 'usr-002', 'processing', 149900, 'VND',
  '{"name":"John Doe","phone":"+6590001004","address":"456 Marina Bay, Singapore 018956","postal":"018956"}',
  '{"name":"John Doe","phone":"+6590001004","address":"456 Marina Bay, Singapore 018956","postal":"018956"}'),
-('ord-004', 'SP-20260521-00004', 'usr-004', 'usr-005', 'pending', 47700, 'SGD',
+('ord-004', 'SP-20260521-00004', 'usr-004', 'usr-005', 'pending', 47700, 'VND',
  '{"name":"John Doe","phone":"+6590001004","address":"456 Marina Bay, Singapore 018956","postal":"018956"}',
  '{"name":"John Doe","phone":"+6590001004","address":"456 Marina Bay, Singapore 018956","postal":"018956"}');
 
@@ -214,10 +214,10 @@ INSERT INTO order_items (id, order_id, product_id, sku_id, shop_id, quantity, un
 USE shopee_payment;
 
 INSERT INTO payments (id, order_id, user_id, amount, currency, status, payment_method, psp_provider, psp_transaction_id, authorized_at, captured_at) VALUES
-('pay-001', 'ord-001', 'usr-003', 173390, 'SGD', 'captured', 'credit_card', 'stripe', 'pi_3Nxample123', NOW(), NOW()),
-('pay-002', 'ord-002', 'usr-003', 89900, 'SGD', 'captured', 'paynow', 'stripe', 'pi_3Nxample456', NOW(), NOW()),
-('pay-003', 'ord-003', 'usr-004', 149900, 'SGD', 'authorized', 'credit_card', 'stripe', 'pi_3Nxample789', NOW(), NULL),
-('pay-004', 'ord-004', 'usr-004', 47700, 'SGD', 'pending', 'paynow', 'stripe', NULL, NULL, NULL);
+('pay-001', 'ord-001', 'usr-003', 173390, 'VND', 'captured', 'credit_card', 'stripe', 'pi_3Nxample123', NOW(), NOW()),
+('pay-002', 'ord-002', 'usr-003', 89900, 'VND', 'captured', 'paynow', 'stripe', 'pi_3Nxample456', NOW(), NOW()),
+('pay-003', 'ord-003', 'usr-004', 149900, 'VND', 'authorized', 'credit_card', 'stripe', 'pi_3Nxample789', NOW(), NULL),
+('pay-004', 'ord-004', 'usr-004', 47700, 'VND', 'pending', 'paynow', 'stripe', NULL, NULL, NULL);
 
 -- ============================================================
 -- 8. SHOPEE_CHECKOUT - Checkouts
@@ -225,9 +225,9 @@ INSERT INTO payments (id, order_id, user_id, amount, currency, status, payment_m
 USE shopee_checkout;
 
 INSERT INTO checkouts (id, user_id, cart_id, order_id, status, idempotency_key, current_step, subtotal, discount_total, shipping_total, grand_total, currency, expires_at, completed_at) VALUES
-('chk-001', 'usr-003', 'cart-001', 'ord-001', 'completed', 'idem-001', 'completed', 173390, 0, 0, 173390, 'SGD', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW()),
-('chk-002', 'usr-003', 'cart-001', 'ord-002', 'completed', 'idem-002', 'completed', 89900, 0, 0, 89900, 'SGD', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW()),
-('chk-003', 'usr-004', 'cart-002', NULL, 'pending', NULL, 'init', 58800, 0, 500, 59300, 'SGD', DATE_ADD(NOW(), INTERVAL 30 MINUTE), NULL);
+('chk-001', 'usr-003', 'cart-001', 'ord-001', 'completed', 'idem-001', 'completed', 173390, 0, 0, 173390, 'VND', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW()),
+('chk-002', 'usr-003', 'cart-001', 'ord-002', 'completed', 'idem-002', 'completed', 89900, 0, 0, 89900, 'VND', DATE_ADD(NOW(), INTERVAL 1 DAY), NOW()),
+('chk-003', 'usr-004', 'cart-002', NULL, 'pending', NULL, 'init', 58800, 0, 500, 59300, 'VND', DATE_ADD(NOW(), INTERVAL 30 MINUTE), NULL);
 
 -- ============================================================
 -- 9. SHOPEE_PLATFORM - Vouchers/Promotions
@@ -271,18 +271,18 @@ INSERT IGNORE INTO warehouses (id, name, code, address, city, country, is_active
 -- ============================================================
 USE shopee_platform;
 
-INSERT INTO categories (id, name, slug, parent_id, level, sort_order, is_active) VALUES
-('cat-001', 'Electronics', 'electronics', NULL, 1, 1, 1),
-('cat-002', 'Mobile Phones', 'mobile-phones', 'cat-001', 2, 1, 1),
-('cat-003', 'Laptops', 'laptops', 'cat-001', 2, 2, 1),
-('cat-004', 'Audio', 'audio', 'cat-001', 2, 3, 1),
-('cat-005', 'Fashion', 'fashion', NULL, 1, 2, 1),
-('cat-006', 'Men\'s Clothing', 'mens-clothing', 'cat-005', 2, 1, 1),
-('cat-007', 'Women\'s Clothing', 'womens-clothing', 'cat-005', 2, 2, 1),
-('cat-008', 'Shoes', 'shoes', 'cat-005', 2, 3, 1),
-('cat-009', 'Home & Living', 'home-living', NULL, 1, 3, 1),
-('cat-010', 'Furniture', 'furniture', 'cat-009', 2, 1, 1),
-('cat-011', 'Kitchen', 'kitchen', 'cat-009', 2, 2, 1);
+INSERT INTO categories (id, name, slug, parent_id, level, sort_order, image_url, is_active) VALUES
+('cat-001', 'Electronics', 'electronics', NULL, 1, 1, '/images/categories/default-category.png', 1),
+('cat-002', 'Mobile Phones', 'mobile-phones', 'cat-001', 2, 1, '/images/categories/default-category.png', 1),
+('cat-003', 'Laptops', 'laptops', 'cat-001', 2, 2, '/images/categories/default-category.png', 1),
+('cat-004', 'Audio', 'audio', 'cat-001', 2, 3, '/images/categories/default-category.png', 1),
+('cat-005', 'Fashion', 'fashion', NULL, 1, 2, '/images/categories/default-category.png', 1),
+('cat-006', 'Men\'s Clothing', 'mens-clothing', 'cat-005', 2, 1, '/images/categories/default-category.png', 1),
+('cat-007', 'Women\'s Clothing', 'womens-clothing', 'cat-005', 2, 2, '/images/categories/default-category.png', 1),
+('cat-008', 'Shoes', 'shoes', 'cat-005', 2, 3, '/images/categories/default-category.png', 1),
+('cat-009', 'Home & Living', 'home-living', NULL, 1, 3, '/images/categories/default-category.png', 1),
+('cat-010', 'Furniture', 'furniture', 'cat-009', 2, 1, '/images/categories/default-category.png', 1),
+('cat-011', 'Kitchen', 'kitchen', 'cat-009', 2, 2, '/images/categories/default-category.png', 1);
 
 -- ============================================================
 -- 13. SHOPEE_PLATFORM - Products
@@ -290,16 +290,16 @@ INSERT INTO categories (id, name, slug, parent_id, level, sort_order, is_active)
 USE shopee_platform;
 
 INSERT INTO products (id, shop_id, category_id, name, description, brand, status, currency) VALUES
-('spu-001', 'shop-001', 'cat-002', 'iPhone 15 Pro Max 256GB', 'Latest Apple iPhone with A17 Pro chip', 'Apple', 'active', 'SGD'),
-('spu-002', 'shop-001', 'cat-002', 'Samsung Galaxy S24 Ultra', 'Flagship Samsung phone with S Pen', 'Samsung', 'active', 'SGD'),
-('spu-003', 'shop-002', 'cat-003', 'MacBook Pro 14" M3 Pro', 'Apple MacBook Pro with M3 Pro chip', 'Apple', 'active', 'SGD'),
-('spu-004', 'shop-001', 'cat-004', 'Sony WH-1000XM5 Headphones', 'Industry-leading noise cancellation', 'Sony', 'active', 'SGD'),
-('spu-005', 'shop-002', 'cat-008', 'Nike Air Max 270', 'Men\'s running shoes', 'Nike', 'active', 'SGD'),
-('spu-006', 'shop-001', 'cat-008', 'Adidas Ultraboost 22', 'Women\'s running shoes', 'Adidas', 'active', 'SGD'),
-('spu-007', 'shop-002', 'cat-010', 'Ergonomic Office Chair', 'Adjustable lumbar support', 'Herman Miller', 'active', 'SGD'),
-('spu-008', 'shop-001', 'cat-011', 'Non-Stick Cookware Set', '10-piece ceramic non-stick', 'Tefal', 'active', 'SGD'),
-('spu-009', 'shop-002', 'cat-006', 'Cotton Crew Neck T-Shirt', '100% organic cotton', 'Uniqlo', 'active', 'SGD'),
-('spu-010', 'shop-001', 'cat-007', 'Floral Summer Dress', 'Lightweight floral print', 'Zara', 'active', 'SGD');
+('spu-001', 'shop-001', 'cat-002', 'iPhone 15 Pro Max 256GB', 'Latest Apple iPhone with A17 Pro chip', 'Apple', 'active', 'VND'),
+('spu-002', 'shop-001', 'cat-002', 'Samsung Galaxy S24 Ultra', 'Flagship Samsung phone with S Pen', 'Samsung', 'active', 'VND'),
+('spu-003', 'shop-002', 'cat-003', 'MacBook Pro 14" M3 Pro', 'Apple MacBook Pro with M3 Pro chip', 'Apple', 'active', 'VND'),
+('spu-004', 'shop-001', 'cat-004', 'Sony WH-1000XM5 Headphones', 'Industry-leading noise cancellation', 'Sony', 'active', 'VND'),
+('spu-005', 'shop-002', 'cat-008', 'Nike Air Max 270', 'Men\'s running shoes', 'Nike', 'active', 'VND'),
+('spu-006', 'shop-001', 'cat-008', 'Adidas Ultraboost 22', 'Women\'s running shoes', 'Adidas', 'active', 'VND'),
+('spu-007', 'shop-002', 'cat-010', 'Ergonomic Office Chair', 'Adjustable lumbar support', 'Herman Miller', 'active', 'VND'),
+('spu-008', 'shop-001', 'cat-011', 'Non-Stick Cookware Set', '10-piece ceramic non-stick', 'Tefal', 'active', 'VND'),
+('spu-009', 'shop-002', 'cat-006', 'Cotton Crew Neck T-Shirt', '100% organic cotton', 'Uniqlo', 'active', 'VND'),
+('spu-010', 'shop-001', 'cat-007', 'Floral Summer Dress', 'Lightweight floral print', 'Zara', 'active', 'VND');
 
 -- ============================================================
 -- 14. SHOPEE_PLATFORM - SKUs

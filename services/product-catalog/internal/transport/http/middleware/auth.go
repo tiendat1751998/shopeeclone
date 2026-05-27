@@ -28,9 +28,13 @@ func JWTAuth(cfg config.JWTConfig) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
-		claims, _ := token.Claims.(jwt.MapClaims)
-		shopID, _ := claims["shop_id"].(string)
-		if shopID == "" {
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
+			return
+		}
+		shopID, ok := claims["shop_id"].(string)
+		if !ok || shopID == "" {
 			shopID, _ = claims["sub"].(string)
 		}
 		role, _ := claims["role"].(string)

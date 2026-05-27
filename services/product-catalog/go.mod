@@ -13,6 +13,7 @@ require (
 	github.com/segmentio/kafka-go v0.4.47
 	github.com/shopee-clone/shopee/packages/go-shared v0.0.0-00010101000000-000000000000
 	go.opentelemetry.io/otel v1.32.0
+	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.68.0
 	google.golang.org/protobuf v1.36.8

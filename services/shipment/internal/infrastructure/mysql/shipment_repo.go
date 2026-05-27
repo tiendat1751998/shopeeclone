@@ -23,7 +23,7 @@ func (r *ShipmentRepository) Create(ctx context.Context, s *domain.Shipment) err
 
 func (r *ShipmentRepository) FindByID(ctx context.Context, id string) (*domain.Shipment, error) {
 	var s domain.Shipment
-	if err := r.db.GetContext(ctx, &s, "SELECT * FROM shipments WHERE id = ? AND deleted_at IS NULL", id); err != nil {
+	if err := r.db.GetContext(ctx, &s, "SELECT id, order_id, user_id, carrier_id, tracking_number, status, origin_address, destination_address, weight, dimensions, label_url, cost, currency, idempotency_key, metadata, version, created_at, updated_at, deleted_at FROM shipments WHERE id = ? AND deleted_at IS NULL", id); err != nil {
 		if err == sql.ErrNoRows { return nil, domain.ErrShipmentNotFound }
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func (r *ShipmentRepository) FindByID(ctx context.Context, id string) (*domain.S
 
 func (r *ShipmentRepository) FindByOrderID(ctx context.Context, orderID string) (*domain.Shipment, error) {
 	var s domain.Shipment
-	if err := r.db.GetContext(ctx, &s, "SELECT * FROM shipments WHERE order_id = ? AND deleted_at IS NULL", orderID); err != nil {
+	if err := r.db.GetContext(ctx, &s, "SELECT id, order_id, user_id, carrier_id, tracking_number, status, origin_address, destination_address, weight, dimensions, label_url, cost, currency, idempotency_key, metadata, version, created_at, updated_at, deleted_at FROM shipments WHERE order_id = ? AND deleted_at IS NULL", orderID); err != nil {
 		if err == sql.ErrNoRows { return nil, domain.ErrShipmentNotFound }
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (r *ShipmentRepository) Update(ctx context.Context, s *domain.Shipment) err
 
 func (r *ShipmentRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.Shipment, error) {
 	var s domain.Shipment
-	if err := r.db.GetContext(ctx, &s, "SELECT * FROM shipments WHERE idempotency_key = ?", key); err != nil {
+	if err := r.db.GetContext(ctx, &s, "SELECT id, order_id, user_id, carrier_id, tracking_number, status, origin_address, destination_address, weight, dimensions, label_url, cost, currency, idempotency_key, metadata, version, created_at, updated_at, deleted_at FROM shipments WHERE idempotency_key = ?", key); err != nil {
 		if err == sql.ErrNoRows { return nil, nil }
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (r *ShipmentRepository) SaveTrackingEvent(ctx context.Context, event *domai
 
 func (r *ShipmentRepository) GetTrackingHistory(ctx context.Context, shipmentID string) ([]*domain.TrackingEvent, error) {
 	var events []*domain.TrackingEvent
-	err := r.db.SelectContext(ctx, &events, "SELECT * FROM tracking_events WHERE shipment_id = ? ORDER BY timestamp ASC LIMIT 200", shipmentID)
+	err := r.db.SelectContext(ctx, &events, "SELECT id, shipment_id, status, location, description, timestamp, created_at FROM tracking_events WHERE shipment_id = ? ORDER BY timestamp ASC LIMIT 200", shipmentID)
 	return events, err
 }
 
@@ -82,7 +82,7 @@ func (r *ShipmentRepository) SaveOutboxEvent(ctx context.Context, event *domain.
 
 func (r *ShipmentRepository) GetUnprocessedOutboxEvents(ctx context.Context, limit int) ([]*domain.OutboxEvent, error) {
 	var events []*domain.OutboxEvent
-	err := r.db.SelectContext(ctx, &events, "SELECT * FROM outbox_events WHERE processed = FALSE ORDER BY created_at ASC LIMIT ?", limit)
+	err := r.db.SelectContext(ctx, &events, "SELECT event_id, aggregate_type, aggregate_id, event_type, payload, created_at, processed FROM outbox_events WHERE processed = FALSE ORDER BY created_at ASC LIMIT ?", limit)
 	return events, err
 }
 
@@ -99,7 +99,7 @@ func (r *ShipmentRepository) SaveIdempotencyKey(ctx context.Context, record *dom
 
 func (r *ShipmentRepository) GetIdempotencyKey(ctx context.Context, key string) (*domain.IdempotencyRecord, error) {
 	var record domain.IdempotencyRecord
-	if err := r.db.GetContext(ctx, &record, "SELECT * FROM idempotency_keys WHERE `key` = ?", key); err != nil {
+	if err := r.db.GetContext(ctx, &record, "SELECT `key`, shipment_id, expires_at, created_at FROM idempotency_keys WHERE `key` = ?", key); err != nil {
 		if err == sql.ErrNoRows { return nil, nil }
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (r *ShipmentRepository) CreateQRCode(ctx context.Context, qr *domain.QRCode
 
 func (r *ShipmentRepository) FindQRCodeByCode(ctx context.Context, code string) (*domain.QRCode, error) {
 	var qr domain.QRCode
-	if err := r.db.GetContext(ctx, &qr, "SELECT * FROM qr_codes WHERE code = ?", code); err != nil {
+	if err := r.db.GetContext(ctx, &qr, "SELECT id, shipment_id, type, code, status, signed_token, expires_at, scanned_at, scanned_by, scan_count, created_at, updated_at FROM qr_codes WHERE code = ?", code); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, domain.ErrQRCodeNotFound
 		}
@@ -139,7 +139,7 @@ func (r *ShipmentRepository) FindQRCodeByCode(ctx context.Context, code string) 
 
 func (r *ShipmentRepository) FindQRCodeByShipmentAndType(ctx context.Context, shipmentID string, qrType domain.QRCodeType) (*domain.QRCode, error) {
 	var qr domain.QRCode
-	if err := r.db.GetContext(ctx, &qr, "SELECT * FROM qr_codes WHERE shipment_id = ? AND type = ?", shipmentID, qrType); err != nil {
+	if err := r.db.GetContext(ctx, &qr, "SELECT id, shipment_id, type, code, status, signed_token, expires_at, scanned_at, scanned_by, scan_count, created_at, updated_at FROM qr_codes WHERE shipment_id = ? AND type = ?", shipmentID, qrType); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, domain.ErrQRCodeNotFound
 		}
@@ -150,7 +150,7 @@ func (r *ShipmentRepository) FindQRCodeByShipmentAndType(ctx context.Context, sh
 
 func (r *ShipmentRepository) FindQRCodesByShipment(ctx context.Context, shipmentID string) ([]*domain.QRCode, error) {
 	var codes []*domain.QRCode
-	err := r.db.SelectContext(ctx, &codes, "SELECT * FROM qr_codes WHERE shipment_id = ? ORDER BY created_at DESC", shipmentID)
+	err := r.db.SelectContext(ctx, &codes, "SELECT id, shipment_id, type, code, status, signed_token, expires_at, scanned_at, scanned_by, scan_count, created_at, updated_at FROM qr_codes WHERE shipment_id = ? ORDER BY created_at DESC", shipmentID)
 	return codes, err
 }
 
@@ -184,12 +184,12 @@ func (r *ShipmentRepository) SaveScanEvent(ctx context.Context, event *domain.Sc
 
 func (r *ShipmentRepository) GetScanHistory(ctx context.Context, shipmentID string) ([]*domain.ScanEvent, error) {
 	var events []*domain.ScanEvent
-	err := r.db.SelectContext(ctx, &events, "SELECT * FROM scan_events WHERE shipment_id = ? ORDER BY created_at DESC LIMIT 200", shipmentID)
+	err := r.db.SelectContext(ctx, &events, "SELECT id, qr_code_id, shipment_id, shipper_id, shipper_name, shipper_role, scan_type, latitude, longitude, device_info, ip_address, is_valid, fail_reason, created_at FROM scan_events WHERE shipment_id = ? ORDER BY created_at DESC LIMIT 200", shipmentID)
 	return events, err
 }
 
 func (r *ShipmentRepository) GetScanHistoryByShipper(ctx context.Context, shipperID string, limit int) ([]*domain.ScanEvent, error) {
 	var events []*domain.ScanEvent
-	err := r.db.SelectContext(ctx, &events, "SELECT * FROM scan_events WHERE shipper_id = ? ORDER BY created_at DESC LIMIT ?", shipperID, limit)
+	err := r.db.SelectContext(ctx, &events, "SELECT id, qr_code_id, shipment_id, shipper_id, shipper_name, shipper_role, scan_type, latitude, longitude, device_info, ip_address, is_valid, fail_reason, created_at FROM scan_events WHERE shipper_id = ? ORDER BY created_at DESC LIMIT ?", shipperID, limit)
 	return events, err
 }

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ============================================================
   # Infrastructure
@@ -75,11 +73,55 @@ services:
       - ./configs/otel-collector.yaml:/etc/otelcol-contrib/config.yaml
 
   prometheus:
-    image: prom/prometheus:v2.48.0
+    image: prom/prometheus:v3.2.1
     ports:
       - "9090:9090"
     volumes:
       - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./configs/prometheus-alerts.yml:/etc/prometheus/rules/alerts.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=80GB'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '1'
+          memory: 4G
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/platform/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./deploy/platform/monitoring/grafana/dashboards/dashboard-provider.yaml:/etc/grafana/provisioning/dashboards/dashboard-provider.yaml
+      - ./deploy/platform/monitoring/grafana/dashboards/shopee:/var/lib/grafana/dashboards/shopee
+      - ./deploy/platform/monitoring/grafana/alerting:/etc/grafana/provisioning/alerting
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
   jaeger:
     image: jaegertracing/all-in-one:1.52
@@ -251,8 +293,8 @@ services:
       GATEWAY_GRPC_PORT: "9090"
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
-      JWKS_ENDPOINT: http://identity-auth:8080/.well-known/jwks.json
       JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
+      ENCRYPTION_KEY: b8477fd5d6f4c7b22878f8d3b873778e28fcac8e34a0be45cdf014bbb31571d7
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       UPSTREAM_AUTH_SERVICE: auth:8087
       UPSTREAM_CATALOG_SERVICE: catalog-product:8088
@@ -285,7 +327,7 @@ services:
       MYSQL_PORT: "3306"
       MYSQL_USER: shopee
       MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_platform
+      MYSQL_DATABASE: shopee_auth
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -436,15 +478,27 @@ services:
       context: ./apps/web
       dockerfile: Dockerfile
       args:
-        API_GATEWAY_URL: http://gateway:8080
+        GATEWAY_URL: http://gateway:8080
+        MYSQL_HOST: mysql-primary
+        MYSQL_PORT: "3306"
+        MYSQL_USER: shopee
+        MYSQL_PASSWORD: shopee_dev
+        MYSQL_DATABASE: shopee_platform
     expose:
       - "3000"
     environment:
       NODE_ENV: production
-      API_GATEWAY_URL: http://gateway:8080
+      GATEWAY_URL: http://gateway:8080
+      MYSQL_HOST: mysql-primary
+      MYSQL_PORT: "3306"
+      MYSQL_USER: shopee
+      MYSQL_PASSWORD: shopee_dev
+      MYSQL_DATABASE: shopee_platform
     depends_on:
       gateway:
         condition: service_started
+      mysql-primary:
+        condition: service_healthy
 
   web-tls:
     image: nginx:alpine
@@ -461,3 +515,4 @@ volumes:
   mysql_data:
   redis_data:
   mongo_data:
+  grafana_data:

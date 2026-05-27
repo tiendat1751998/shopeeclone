@@ -77,16 +77,18 @@ func (s *Service) GenerateAccessToken(ctx context.Context, claims *Claims) (stri
 }
 
 func (s *Service) GenerateRefreshToken(ctx context.Context, userID string) (string, string, error) {
-	ctx, span := otel.Tracer("shopee-auth").Start(ctx, "jwt.generate_refresh")
-	defer span.End()
+	token, err := s.GenerateRefreshTokenWithSession(ctx, userID, "", uuid.New().String())
+	return token, "", err
+}
 
-	tokenID := uuid.New().String()
+func (s *Service) GenerateRefreshTokenWithSession(ctx context.Context, userID string, sessionID string, tokenID string) (string, error) {
 	now := time.Now()
 
 	claims := &Claims{
-		UserID:  userID,
-		TokenID: tokenID,
-		Type:    "refresh",
+		UserID:    userID,
+		TokenID:   tokenID,
+		SessionID: sessionID,
+		Type:      "refresh",
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        tokenID,
 			Subject:   userID,
@@ -101,16 +103,10 @@ func (s *Service) GenerateRefreshToken(ctx context.Context, userID string) (stri
 
 	tokenString, err := token.SignedString(secret)
 	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		return "", "", fmt.Errorf("refresh token signing: %w", err)
+		return "", fmt.Errorf("refresh token signing: %w", err)
 	}
 
-	span.SetAttributes(
-		attribute.String("token_id", tokenID),
-		attribute.String("user_id", userID),
-	)
-
-	return tokenString, tokenID, nil
+	return tokenString, nil
 }
 
 func (s *Service) ValidateAccessToken(ctx context.Context, tokenString string) (*Claims, error) {

@@ -5,7 +5,10 @@ prometheus:
       scrape_interval: 15s
       evaluation_interval: 15s
     extraFlags:
-      - storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=80GB
+      - --web.enable-lifecycle
+      - --web.enable-admin-api
     resources:
       requests:
         cpu: 1
@@ -18,6 +21,9 @@ prometheus:
       size: 100Gi
     service:
       type: ClusterIP
+    # Prometheus v25.x compatibility
+    enableAdminAPI: true
+    enableRemoteWriteReceiver: true
 
 grafana:
   enabled: true
@@ -33,12 +39,26 @@ grafana:
           type: prometheus
           url: http://prometheus-server:80
           isDefault: true
+          editable: false
+          jsonData:
+            timeInterval: 15s
+            queryTimeout: 30s
+            httpMethod: POST
         - name: Loki
           type: loki
           url: http://loki:3100
+          editable: false
+          jsonData:
+            maxLines: 1000
         - name: Tempo
           type: tempo
           url: http://tempo:3200
+          editable: false
+          jsonData:
+            nodeGraph:
+              enabled: true
+            search:
+              hide: false
   dashboardProviders:
     dashboardproviders.yaml:
       apiVersion: 1
@@ -51,35 +71,78 @@ grafana:
           editable: true
           options:
             path: /var/lib/grafana/dashboards/shopee
+  # Grafana v7.3 resource tuning
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 2Gi
 
 loki:
   enabled: true
-  config:
+  loki:
     auth_enabled: false
     limits_config:
-      ingestion_rate_mb: 10
-      ingestion_burst_size_mb: 20
+      ingestion_rate_mb: 16
+      ingestion_burst_size_mb: 32
+      max_streams_per_user: 10000
+      max_entries_limit_per_query: 5000
+      max_line_size: 256KB
     storage:
       type: filesystem
+    compactor:
+      working_directory: /data/loki/compactor
+      shared_store: filesystem
+      compaction_interval: 10m
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 744h
   persistence:
     enabled: true
     size: 50Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 4Gi
 
 tempo:
   enabled: true
   persistence:
     enabled: true
     size: 50Gi
-  config:
+  tempo:
     storage:
       trace:
         backend: local
         local:
           path: /data/tempo/blocks
+        wal:
+          path: /data/tempo/wal
     overrides:
       metrics_generator_processors:
         - service-graphs
         - span-metrics
+    metrics_generator:
+      registry:
+        external_labels:
+          cluster: shopee-clone
+      storage:
+        path: /data/tempo/generator
+        remote_write:
+          - url: http://prometheus:9090/api/v1/write
+            send_exemplars: true
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 4Gi
 
 otel:
   enabled: true

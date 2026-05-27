@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/shopee-clone/shopee/platforms/api-gateway/internal/auth"
 	"github.com/shopee-clone/shopee/platforms/api-gateway/internal/circuitbreaker"
@@ -21,8 +22,18 @@ import (
 	httptransport "github.com/shopee-clone/shopee/platforms/api-gateway/internal/transport/http"
 )
 
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
+
 func main() {
 	routeRepo := routes.NewInMemoryRepository()
+	// Auto-tune GOMAXPROCS for container environments
+	_, _ = automaxprocs.Set()
+
 	routeService := routes.NewService(routeRepo)
 
 	rateLimitRepo := ratelimit.NewInMemoryRepository()
@@ -53,9 +64,9 @@ func main() {
 	httpServer := &http.Server{
 		Addr:         ":8080",
 		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	logger, _ := zap.NewProduction()

@@ -25,6 +25,7 @@ import (
 	"github.com/shopee-clone/shopee/services/shipment/internal/transport/http/middleware"
 	pb "github.com/shopee-clone/shopee/services/shipment/proto/shipment/v1"
 	"go.uber.org/zap"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -32,9 +33,22 @@ import (
 
 var version = "1.0.0"
 
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
+
 func main() {
 	cfg := config.Load()
+
 	logger := observability.InitLogger(cfg.AppName, cfg.LogLevel)
+
+	// Auto-tune GOMAXPROCS for container environments
+	if _, err := automaxprocs.Set(); err != nil {
+		logger.Warn("failed to set automaxprocs", zap.Error(err))
+	}
 	shutdownTracer, err := tracing.Init(cfg.OpenTelemetry)
 	if err != nil { logger.Fatal("failed to init tracer", zap.Error(err)) }
 	defer shutdownTracer(); defer observability.Sync()
@@ -63,8 +77,9 @@ func main() {
 	healthChecker := health.NewChecker(cfg.AppName, version, db, redisClient)
 	engine.GET("/health/live", healthChecker.LivenessHandler())
 	engine.GET("/health/ready", healthChecker.ReadinessHandler())
+	engine.GET("/health", healthChecker.ReadinessHandler())
 
-	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HTTPPort), Handler: engine, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
+	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HTTPPort), Handler: engine, ReadTimeout:       5 * time.Second, WriteTimeout:      10 * time.Second, IdleTimeout:       120 * time.Second}
 	grpcServer := grpc.NewServer()
 	pb.RegisterShipmentServiceServer(grpcServer, grpctransport.NewShipmentGRPCServer(shipmentService))
 	grpc_health_v1.RegisterHealthServer(grpcServer, &grpcHealthServer{})
@@ -75,18 +90,29 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-quit
+		cancel()
+	}()
+
 	go func() {
 		logger.Info("starting shipment service", zap.Int("http_port", cfg.HTTPPort), zap.Int("grpc_port", cfg.GRPCPort))
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed { logger.Fatal("http server failed", zap.Error(err)) }
 	}()
 	go func() { if err := grpcServer.Serve(grpcListener); err != nil { logger.Fatal("grpc server failed", zap.Error(err)) } }()
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				zap.L().Error("panic in shipment outbox worker", zap.Any("recover", r))
+			}
+		}()
 		ticker := time.NewTicker(5 * time.Second); defer ticker.Stop()
-		for { select { case <-ticker.C: func(){ ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second); defer cancel(); shipmentService.ProcessOutboxEvents(ctx) }(); case <-quit: return } }
+		for { select { case <-ticker.C: func(){ workerCtx, workerCancel := context.WithTimeout(context.Background(), 30*time.Second); defer workerCancel(); shipmentService.ProcessOutboxEvents(workerCtx) }(); case <-quit: return } }
 	}()
 
 	<-quit; logger.Info("shutting down shipment service...")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second); defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 30*time.Second); defer shutdownCancel()
 	grpcServer.GracefulStop(); httpServer.Shutdown(shutdownCtx)
 	if redisClient != nil { redisClient.Close() }
 	if kafkaProducer != nil { kafkaProducer.Close() }

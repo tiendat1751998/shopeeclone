@@ -1,23 +1,336 @@
 apiVersion: 1
 groups:
-  - name: shopee-production
-    interval: 30s
-    rules:
-      - uid: high_error_rate
-        title: "High Service Error Rate"
-        condition: "A"
-        data:
-          - refId: "A"
-            relativeTimeRange:
-              from: 300
-              to: 0
-            datasourceUid: prometheus
-            model:
-              expr: "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) > 0.05"
-              intervalMs: 10000
-              maxDataPoints: 100
-        noDataState: "NoData"
-        execErrState: "Error"
-        for: "5m"
-        annotations:
-          summary: "Error rate exceeded 5% threshold"
+- folder: Shopee Platform
+  interval: 30s
+  name: shopee-service-alerts
+  orgId: 1
+  rules:
+  - annotations:
+      description: Error rate is {{ $value | humanizePercentage }} for {{ $labels.service
+        }} over the last 5 minutes
+      summary: High error rate on {{ $labels.service }}
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (service) / sum(rate(http_requests_total[5m]))
+          by (service) > 0.05
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: critical
+    noDataState: NoData
+    title: High Service Error Rate
+    uid: high_error_rate
+  - annotations:
+      description: P99 latency is {{ $value }}s for {{ $labels.service }}
+      summary: High P99 latency on {{ $labels.service }}
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m]))
+          by (le, service)) > 5
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: warning
+    noDataState: NoData
+    title: High P99 Latency
+    uid: high_latency
+  - annotations:
+      description: '{{ $labels.job }} has been unreachable for 1 minute'
+      summary: Service {{ $labels.job }} is down
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: up{job=~"shopee.*"} == 0
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 60
+        to: 0
+    execErrState: Error
+    for: 1m
+    labels:
+      severity: critical
+    noDataState: NoData
+    title: Service Down
+    uid: service_down
+  - annotations:
+      description: CPU usage is {{ $value | humanizePercentage }} for {{ $labels.pod
+        }}
+      summary: High CPU on {{ $labels.pod }}
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: sum(rate(container_cpu_usage_seconds_total{namespace=~"shopee.*"}[5m]))
+          by (pod) / on(pod) kube_pod_container_resource_limits{resource="cpu",namespace=~"shopee.*"}
+          > 0.9
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: warning
+    noDataState: NoData
+    title: High CPU Usage
+    uid: high_cpu
+  - annotations:
+      description: Memory usage is {{ $value | humanizePercentage }} for {{ $labels.pod
+        }}
+      summary: High memory on {{ $labels.pod }}
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: container_memory_working_set_bytes{namespace=~"shopee.*"} / on(pod)
+          kube_pod_container_resource_limits{resource="memory",namespace=~"shopee.*"}
+          > 0.9
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: warning
+    noDataState: NoData
+    title: High Memory Usage
+    uid: high_memory
+  - annotations:
+      description: Consumer lag for {{ $labels.consumer_group }} is {{ $value }}
+      summary: Kafka consumer lag is high
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: kafka_consumer_lag > 1000
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: warning
+    noDataState: NoData
+    title: Kafka Consumer Lag
+    uid: kafka_consumer_lag
+  - annotations:
+      description: Topic {{ $labels.topic }} partition {{ $labels.partition }} is
+        under-replicated
+      summary: Kafka partition under-replicated
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: kafka_topic_partition_under_replicated_partitions > 0
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 60
+        to: 0
+    execErrState: Error
+    for: 1m
+    labels:
+      severity: critical
+    noDataState: NoData
+    title: Kafka Under-Replicated Partitions
+    uid: kafka_under_replicated
+  - annotations:
+      description: Pod has restarted {{ $value }} times in the last 10 minutes
+      summary: Pod {{ $labels.pod }} is crash looping
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: increase(kube_pod_container_status_restarts_total{namespace=~"shopee.*"}[10m])
+          > 3
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: critical
+    noDataState: NoData
+    title: Pod Crash Looping
+    uid: pod_crash_looping
+  - annotations:
+      description: Checkout failure rate is {{ $value | humanizePercentage }}
+      summary: High checkout failure rate
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: rate(checkouts_failed_total[5m]) / rate(checkouts_initiated_total[5m])
+          > 0.2
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 3m
+    labels:
+      severity: critical
+    noDataState: NoData
+    title: Order Error Spike
+    uid: order_error_spike
+  - annotations:
+      description: Payment failure rate is {{ $value | humanizePercentage }}
+      summary: High payment failure rate
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: rate(payments_failed_total[5m]) / rate(payments_authorized_total[5m])
+          > 0.1
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 3m
+    labels:
+      severity: critical
+    noDataState: NoData
+    title: Payment Failure Spike
+    uid: payment_failure_spike
+  - annotations:
+      description: Fraud cases created at {{ $value }}/sec
+      summary: Fraud detection spike
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: rate(fraud_cases_created[5m]) > 0.1
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: warning
+    noDataState: NoData
+    title: Fraud Detection Spike
+    uid: fraud_detection_spike
+  - annotations:
+      description: Redis memory usage is {{ $value | humanizePercentage }}
+      summary: Redis memory is high
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: warning
+    noDataState: NoData
+    title: Redis Memory High
+    uid: redis_memory_high
+  - annotations:
+      description: DB connections at {{ $value | humanizePercentage }}
+      summary: Database connections are high
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: mysql_global_status_threads_connected / mysql_global_status_max_connections
+          > 0.8
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 5m
+    labels:
+      severity: warning
+    noDataState: NoData
+    title: Database Connections High
+    uid: db_connections_high
+  - annotations:
+      description: Stock reservation blocked due to insufficient inventory
+      summary: Oversell prevention triggered
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: rate(oversell_prevention_count_total[1m]) > 0
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 60
+        to: 0
+    execErrState: Error
+    for: 1m
+    labels:
+      severity: warning
+    noDataState: NoData
+    title: Oversell Prevention Triggered
+    uid: oversell_prevention_triggered
+  - annotations:
+      description: '{{ $value }} accounts locked per second'
+      summary: Account lockout spike
+    condition: A
+    data:
+    - datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: rate(account_lockouts_total[5m]) > 0.5
+        intervalMs: 10000
+        maxDataPoints: 100
+      refId: A
+      relativeTimeRange:
+        from: 300
+        to: 0
+    execErrState: Error
+    for: 3m
+    labels:
+      severity: warning
+    noDataState: NoData
+    title: Account Lockout Spike
+    uid: account_lockout_spike

@@ -73,7 +73,10 @@ func (h *Handler) GetOrder(c *gin.Context) {
 		return
 	}
 	role, _ := c.Get("role")
-	r, _ := role.(string)
+	r := ""
+	if role != nil {
+		r, _ = role.(string)
+	}
 	if order.UserID != uid && r != "admin" && r != "seller" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return
@@ -94,7 +97,10 @@ func (h *Handler) ListOrders(c *gin.Context) {
 		return
 	}
 	role, _ := c.Get("role")
-	r, _ := role.(string)
+	r := ""
+	if role != nil {
+		r, _ = role.(string)
+	}
 
 	// Admin can list all orders, users can only list their own
 	queryUserID := c.Query("user_id")
@@ -148,7 +154,10 @@ func (h *Handler) GetOrderStatus(c *gin.Context) {
 		return
 	}
 	role, _ := c.Get("role")
-	r, _ := role.(string)
+	r := ""
+	if role != nil {
+		r, _ = role.(string)
+	}
 	if order.UserID != uid && r != "admin" && r != "seller" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return
@@ -187,7 +196,10 @@ func (h *Handler) CancelOrder(c *gin.Context) {
 		return
 	}
 	role, _ := c.Get("role")
-	r, _ := role.(string)
+	r := ""
+	if role != nil {
+		r, _ = role.(string)
+	}
 
 	cancelReq := &application.CancelOrderRequest{
 		OrderID:       orderID,
@@ -230,7 +242,10 @@ func (h *Handler) GetOrderHistory(c *gin.Context) {
 		return
 	}
 	role, _ := c.Get("role")
-	r, _ := role.(string)
+	r := ""
+	if role != nil {
+		r, _ = role.(string)
+	}
 	if order.UserID != uid && r != "admin" && r != "seller" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return
@@ -269,7 +284,10 @@ func (h *Handler) GetReconciliationStatus(c *gin.Context) {
 		return
 	}
 	role, _ := c.Get("role")
-	r, _ := role.(string)
+	r := ""
+	if role != nil {
+		r, _ = role.(string)
+	}
 	if order.UserID != uid && r != "admin" && r != "seller" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return

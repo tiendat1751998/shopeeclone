@@ -25,6 +25,7 @@ use (
 	./platforms/service-mesh
 	./platforms/sre
 	./platforms/user-behavior
+	./platforms/production-dashboard
 	./proto
 	./services/auth
 	./services/cart
@@ -38,5 +39,6 @@ use (
 	./services/product-catalog
 	./services/promotion
 	./services/shipment
+	./services/admin-panel
 	./tests/integration
 )

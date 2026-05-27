@@ -5,6 +5,7 @@ import (
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/middleware"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/platforms/global-infra/internal/health"
+	httpmiddleware "github.com/shopee-clone/shopee/platforms/global-infra/internal/middleware"
 )
 
 type Router struct {
@@ -22,4 +23,12 @@ func (r *Router) Setup(e *gin.Engine) {
 	e.GET("/health", r.health.LivenessHandler())
 	e.GET("/ready", r.health.ReadinessHandler())
 	e.GET("/metrics", observability.MetricsHandler())
+
+	secrets := e.Group("/api/v1/secrets")
+	secrets.Use(httpmiddleware.APIKeyAuth())
+	{
+		secrets.POST("", r.handler.CreateSecret)
+		secrets.GET("", r.handler.ListSecrets)
+		secrets.POST("/:id/rotate", r.handler.RotateSecret)
+	}
 }

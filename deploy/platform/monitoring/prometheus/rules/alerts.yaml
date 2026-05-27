@@ -100,3 +100,60 @@ groups:
         annotations:
           summary: "Pod {{ $labels.pod }} restarting frequently"
           description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last hour"
+
+  - name: shopee-business-alerts
+    interval: 15s
+    rules:
+      - alert: OrderFailureRateHigh
+        expr: rate(checkouts_failed_total[5m]) / rate(checkouts_initiated_total[5m]) > 0.2
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High checkout failure rate"
+          description: "Checkout failure rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      - alert: PaymentFailureRateHigh
+        expr: rate(payments_failed_total[5m]) / rate(payments_authorized_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High payment failure rate"
+          description: "Payment failure rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      - alert: OversellPreventionTriggered
+        expr: rate(oversell_prevention_count_total[1m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Oversell prevention triggered"
+          description: "Stock reservation blocked due to insufficient inventory"
+
+      - alert: AccountLockoutSpike
+        expr: rate(account_lockouts_total[5m]) > 0.5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Account lockout spike"
+          description: "{{ $value }} accounts locked per second over the last 5 minutes"
+
+      - alert: FraudDetectionSpike
+        expr: rate(fraud_cases_created[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fraud detection spike"
+          description: "Fraud cases created at {{ $value }}/sec over the last 5 minutes"
+
+      - alert: IdempotencyHitRate
+        expr: rate(idempotent_requests_total[5m]) / (rate(idempotent_requests_total[5m]) + rate(orders_created_total[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "High idempotency hit rate"
+          description: "{{ $value | humanizePercentage }} of requests are duplicates - possible retry storm"

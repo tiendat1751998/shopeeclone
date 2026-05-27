@@ -1,9 +1,10 @@
 package websocket
 
 import (
-	"encoding/json"
 	"sync"
 	"time"
+
+	"github.com/bytedance/sonic"
 	"github.com/gorilla/websocket"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.uber.org/zap"
@@ -52,7 +53,7 @@ func (c *Client) ReadPump() {
 			break
 		}
 		var msg map[string]interface{}
-		if err := json.Unmarshal(message, &msg); err != nil {
+		if err := sonic.Unmarshal(message, &msg); err != nil {
 			c.sendError("invalid_json")
 			continue
 		}
@@ -93,7 +94,7 @@ func (c *Client) WritePump() {
 }
 
 func (c *Client) SendJSON(v interface{}) {
-	data, err := json.Marshal(v)
+	data, err := sonic.Marshal(v)
 	if err != nil {
 		return
 	}

@@ -32,6 +32,8 @@ CREATE DATABASE IF NOT EXISTS shopee_payment_ledger;
 CREATE DATABASE IF NOT EXISTS shopee_oms_fulfillment;
 CREATE DATABASE IF NOT EXISTS shopee_live_scale;
 CREATE DATABASE IF NOT EXISTS shopee_notification_campaign;
+CREATE DATABASE IF NOT EXISTS tiki_loyalty;
+CREATE DATABASE IF NOT EXISTS tiki_express;
 
 -- Grant permissions to shopee user for all databases
 GRANT ALL PRIVILEGES ON shopee_platform.* TO 'shopee'@'%';
@@ -65,5 +67,7 @@ GRANT ALL PRIVILEGES ON shopee_payment_ledger.* TO 'shopee'@'%';
 GRANT ALL PRIVILEGES ON shopee_oms_fulfillment.* TO 'shopee'@'%';
 GRANT ALL PRIVILEGES ON shopee_live_scale.* TO 'shopee'@'%';
 GRANT ALL PRIVILEGES ON shopee_notification_campaign.* TO 'shopee'@'%';
+GRANT ALL PRIVILEGES ON tiki_loyalty.* TO 'shopee'@'%';
+GRANT ALL PRIVILEGES ON tiki_express.* TO 'shopee'@'%';
 
 FLUSH PRIVILEGES;

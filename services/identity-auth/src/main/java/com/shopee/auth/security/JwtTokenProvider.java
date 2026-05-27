@@ -70,7 +70,7 @@ public class JwtTokenProvider {
 
         JwtBuilder builder = Jwts.builder()
             .issuer(ISSUER)
-            .subject(user.getUserId().toString())
+            .subject(user.getId().toString())
             .claim("email", user.getEmail())
             .claim("role", user.getRole())
             .claim("scope", buildScope(user))
@@ -94,7 +94,7 @@ public class JwtTokenProvider {
 
         JwtBuilder builder = Jwts.builder()
             .issuer(ISSUER)
-            .subject(user.getUserId().toString())
+            .subject(user.getId().toString())
             .claim("type", "refresh")
             .issuedAt(now)
             .expiration(expiry);

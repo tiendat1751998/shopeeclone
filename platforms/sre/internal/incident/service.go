@@ -63,19 +63,39 @@ func (s *Service) Update(id string, updates map[string]interface{}) (*Incident, 
 		return nil, err
 	}
 	if v, ok := updates["status"]; ok {
-		inc.Status = Status(v.(string))
+		s, ok := v.(string)
+		if !ok {
+			return nil, ErrInvalidStatus
+		}
+		inc.Status = Status(s)
 	}
 	if v, ok := updates["severity"]; ok {
-		inc.Severity = Severity(v.(string))
+		s, ok := v.(string)
+		if !ok {
+			return nil, ErrInvalidSeverity
+		}
+		inc.Severity = Severity(s)
 	}
 	if v, ok := updates["assignee"]; ok {
-		inc.Assignee = v.(string)
+		s, ok := v.(string)
+		if !ok {
+			return nil, ErrInvalidAssignee
+		}
+		inc.Assignee = s
 	}
 	if v, ok := updates["description"]; ok {
-		inc.Description = v.(string)
+		s, ok := v.(string)
+		if !ok {
+			return nil, ErrInvalidDescription
+		}
+		inc.Description = s
 	}
 	if v, ok := updates["title"]; ok {
-		inc.Title = v.(string)
+		s, ok := v.(string)
+		if !ok {
+			return nil, ErrInvalidTitle
+		}
+		inc.Title = s
 	}
 	if err := s.repo.Update(inc); err != nil {
 		return nil, err

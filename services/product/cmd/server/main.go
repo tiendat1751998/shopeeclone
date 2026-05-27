@@ -26,6 +26,7 @@ import (
 	"github.com/shopee-clone/shopee/services/product/internal/infrastructure/mysql"
 	redisinfra "github.com/shopee-clone/shopee/services/product/internal/infrastructure/redis"
 	"go.uber.org/zap"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -33,9 +34,22 @@ import (
 
 var version = "0.1.0"
 
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
+
 func main() {
 	cfg := config.Load()
+
 	logger := observability.InitLogger(cfg.ServiceName, cfg.LogLevel)
+
+	// Auto-tune GOMAXPROCS for container environments
+	if _, err := automaxprocs.Set(); err != nil {
+		logger.Warn("failed to set automaxprocs", zap.Error(err))
+	}
 
 	shutdownTracer, err := observability.InitTracer(cfg.ServiceName, cfg.OpenTelemetry.Endpoint)
 	if err != nil {

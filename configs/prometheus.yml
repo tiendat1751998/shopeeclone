@@ -1,24 +1,32 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    cluster: shopee-clone
+    namespace: shopee
 
 scrape_configs:
-  - job_name: 'prometheus'
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
     static_configs:
-      - targets: ['localhost:9090']
-  - job_name: 'shopee-services'
+      - targets: ["localhost:9090"]
+
+  # Core Go services - all 12 services with /metrics endpoint
+  - job_name: "shopee-services"
+    scrape_interval: 10s
     static_configs:
       - targets:
-        - 'identity-auth:8081'
-        - 'cart:8082'
-        - 'payment:8083'
-        - 'order:8084'
-        - 'checkout:8085'
-        - 'inventory:8086'
-        - 'auth:8087'
-        - 'catalog-product:8088'
-        - 'product:8089'
-        - 'product-catalog:8090'
-        - 'promotion:8091'
-        - 'shipment:8092'
-        - 'gateway:8080'
+          - "gateway:8080"
+          - "auth:8087"
+          - "cart:8082"
+          - "checkout:8085"
+          - "catalog-product:8088"
+          - "product:8089"
+          - "product-catalog:8090"
+          - "promotion:8091"
+          - "order:8084"
+          - "payment:8083"
+          - "inventory:8086"
+          - "shipment:8092"
+        labels:
+          team: core

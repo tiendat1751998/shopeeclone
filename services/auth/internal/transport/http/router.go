@@ -83,6 +83,7 @@ func (r *Router) Setup(engine *gin.Engine) {
 		api.GET("/sessions", r.handler.GetSessions)
 		api.DELETE("/sessions/:session_id", r.handler.RevokeSession)
 		api.GET("/profile", r.handler.GetProfile)
+		api.GET("/me", r.handler.GetProfile)
 		api.POST("/validate", r.handler.ValidateToken)
 
 		api.POST("/password-reset/request", r.handler.RequestPasswordReset)

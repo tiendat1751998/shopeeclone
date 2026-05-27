@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,10 +14,21 @@ import (
 	"github.com/shopee-clone/shopee/platforms/payment-ledger/internal/payout"
 	"github.com/shopee-clone/shopee/platforms/payment-ledger/internal/reconciliation"
 	httptransport "github.com/shopee-clone/shopee/platforms/payment-ledger/internal/transport/http"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 )
+
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
 
 func main() {
 	paymentRepo := payment.NewInMemoryRepository()
+	// Auto-tune GOMAXPROCS for container environments
+	_, _ = automaxprocs.Set()
+
 	paymentService := payment.NewService(paymentRepo)
 
 	accountRepo := ledger.NewInMemoryAccountRepo()
@@ -44,9 +56,9 @@ func main() {
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", 8080),
 		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	log.Printf("starting payment-ledger server on :8080")

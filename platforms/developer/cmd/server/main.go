@@ -18,10 +18,21 @@ import (
 	"github.com/shopee-clone/shopee/platforms/developer/internal/sdk"
 	httptransport "github.com/shopee-clone/shopee/platforms/developer/internal/transport/http"
 	"github.com/shopee-clone/shopee/platforms/developer/internal/webhooks"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 )
+
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
 
 func main() {
 	apikeysRepo := apikeys.NewInMemoryRepository()
+	// Auto-tune GOMAXPROCS for container environments
+	_, _ = automaxprocs.Set()
+
 	apikeysSvc := apikeys.NewService(apikeysRepo)
 
 	docsRepo := docs.NewInMemoryRepository()
@@ -50,9 +61,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         ":8080",
 		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
+		ReadTimeout:       5 * time.Second,
 		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shopee Clone — Operations Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header .status { display: flex; align-items: center; gap: 8px; }
+  .header .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+  .refresh { color: var(--text-dim); font-size: 12px; }
+  .container { padding: 24px; max-width: 1600px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card h3 { font-size: 13px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; letter-spacing: 0.5px; }
+  .metric { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .metric:last-child { border-bottom: none; }
+  .metric-label { font-size: 13px; }
+  .metric-value { font-size: 16px; font-weight: 600; }
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .status-healthy { background: rgba(63,185,80,0.15); color: var(--green); }
+  .status-warning { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .status-critical { background: rgba(248,81,73,0.15); color: var(--red); }
+  .status-unknown { background: rgba(139,148,158,0.15); color: var(--text-dim); }
+  .col-3 { grid-column: span 3; }
+  .col-4 { grid-column: span 4; }
+  .col-6 { grid-column: span 6; }
+  .col-8 { grid-column: span 8; }
+  .col-12 { grid-column: span 12; }
+  .service-list { list-style: none; }
+  .service-list li { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .service-list li:last-child { border-bottom: none; }
+  .service-name { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .service-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .big-number { font-size: 36px; font-weight: 700; text-align: center; padding: 16px 0; }
+  .big-number.green { color: var(--green); }
+  .big-number.yellow { color: var(--yellow); }
+  .big-number.red { color: var(--red); }
+  .big-number.blue { color: var(--blue); }
+  .events { max-height: 300px; overflow-y: auto; }
+  .event { padding: 8px 12px; border-left: 3px solid var(--border); margin-bottom: 4px; font-size: 12px; }
+  .event.error { border-left-color: var(--red); background: rgba(248,81,73,0.05); }
+  .event.warn { border-left-color: var(--yellow); background: rgba(210,153,34,0.05); }
+  .event.info { border-left-color: var(--blue); background: rgba(88,166,255,0.05); }
+  .event-time { color: var(--text-dim); font-size: 11px; }
+  .grafana-links { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .grafana-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--blue); text-decoration: none; font-size: 13px; transition: border-color 0.2s; }
+  .grafana-link:hover { border-color: var(--blue); }
+  .section-title { font-size: 16px; font-weight: 600; margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  #clock { font-size: 13px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="font-size:24px;color:var(--blue);">S</span>
+    <h1>Shopee Clone — Operations Dashboard</h1>
+    <div class="status">
+      <div class="status-dot" id="overall-status-dot"></div>
+      <span id="overall-status-text" style="font-size:13px;">Loading...</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span id="clock"></span>
+    <span class="refresh" id="refresh-indicator">Refreshing in 30s</span>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Grafana Links -->
+  <div class="grafana-links">
+    <a class="grafana-link" href="http://localhost:3000/d/shopee-services-overview" target="_blank">📊 Services Overview</a>
+    <a class="grafana-link" href="http://localhost:3000/d/shopee-k8s-cluster" target="_blank">☸️ K8s Cluster</a>
+    <a class="grafana-link" href="http://localhost:3000/d/shopee-business-metrics" target="_blank">💰 Business Metrics</a>
+    <a class="grafana-link" href="http://localhost:9090" target="_blank">🔥 Prometheus</a>
+    <a class="grafana-link" href="http://localhost:3000/explore?left=%7B%22datasource%22:%22Loki%22%7D" target="_blank">📝 Loki Logs</a>
+    <a class="grafana-link" href="http://localhost:3200" target="_blank">🔍 Tempo Traces</a>
+  </div>
+
+  <!-- Top-level metrics -->
+  <div class="grid">
+    <div class="card col-3">
+      <h3>Order Rate</h3>
+      <div class="big-number green" id="order-rate">—</div>
+      <div style="text-align:center;font-size:12px;color:var(--text-dim);">orders / min</div>
+    </div>
+    <div class="card col-3">
+      <h3>Payment Success</h3>
+      <div class="big-number blue" id="payment-rate">—</div>
+      <div style="text-align:center;font-size:12px;color:var(--text-dim);">payments / min</div>
+    </div>
+    <div class="card col-3">
+      <h3>Error Rate</h3>
+      <div class="big-number" id="error-rate">—</div>
+      <div style="text-align:center;font-size:12px;color:var(--text-dim);">5xx / total</div>
+    </div>
+    <div class="card col-3">
+      <h3>P99 Latency</h3>
+      <div class="big-number" id="p99-latency">—</div>
+      <div style="text-align:center;font-size:12px;color:var(--text-dim);">seconds</div>
+    </div>
+  </div>
+
+  <!-- Core Services Status -->
+  <div class="section-title">Core Services</div>
+  <div class="grid">
+    <div class="card col-6">
+      <h3>Service Health</h3>
+      <ul class="service-list" id="core-services">
+        <li><span class="service-name"><span class="service-dot" style="background:var(--text-dim)"></span>Loading...</span><span class="status-badge status-unknown">checking</span></li>
+      </ul>
+    </div>
+    <div class="card col-6">
+      <h3>Platform Services</h3>
+      <ul class="service-list" id="platform-services">
+        <li><span class="service-name"><span class="service-dot" style="background:var(--text-dim)"></span>Loading...</span><span class="status-badge status-unknown">checking</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Infrastructure -->
+  <div class="section-title">Infrastructure</div>
+  <div class="grid">
+    <div class="card col-3">
+      <h3>Kubernetes</h3>
+      <div class="metric"><span class="metric-label">Namespaces</span><span class="metric-value" id="k8s-namespaces">5</span></div>
+      <div class="metric"><span class="metric-label">Running Pods</span><span class="metric-value" id="k8s-pods">—</span></div>
+      <div class="metric"><span class="metric-label">CPU Usage</span><span class="metric-value" id="k8s-cpu">—</span></div>
+      <div class="metric"><span class="metric-label">Memory Usage</span><span class="metric-value" id="k8s-mem">—</span></div>
+    </div>
+    <div class="card col-3">
+      <h3>Kafka</h3>
+      <div class="metric"><span class="metric-label">Brokers</span><span class="metric-value" id="kafka-brokers">3</span></div>
+      <div class="metric"><span class="metric-label">Topics</span><span class="metric-value" id="kafka-topics">9</span></div>
+      <div class="metric"><span class="metric-label">Consumer Lag</span><span class="metric-value" id="kafka-lag">—</span></div>
+      <div class="metric"><span class="metric-label">Msg/sec</span><span class="metric-value" id="kafka-rate">—</span></div>
+    </div>
+    <div class="card col-3">
+      <h3>Redis Cluster</h3>
+      <div class="metric"><span class="metric-label">Nodes</span><span class="metric-value" id="redis-nodes">6</span></div>
+      <div class="metric"><span class="metric-label">Hit Rate</span><span class="metric-value" id="redis-hitrate">—</span></div>
+      <div class="metric"><span class="metric-label">Memory</span><span class="metric-value" id="redis-mem">—</span></div>
+      <div class="metric"><span class="metric-label">Ops/sec</span><span class="metric-value" id="redis-ops">—</span></div>
+    </div>
+    <div class="card col-3">
+      <h3>MySQL Primary</h3>
+      <div class="metric"><span class="metric-label">Connections</span><span class="metric-value" id="mysql-conn">—</span></div>
+      <div class="metric"><span class="metric-label">Queries/sec</span><span class="metric-value" id="mysql-qps">—</span></div>
+      <div class="metric"><span class="metric-label">Replication Lag</span><span class="metric-value" id="mysql-replag">0s</span></div>
+      <div class="metric"><span class="metric-label">Slow Queries</span><span class="metric-value" id="mysql-slow">—</span></div>
+    </div>
+  </div>
+
+  <!-- Recent Events -->
+  <div class="section-title">Recent Events</div>
+  <div class="grid">
+    <div class="card col-12">
+      <h3>System Events (from Loki)</h3>
+      <div class="events" id="events-list">
+        <div class="event info"><span class="event-time">—</span> Connecting to event sources...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PROMETHEUS_URL = 'http://localhost:9090';
+const GRAFANA_URL = 'http://localhost:3000';
+const LOKI_URL = 'http://localhost:3100';
+const REFRESH_INTERVAL = 30000;
+
+const coreServices = [
+  { name: 'API Gateway', id: 'gateway', metrics: 'gateway_requests_total' },
+  { name: 'Auth Service', id: 'auth', metrics: 'http_requests_total{service="auth"}' },
+  { name: 'Order Service', id: 'order', metrics: 'http_requests_total{service="order"}' },
+  { name: 'Payment Service', id: 'payment', metrics: 'http_requests_total{service="payment"}' },
+  { name: 'Inventory Service', id: 'inventory', metrics: 'http_requests_total{service="inventory"}' },
+  { name: 'Product Service', id: 'product', metrics: 'http_requests_total{service="product"}' },
+  { name: 'Product Catalog', id: 'product-catalog', metrics: 'http_requests_total{service="product-catalog"}' },
+  { name: 'Cart Service', id: 'cart', metrics: 'http_requests_total{service="cart"}' },
+  { name: 'Checkout Service', id: 'checkout', metrics: 'http_requests_total{service="checkout"}' },
+  { name: 'Promotion Service', id: 'promotion', metrics: 'http_requests_total{service="promotion"}' },
+  { name: 'Shipment Service', id: 'shipment', metrics: 'http_requests_total{service="shipment"}' },
+  { name: 'Identity Auth (Java)', id: 'identity-auth', metrics: 'http_requests_total{service="identity-auth"}' },
+];
+
+const platformServices = [
+  { name: 'Search Platform', id: 'search', metrics: 'search_queries_total' },
+  { name: 'Recommendation', id: 'recommendation', metrics: 'rec_requests_total' },
+  { name: 'Fraud Detection', id: 'fraud', metrics: 'rules_evaluated_total' },
+  { name: 'Notification', id: 'notification', metrics: 'notifications_sent_total' },
+  { name: 'Analytics', id: 'analytics', metrics: 'events_ingested_total' },
+  { name: 'Live Commerce', id: 'live-commerce', metrics: 'livestreams_created' },
+  { name: 'Billing', id: 'billing', metrics: 'transactions_total' },
+  { name: 'OMS Fulfillment', id: 'oms-fulfillment', metrics: '' },
+  { name: 'Logistics', id: 'logistics-delivery', metrics: 'shipment_created_total' },
+  { name: 'User Behavior', id: 'user-behavior', metrics: 'events_ingested' },
+  { name: 'Advertising', id: 'advertising', metrics: 'auctions_total' },
+];
+
+async function queryProm(expr) {
+  try {
+    const r = await fetch(`${PROMETHEUS_URL}/api/v1/query?query=${encodeURIComponent(expr)}`, { signal: AbortSignal.timeout(5000) });
+    const d = await r.json();
+    if (d.status === 'success' && d.data.result.length > 0) {
+      return parseFloat(d.data.result[0].value[1]);
+    }
+  } catch(e) {}
+  return null;
+}
+
+async function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleString();
+}
+
+async function updateMetrics() {
+  // Order rate
+  const orderRate = await queryProm('sum(rate(orders_created_total[1m])) * 60');
+  document.getElementById('order-rate').textContent = orderRate !== null ? Math.round(orderRate).toLocaleString() : 'N/A';
+
+  // Payment rate
+  const paymentRate = await queryProm('sum(rate(payments_authorized_total[1m])) * 60');
+  document.getElementById('payment-rate').textContent = paymentRate !== null ? Math.round(paymentRate).toLocaleString() : 'N/A';
+
+  // Error rate
+  const errRate = await queryProm('sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m]))');
+  const errEl = document.getElementById('error-rate');
+  if (errRate !== null) {
+    const pct = (errRate * 100).toFixed(2) + '%';
+    errEl.textContent = pct;
+    errEl.className = 'big-number ' + (errRate > 0.05 ? 'red' : errRate > 0.01 ? 'yellow' : 'green');
+  } else {
+    errEl.textContent = 'N/A';
+    errEl.className = 'big-number';
+  }
+
+  // P99 latency
+  const p99 = await queryProm('histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))');
+  const p99El = document.getElementById('p99-latency');
+  if (p99 !== null) {
+    p99El.textContent = p99.toFixed(2) + 's';
+    p99El.className = 'big-number ' + (p99 > 5 ? 'red' : p99 > 2 ? 'yellow' : 'green');
+  } else {
+    p99El.textContent = 'N/A';
+    p99El.className = 'big-number';
+  }
+
+  // K8s pods
+  const pods = await queryProm('sum(kube_pod_status_phase{namespace=~"shopee.*", phase="Running"})');
+  document.getElementById('k8s-pods').textContent = pods !== null ? Math.round(pods) : 'N/A';
+
+  const cpu = await queryProm('avg(sum(rate(container_cpu_usage_seconds_total{namespace=~"shopee.*"}[5m])) by (pod) / on(pod) kube_pod_container_resource_limits{resource="cpu"}) * 100');
+  document.getElementById('k8s-cpu').textContent = cpu !== null ? cpu.toFixed(1) + '%' : 'N/A';
+
+  const mem = await queryProm('sum(container_memory_working_set_bytes{namespace=~"shopee.*"}) / 1024 / 1024 / 1024');
+  document.getElementById('k8s-mem').textContent = mem !== null ? mem.toFixed(1) + ' GB' : 'N/A';
+
+  // Kafka
+  const kafkaLag = await queryProm('sum(kafka_consumer_lag)');
+  document.getElementById('kafka-lag').textContent = kafkaLag !== null ? Math.round(kafkaLag).toLocaleString() : 'N/A';
+
+  const kafkaRate = await queryProm('sum(rate(kafka_messages_produced_total[1m]) + rate(kafka_messages_consumed_total[1m]))');
+  document.getElementById('kafka-rate').textContent = kafkaRate !== null ? Math.round(kafkaRate).toLocaleString() : 'N/A';
+
+  // Redis
+  const redisHit = await queryProm('sum(rate(cache_hits_total[1m])) / (sum(rate(cache_hits_total[1m])) + sum(rate(cache_misses_total[1m])))');
+  document.getElementById('redis-hitrate').textContent = redisHit !== null ? (redisHit * 100).toFixed(1) + '%' : 'N/A';
+
+  const redisMem = await queryProm('redis_memory_used_bytes');
+  document.getElementById('redis-mem').textContent = redisMem !== null ? (redisMem / 1024 / 1024).toFixed(0) + ' MB' : 'N/A';
+
+  const redisOps = await queryProm('rate(redis_commands_processed_total[1m])');
+  document.getElementById('redis-ops').textContent = redisOps !== null ? Math.round(redisOps).toLocaleString() : 'N/A';
+
+  // MySQL
+  const mysqlConn = await queryProm('sum(mysql_global_status_threads_connected)');
+  document.getElementById('mysql-conn').textContent = mysqlConn !== null ? Math.round(mysqlConn) : 'N/A';
+
+  const mysqlQps = await queryProm('rate(mysql_global_status_queries[1m])');
+  document.getElementById('mysql-qps').textContent = mysqlQps !== null ? Math.round(mysqlQps).toLocaleString() : 'N/A';
+
+  const mysqlSlow = await queryProm('rate(mysql_global_status_slow_queries[1m]) * 60');
+  document.getElementById('mysql-slow').textContent = mysqlSlow !== null ? Math.round(mysqlSlow) + '/min' : 'N/A';
+
+  // Service health
+  await updateServiceList('core-services', coreServices);
+  await updateServiceList('platform-services', platformServices);
+}
+
+async function updateServiceList(elId, services) {
+  const el = document.getElementById(elId);
+  let healthy = 0, warning = 0, critical = 0, unknown = 0;
+  const items = [];
+
+  for (const svc of services) {
+    let status = 'healthy';
+    let dotColor = 'var(--green)';
+    let badgeClass = 'status-healthy';
+    let badgeText = 'healthy';
+
+    if (svc.metrics) {
+      const rate = await queryProm(`sum(rate(${svc.metrics}[1m]))`);
+      const errRate = await queryProm(svc.metrics.includes('{')
+        ? `sum(rate(${svc.metrics}{status=~"5.."}[1m])) / sum(rate(${svc.metrics}[1m]))`
+        : `sum(rate(${svc.metrics}{status=~"5.."}[1m])) / sum(rate(${svc.metrics}[1m]))`);
+
+      if (rate === null) {
+        status = 'unknown'; dotColor = 'var(--text-dim)'; badgeClass = 'status-unknown'; badgeText = 'unknown';
+        unknown++;
+      } else if (errRate !== null && errRate > 0.1) {
+        status = 'critical'; dotColor = 'var(--red)'; badgeClass = 'status-critical'; badgeText = 'critical';
+        critical++;
+      } else if (errRate !== null && errRate > 0.05) {
+        status = 'warning'; dotColor = 'var(--yellow)'; badgeClass = 'status-warning'; badgeText = 'warning';
+        warning++;
+      } else {
+        healthy++;
+      }
+    } else {
+      unknown++; badgeClass = 'status-unknown'; badgeText = 'unknown';
+    }
+
+    items.push(`<li>
+      <span class="service-name"><span class="service-dot" style="background:${dotColor}"></span>${svc.name}</span>
+      <span class="status-badge ${badgeClass}">${badgeText}</span>
+    </li>`);
+  }
+
+  el.innerHTML = items.join('');
+
+  // Update overall status
+  const overallDot = document.getElementById('overall-status-dot');
+  const overallText = document.getElementById('overall-status-text');
+  if (critical > 0) {
+    overallDot.style.background = 'var(--red)';
+    overallText.textContent = `${critical} critical`;
+  } else if (warning > 0) {
+    overallDot.style.background = 'var(--yellow)';
+    overallText.textContent = `${warning} warning`;
+  } else {
+    overallDot.style.background = 'var(--green)';
+    overallText.textContent = 'All systems operational';
+  }
+}
+
+let refreshCount = 30;
+function updateRefreshCounter() {
+  refreshCount--;
+  if (refreshCount <= 0) {
+    refreshCount = 30;
+    updateMetrics();
+  }
+  document.getElementById('refresh-indicator').textContent = `Refreshing in ${refreshCount}s`;
+}
+
+// Initialize
+updateClock();
+updateMetrics();
+setInterval(updateClock, 1000);
+setInterval(updateRefreshCounter, 1000);
+</script>
+</body>
+</html>

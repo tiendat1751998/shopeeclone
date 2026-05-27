@@ -1,13 +1,18 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/api/health/route": "app/api/health/route.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(auth)/register/page": "app/(auth)/register/page.js",
-  "/(shop)/account/page": "app/(shop)/account/page.js",
-  "/(shop)/cart/page": "app/(shop)/cart/page.js",
-  "/(shop)/categories/[slug]/page": "app/(shop)/categories/[slug]/page.js",
-  "/(shop)/checkout/page": "app/(shop)/checkout/page.js",
-  "/(shop)/products/page": "app/(shop)/products/page.js",
-  "/(shop)/products/[id]/page": "app/(shop)/products/[id]/page.js",
-  "/page": "app/page.js"
+  "/api/v1/[...path]/route": "app/api/v1/[...path]/route.js",
+  "/api/v1/categories/[slug]/route": "app/api/v1/categories/[slug]/route.js",
+  "/api/v1/categories/route": "app/api/v1/categories/route.js",
+  "/api/v1/promotions/route": "app/api/v1/promotions/route.js",
+  "/api/v1/categories/tree/route": "app/api/v1/categories/tree/route.js",
+  "/cart/page": "app/cart/page.js",
+  "/categories/[slug]/page": "app/categories/[slug]/page.js",
+  "/page": "app/page.js",
+  "/checkout/page": "app/checkout/page.js",
+  "/products/[id]/page": "app/products/[id]/page.js",
+  "/login/page": "app/login/page.js",
+  "/products/page": "app/products/page.js",
+  "/promotions/page": "app/promotions/page.js",
+  "/register/page": "app/register/page.js",
+  "/search/page": "app/search/page.js"
 }

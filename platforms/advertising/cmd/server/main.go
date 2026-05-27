@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	sharedRedis "github.com/shopee-clone/shopee/packages/go-shared/pkg/redis"
 	"go.uber.org/zap"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/shopee-clone/shopee/platforms/advertising/internal/analytics"
 	"github.com/shopee-clone/shopee/platforms/advertising/internal/bidding"
@@ -31,8 +32,19 @@ import (
 
 var version = "1.0.0"
 
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
+
 func main() {
 	cfg := config.Load()
+	// Auto-tune GOMAXPROCS for container environments
+	_, _ = automaxprocs.Set()
+
+
 	logger := logging.Init(cfg.AppName, cfg.LogLevel)
 	defer logger.Sync()
 
@@ -92,9 +104,9 @@ func main() {
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
 		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	var wg sync.WaitGroup

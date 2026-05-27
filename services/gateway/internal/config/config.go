@@ -146,7 +146,7 @@ func Load() *Config {
 		},
 
 		Auth: AuthConfig{
-			JWKSEndpoint:      getEnv("JWKS_ENDPOINT", "http://identity-auth:8080/.well-known/jwks.json"),
+			JWKSEndpoint:      getEnv("JWKS_ENDPOINT", ""),
 			AccessTTL:         getEnvDuration("JWT_ACCESS_TTL", 15*time.Minute),
 			RefreshTTL:        getEnvDuration("JWT_REFRESH_TTL", 168*time.Hour),
 			EnableRBAC:        getEnvBool("RBAC_ENABLED", true),

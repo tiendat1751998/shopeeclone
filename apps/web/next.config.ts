@@ -1,43 +1,24 @@
-import type { NextConfig } from 'next';
-
-const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://localhost:8080';
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  reactStrictMode: true,
+  poweredByHeader: false,
+  compress: true,
+  output: "standalone",
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: '**.shopee.vn' },
-      { protocol: 'https', hostname: '**.shopee.sg' },
-      { protocol: 'https', hostname: '**.shopee.com' },
-      { protocol: 'https', hostname: 'cdn.example.com' },
-      { protocol: 'https', hostname: 'store.storeimages.cdn-apple.com' },
-      { protocol: 'https', hostname: 'images.samsung.com' },
-      { protocol: 'http', hostname: 'localhost', port: '9000' },
-      { protocol: 'https', hostname: 'hoanghamobile.com' },
-      { protocol: 'https', hostname: '**.hoanghamobile.com' },
+      { protocol: "https", hostname: "salt.tikicdn.com" },
+      { protocol: "https", hostname: "tiki.vn" },
     ],
-    formats: ['image/avif', 'image/webp'],
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 750, 828, 1080, 1200],
+    minimumCacheTTL: 86400,
   },
-  async rewrites() {
-    return [
-      {
-        source: '/api/gateway/:path*',
-        destination: `${API_GATEWAY_URL}/api/v1/:path*`,
-      },
-    ];
-  },
-  async headers() {
-    return [
-      {
-        source: '/:path*',
-        headers: [
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-XSS-Protection', value: '1; mode=block' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-        ],
-      },
-    ];
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "recharts",
+    ],
   },
 };
 
