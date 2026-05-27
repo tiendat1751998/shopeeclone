@@ -1,33 +1,58 @@
-import type { Config } from 'tailwindcss';
+import type { Config } from "tailwindcss";
 
 const config: Config = {
-  content: ['./src/**/*.{ts,tsx}'],
+  content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
-        primary: { DEFAULT: '#ee4d2d', hover: '#d73211', light: '#fff0ed' },
-        secondary: { DEFAULT: '#00bfa5', light: '#e0f7f5' },
-        accent: '#f5a623',
-        surface: '#ffffff',
-        background: '#f5f5f5',
-        text: { primary: '#222222', secondary: '#757575', disabled: '#bdbdbd' },
-        border: '#e8e8e8',
-        success: '#4caf50',
-        error: '#f44336',
-        warning: '#ff9800',
-        info: '#2196f3',
+        tiki: {
+          blue: "#1A94FF",
+          "blue-dark": "#0066D6",
+          red: "#FF424E",
+          "red-dark": "#D6303C",
+          green: "#00AB56",
+          yellow: "#FDD835",
+          orange: "#FC820A",
+          bg: "#F5F5FA",
+          text: "#27272A",
+          "text-secondary": "#808089",
+          border: "#EBEBF0",
+          "card-bg": "#FFFFFF",
+        },
       },
-      borderRadius: { sm: '4px', md: '8px', lg: '12px', xl: '16px' },
+      fontFamily: {
+        sans: [
+          "Inter",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Segoe UI"',
+          "Roboto",
+          "Arial",
+          "sans-serif",
+        ],
+      },
+      fontSize: {
+        xs: ["12px", { lineHeight: "18px" }],
+        sm: ["13px", { lineHeight: "20px" }],
+        base: ["14px", { lineHeight: "21px" }],
+        lg: ["16px", { lineHeight: "24px" }],
+        xl: ["18px", { lineHeight: "27px" }],
+        "2xl": ["24px", { lineHeight: "36px" }],
+      },
+      borderRadius: {
+        sm: "4px",
+        md: "8px",
+        lg: "12px",
+      },
       boxShadow: {
-        sm: '0 1px 2px rgba(0,0,0,0.08)',
-        md: '0 2px 8px rgba(0,0,0,0.12)',
-        lg: '0 4px 16px rgba(0,0,0,0.16)',
+        tiki: "0 1px 4px rgba(0,0,0,0.08)",
+        "tiki-md": "0 2px 12px rgba(0,0,0,0.12)",
+        "tiki-lg": "0 4px 24px rgba(0,0,0,0.16)",
       },
-      maxWidth: { container: '1200px' },
-      animation: { shimmer: 'shimmer 1.5s infinite', fadeIn: 'fadeIn 0.3s ease-in' },
-      keyframes: {
-        shimmer: { '0%': { backgroundPosition: '200% 0' }, '100%': { backgroundPosition: '-200% 0' } },
-        fadeIn: { from: { opacity: '0' }, to: { opacity: '1' } },
+      maxWidth: {
+        "tiki": "1280px",
+        "tiki-wide": "1440px",
       },
     },
   },

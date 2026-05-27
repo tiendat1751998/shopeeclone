@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "production-dashboard.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "production-dashboard.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.httpPort }}
+      targetPort: {{ .Values.service.httpPort }}
+      name: http
+      protocol: TCP
+    - port: {{ .Values.service.grpcPort }}
+      targetPort: {{ .Values.service.grpcPort }}
+      name: grpc
+      protocol: TCP
+  selector:
+    {{- include "production-dashboard.selectorLabels" . | nindent 4 }}

@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/errors"
@@ -13,6 +15,12 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 )
+
+var idCounter atomic.Uint64
+
+func generateID(prefix string) string {
+	return prefix + "-" + strconv.FormatUint(idCounter.Add(1), 36) + strconv.FormatInt(time.Now().UnixNano(), 36)
+}
 
 // ProductRepository defines the interface for product persistence
 type ProductRepository interface {
@@ -345,8 +353,4 @@ func (s *ProductService) BatchGetSKUs(ctx context.Context, skuIDs []string) (map
 	}
 
 	return result, nil
-}
-
-func generateID(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 }

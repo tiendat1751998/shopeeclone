@@ -21,7 +21,7 @@ func NewInventoryRepository(db *sqlx.DB) *InventoryRepository {
 // GetStock retrieves stock by SKU and warehouse (no lock).
 func (r *InventoryRepository) GetStock(ctx context.Context, skuID, warehouseID string) (*domain.Stock, error) {
 	var s domain.Stock
-	err := r.db.GetContext(ctx, &s, "SELECT * FROM stock WHERE sku_id = ? AND warehouse_id = ?", skuID, warehouseID)
+	err := r.db.GetContext(ctx, &s, "SELECT id, product_id, sku_id, warehouse_id, quantity, reserved_qty, available_qty, status, reorder_level, version, created_at, updated_at FROM stock WHERE sku_id = ? AND warehouse_id = ?", skuID, warehouseID)
 	if err == sql.ErrNoRows {
 		return nil, domain.ErrStockNotFound
 	}
@@ -117,7 +117,7 @@ func (r *InventoryRepository) SaveReservationInTx(ctx context.Context, tx *sql.T
 // GetReservation retrieves a reservation by ID.
 func (r *InventoryRepository) GetReservation(ctx context.Context, id string) (*domain.Reservation, error) {
 	var res domain.Reservation
-	err := r.db.GetContext(ctx, &res, "SELECT * FROM reservations WHERE id = ?", id)
+	err := r.db.GetContext(ctx, &res, "SELECT id, order_id, user_id, product_id, sku_id, warehouse_id, quantity, status, expires_at, idempotency_key, created_at, updated_at FROM reservations WHERE id = ?", id)
 	if err == sql.ErrNoRows {
 		return nil, domain.ErrReservationNotFound
 	}
@@ -158,7 +158,7 @@ func (r *InventoryRepository) UpdateReservationStatusInTx(ctx context.Context, t
 // GetExpiredReservations finds reservations that have expired.
 func (r *InventoryRepository) GetExpiredReservations(ctx context.Context, limit int) ([]*domain.Reservation, error) {
 	var res []*domain.Reservation
-	err := r.db.SelectContext(ctx, &res, "SELECT * FROM reservations WHERE status = 'active' AND expires_at < NOW() LIMIT ?", limit)
+	err := r.db.SelectContext(ctx, &res, "SELECT id, order_id, user_id, product_id, sku_id, warehouse_id, quantity, status, expires_at, idempotency_key, created_at, updated_at FROM reservations WHERE status = 'active' AND expires_at < NOW() LIMIT ?", limit)
 	if err != nil {
 		return nil, fmt.Errorf("get expired reservations: %w", err)
 	}
@@ -168,7 +168,7 @@ func (r *InventoryRepository) GetExpiredReservations(ctx context.Context, limit 
 // FindByIdempotencyKey finds a reservation by its idempotency key.
 func (r *InventoryRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.Reservation, error) {
 	var res domain.Reservation
-	err := r.db.GetContext(ctx, &res, "SELECT * FROM reservations WHERE idempotency_key = ?", key)
+	err := r.db.GetContext(ctx, &res, "SELECT id, order_id, user_id, product_id, sku_id, warehouse_id, quantity, status, expires_at, idempotency_key, created_at, updated_at FROM reservations WHERE idempotency_key = ?", key)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -191,7 +191,7 @@ func (r *InventoryRepository) SaveOutboxEvent(ctx context.Context, event *domain
 // GetUnprocessedOutboxEvents fetches events that haven't been published yet.
 func (r *InventoryRepository) GetUnprocessedOutboxEvents(ctx context.Context, limit int) ([]*domain.OutboxEvent, error) {
 	var events []*domain.OutboxEvent
-	err := r.db.SelectContext(ctx, &events, "SELECT * FROM outbox_events WHERE processed = FALSE ORDER BY created_at ASC LIMIT ?", limit)
+	err := r.db.SelectContext(ctx, &events, "SELECT event_id, aggregate_type, aggregate_id, event_type, payload, created_at, processed FROM outbox_events WHERE processed = FALSE ORDER BY created_at ASC LIMIT ?", limit)
 	if err != nil {
 		return nil, fmt.Errorf("get unprocessed outbox events: %w", err)
 	}
@@ -243,7 +243,7 @@ func (r *InventoryRepository) SaveIdempotencyKey(ctx context.Context, record *do
 // GetIdempotencyKey retrieves an idempotency record by key.
 func (r *InventoryRepository) GetIdempotencyKey(ctx context.Context, key string) (*domain.IdempotencyRecord, error) {
 	var record domain.IdempotencyRecord
-	err := r.db.GetContext(ctx, &record, "SELECT * FROM idempotency_keys WHERE `key` = ?", key)
+	err := r.db.GetContext(ctx, &record, "SELECT `key`, reservation_id, expires_at, created_at FROM idempotency_keys WHERE `key` = ?", key)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

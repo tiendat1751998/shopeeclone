@@ -1,0 +1,60 @@
+## Session Startup
+1. Read TASK_LOG.md, scan LESSONS.md for relevant patterns
+2. Read PROJECT_BRIEF.md only if task requires architecture context
+3. Understand the task fully before acting
+
+## Autonomous Workflow (MANDATORY)
+Execute this loop independently for every non-trivial task. Only ask the user when fully complete and verified:
+
+1. **Analyze** — Understand the problem. Read relevant source files, check LESSONS.md for known patterns, identify root cause
+2. **Plan** — Formulate a brief plan. State assumptions. Identify which files need changes and what verification is needed. Choose the right approach:
+   - New feature/implementations → use **Coder** workflow
+   - Bug fix / build failure / regression → use **Fixer** workflow
+3. **Execute:**
+   - **Coder** — Write code. Create/modify files. Follow Coding Rules. Keep changes minimal and focused
+   - **Fixer** — Diagnose first. Find the root cause before touching code. Patch the smallest possible scope. Verify the fix resolves the symptom
+4. **Verify** — Run build/lint/test. Check for regressions. Fix any breakage immediately (switches to Fixer workflow)
+5. **Review** — Re-read changed files. Confirm changes match the plan. Check for orphaned imports, dead code, contract mismatches
+6. **Report** — Summarize what was done, what was verified, any remaining risks. Ask for deployment approval
+
+Do NOT ask for confirmation between steps. Execute the full loop autonomously.
+
+## Task Execution
+- Read whatever context is needed to execute intelligently
+- Use sequentialthinking for complex bugs/architectural decisions
+- Read full files when partial reads might miss structural context (imports, type defs, config blocks)
+- Never re-read the same file in one session unless it was modified
+- For complex multi-file tasks: decompose into delegate_task sub-agents
+- Browser always in sub-agents
+
+## Coding Rules
+- Think before coding: state assumptions, surface tradeoffs, present alternatives
+- Simplicity first: minimum code, no speculative abstractions
+- Surgical changes: touch only what you must, match existing style
+- Local abstraction: extract helpers only if duplication directly risks bugs; otherwise keep changes strictly local
+- Contract alignment: when changing shared types/schemas, run type-checkers before final build
+
+## Verification (Atomic Guardrail)
+- After a logical unit of changes, run build/lint/test
+- Defer validation until all files for a breaking change are updated
+- Never leave the session in a broken build state
+
+## Self-Correction Limits
+- Max 3 attempts per strategy, max 2 strategy pivots per task
+- If still failing after 2 pivots: stop, dump error logs, report to user
+- If a tool/patch fails: DO NOT retry same args — change strategy immediately
+
+## Token Efficiency (secondary priority)
+- Don't call tools that don't advance the task
+- Don't output unsolicited diffs, audits, or summaries
+- Summarize tool output before passing it forward in multi-step tasks
+
+## No Garbage Policy
+- Do the work → report the result → stop
+- No multi-paragraph explanations of what changed and why
+- No verbose file dumps unless explicitly requested
+- Exception: if user explicitly asks for explanation, provide concise structured breakdown
+
+## Evolution Protocol
+- After bug fix/non-trivial task: append lesson to LESSONS.md (Symptom → Root Cause → Fix → Pattern)
+- Keep TASK_LOG.md active-only, archive completed tasks

@@ -19,10 +19,21 @@ import (
 	"github.com/shopee-clone/shopee/platforms/search-indexing/internal/pipeline"
 	"github.com/shopee-clone/shopee/platforms/search-indexing/internal/synonyms"
 	httptransport "github.com/shopee-clone/shopee/platforms/search-indexing/internal/transport/http"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 )
+
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
 
 func main() {
 	coordRepo := coordinator.NewInMemoryRepository()
+	// Auto-tune GOMAXPROCS for container environments
+	_, _ = automaxprocs.Set()
+
 	coordSvc := coordinator.NewService(coordRepo)
 
 	bulkRepo := bulkindexer.NewInMemoryRepository()
@@ -53,9 +64,9 @@ func main() {
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%s", port),
 		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	var wg sync.WaitGroup

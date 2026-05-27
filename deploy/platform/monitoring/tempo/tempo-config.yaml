@@ -51,3 +51,5 @@ overrides:
   metrics_generator_processors:
     - service-graphs
     - span-metrics
+  max_bytes_per_trace: 5_000_000
+  max_search_bytes_per_trace: 0

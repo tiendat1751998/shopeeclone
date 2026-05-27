@@ -17,10 +17,21 @@ import (
 	"github.com/shopee-clone/shopee/platforms/service-mesh/internal/telemetry"
 	"github.com/shopee-clone/shopee/platforms/service-mesh/internal/traffic"
 	httpTransport "github.com/shopee-clone/shopee/platforms/service-mesh/internal/transport/http"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 )
+
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
 
 func main() {
 	discRepo := discovery.NewInMemoryRepository()
+	// Auto-tune GOMAXPROCS for container environments
+	_, _ = automaxprocs.Set()
+
 	discSvc := discovery.NewService(discRepo)
 
 	ca, err := mtls.NewCertificateAuthority("ShopeeClone", "Service Mesh CA", 3650)
@@ -48,9 +59,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         ":8095",
 		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
+		ReadTimeout:       5 * time.Second,
 		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {

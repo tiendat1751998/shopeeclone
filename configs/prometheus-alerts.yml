@@ -1,0 +1,168 @@
+groups:
+  - name: shopee-service-alerts
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate ({{ $value | humanizePercentage }})"
+          description: "Error rate is above 5% for the last 5 minutes"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P99 latency for {{ $labels.service }}"
+          description: "P99 latency is above 5s for {{ $labels.service }}"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.service }} is down"
+          description: "{{ $labels.service }} has been unreachable for 1 minute"
+
+      - alert: HighCPUUsage
+        expr: sum(rate(container_cpu_usage_seconds_total[5m])) by (pod) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.pod }}"
+          description: "CPU usage is above 90% for 5 minutes"
+
+      - alert: HighMemoryUsage
+        expr: container_memory_working_set_bytes / on(pod) kube_pod_container_resource_limits{resource="memory"} > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.pod }}"
+          description: "Memory usage is above 90% for 5 minutes"
+
+  - name: shopee-kafka-alerts
+    interval: 30s
+    rules:
+      - alert: KafkaConsumerLag
+        expr: kafka_consumer_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka consumer lag is high"
+          description: "Consumer lag for {{ $labels.consumer_group }} is {{ $value }}"
+
+      - alert: KafkaUnderReplicated
+        expr: kafka_topic_partition_under_replicated_partitions > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kafka partition under-replicated"
+          description: "Topic {{ $labels.topic }} partition {{ $labels.partition }} is under-replicated"
+
+  - name: shopee-redis-alerts
+    interval: 30s
+    rules:
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is at {{ $value | humanizePercentage }}"
+
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis instance down"
+          description: "Redis {{ $labels.instance }} is unreachable"
+
+  - name: shopee-infra-alerts
+    interval: 30s
+    rules:
+      - alert: DiskSpaceLow
+        expr: node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk space low on {{ $labels.node }}"
+          description: "Available disk space is below 10%"
+
+      - alert: PodRestarts
+        expr: increase(kube_pod_container_status_restarts_total[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.pod }} restarting frequently"
+          description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last hour"
+
+  - name: shopee-business-alerts
+    interval: 15s
+    rules:
+      - alert: OrderFailureRateHigh
+        expr: rate(checkouts_failed_total[5m]) / rate(checkouts_initiated_total[5m]) > 0.2
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High checkout failure rate"
+          description: "Checkout failure rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      - alert: PaymentFailureRateHigh
+        expr: rate(payments_failed_total[5m]) / rate(payments_authorized_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High payment failure rate"
+          description: "Payment failure rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      - alert: OversellPreventionTriggered
+        expr: rate(oversell_prevention_count_total[1m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Oversell prevention triggered"
+          description: "Stock reservation blocked due to insufficient inventory"
+
+      - alert: AccountLockoutSpike
+        expr: rate(account_lockouts_total[5m]) > 0.5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Account lockout spike"
+          description: "{{ $value }} accounts locked per second over the last 5 minutes"
+
+      - alert: FraudDetectionSpike
+        expr: rate(fraud_cases_created[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fraud detection spike"
+          description: "Fraud cases created at {{ $value }}/sec over the last 5 minutes"
+
+      - alert: IdempotencyHitRate
+        expr: rate(idempotent_requests_total[5m]) / (rate(idempotent_requests_total[5m]) + rate(orders_created_total[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "High idempotency hit rate"
+          description: "{{ $value | humanizePercentage }} of requests are duplicates - possible retry storm"

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: production-dashboard
+description: Shopee Clone - Production Management Dashboard Platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - shopee
+  - e-commerce
+  - dashboard
+  - production
+  - monitoring
+maintainers:
+  - name: Shopee Clone Team
+    email: dev@shopee-clone.com

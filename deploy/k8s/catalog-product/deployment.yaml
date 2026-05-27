@@ -35,8 +35,17 @@ spec:
         runAsUser: 65534
         runAsGroup: 65534
         fsGroup: 65534
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
       containers:
         - name: catalog-product
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/shopee-clone/catalog-product:latest
           imagePullPolicy: Always
           ports:
@@ -96,6 +105,10 @@ spec:
             initialDelaySeconds: 3
             periodSeconds: 5
             failureThreshold: 30
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sleep", "15"]
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

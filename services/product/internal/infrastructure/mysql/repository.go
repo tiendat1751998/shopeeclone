@@ -125,8 +125,27 @@ func (r *ProductRepo) List(ctx context.Context, filter domain.ProductFilter) (*d
 
 	// Fetch page
 	offset := (filter.Page - 1) * filter.Size
+
+	// [SECURITY] Validate sort column against whitelist to prevent SQL injection
+	// Note: products table has: created_at, updated_at, title. Price requires JOIN with skus.
+	sortColumn := "updated_at"
+	sortOrder := "DESC"
+	switch filter.SortBy {
+	case "created_at", "updated_at", "name":
+		sortColumn = string(filter.SortBy)
+	case "price":
+		// Price lives in skus table — sort by min sale_price via subquery
+		sortColumn = "(SELECT MIN(sku.sale_price) FROM skus sku WHERE sku.spu_id = products.spu_id)"
+	case "popularity", "sales", "rating":
+		// These columns don't exist yet — fall back to created_at
+		sortColumn = "created_at"
+	}
+	if filter.SortOrder == "ASC" {
+		sortOrder = "ASC"
+	}
+
 	query := fmt.Sprintf(`SELECT id, spu_id, title, description, category_id, brand_id, seller_id, status, created_at, updated_at
-		FROM products WHERE %s ORDER BY %s %s LIMIT ? OFFSET ?`, whereClause, filter.SortBy, filter.SortOrder)
+		FROM products WHERE %s ORDER BY %s %s LIMIT ? OFFSET ?`, whereClause, sortColumn, sortOrder)
 	args = append(args, filter.Size, offset)
 
 	var products []domain.Product
@@ -188,8 +207,12 @@ func (r *ProductRepo) Search(ctx context.Context, query string, filter domain.Pr
 	// [SECURITY] Validate sort column against whitelist to prevent SQL injection
 	sortColumn := "updated_at"
 	switch filter.SortBy {
-	case "relevance", "created_at", "updated_at", "price", "sales", "rating", "popularity", "name":
+	case "relevance", "created_at", "name":
 		sortColumn = string(filter.SortBy)
+	case "price":
+		sortColumn = "(SELECT MIN(sku.sale_price) FROM skus sku WHERE sku.spu_id = products.spu_id)"
+	case "popularity", "sales", "rating":
+		sortColumn = "created_at"
 	}
 	sortOrder := "DESC"
 	if filter.SortOrder == "ASC" {
@@ -541,7 +564,7 @@ func (r *AttributeRepo) Create(ctx context.Context, attr *domain.Attribute) erro
 
 func (r *AttributeRepo) GetByID(ctx context.Context, id string) (*domain.Attribute, error) {
 	var attr domain.Attribute
-	query := `SELECT * FROM attributes WHERE attribute_id = ?`
+	query := `SELECT attribute_id, category_id, name, type, is_required, is_filterable, is_searchable, sort_order, created_at, updated_at FROM attributes WHERE attribute_id = ?`
 	if err := r.db.GetContext(ctx, &attr, query, id); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -552,7 +575,7 @@ func (r *AttributeRepo) GetByID(ctx context.Context, id string) (*domain.Attribu
 }
 
 func (r *AttributeRepo) ListByCategory(ctx context.Context, categoryID string) ([]domain.Attribute, error) {
-	query := `SELECT * FROM attributes WHERE category_id = ? ORDER BY sort_order ASC`
+	query := `SELECT attribute_id, category_id, name, type, is_required, is_filterable, is_searchable, sort_order, created_at, updated_at FROM attributes WHERE category_id = ? ORDER BY sort_order ASC`
 	var attrs []domain.Attribute
 	if err := r.db.SelectContext(ctx, &attrs, query, categoryID); err != nil {
 		return nil, err
@@ -580,7 +603,7 @@ func (r *AttributeRepo) CreateValue(ctx context.Context, val *domain.AttributeVa
 }
 
 func (r *AttributeRepo) ListValues(ctx context.Context, attributeID string) ([]domain.AttributeValue, error) {
-	query := `SELECT * FROM attribute_values WHERE attribute_id = ? ORDER BY sort_order ASC`
+	query := `SELECT id, attribute_id, value, display_value, sort_order FROM attribute_values WHERE attribute_id = ? ORDER BY sort_order ASC`
 	var values []domain.AttributeValue
 	if err := r.db.SelectContext(ctx, &values, query, attributeID); err != nil {
 		return nil, err
@@ -606,7 +629,7 @@ func (r *ModerationRepo) Create(ctx context.Context, record *domain.ModerationRe
 
 func (r *ModerationRepo) GetByProduct(ctx context.Context, spuID string) (*domain.ModerationRecord, error) {
 	var record domain.ModerationRecord
-	query := `SELECT * FROM moderation_records WHERE spu_id = ? ORDER BY created_at DESC LIMIT 1`
+	query := `SELECT id, spu_id, status, reason, reviewer_id, created_at, updated_at FROM moderation_records WHERE spu_id = ? ORDER BY created_at DESC LIMIT 1`
 	if err := r.db.GetContext(ctx, &record, query, spuID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

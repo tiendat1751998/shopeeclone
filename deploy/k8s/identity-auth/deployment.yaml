@@ -33,8 +33,17 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
       containers:
         - name: identity-auth
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/shopee-clone/identity-auth:latest
           imagePullPolicy: Always
           ports:

@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: production-dashboard
+  namespace: shopee-platform
+  labels:
+    app: production-dashboard
+    tier: platform
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: production-dashboard
+  template:
+    metadata:
+      labels:
+        app: production-dashboard
+        tier: platform
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 60
+      serviceAccountName: production-dashboard
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+        - name: dashboard
+          image: ghcr.io/shopee-clone/production-dashboard:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+            - containerPort: 9090
+              name: grpc
+              protocol: TCP
+          env:
+            - name: APP_NAME
+              value: "production-dashboard"
+            - name: APP_ENV
+              value: "production"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: DASHBOARD_HTTP_PORT
+              value: "8080"
+            - name: DASHBOARD_GRPC_PORT
+              value: "9090"
+            - name: MYSQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-db
+                  key: host
+            - name: MYSQL_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-db
+                  key: port
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-db
+                  key: user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-db
+                  key: password
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-db
+                  key: database
+            - name: REDIS_ADDR
+              value: "redis-cluster:6379"
+            - name: KAFKA_BROKERS
+              value: "kafka:9092"
+            - name: JWT_ACCESS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dashboard-jwt
+                  key: access-secret
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4318"
+            - name: OTEL_SERVICE_NAME
+              value: "production-dashboard"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 30

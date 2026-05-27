@@ -2,9 +2,10 @@ package cache
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/bytedance/sonic"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopee-clone/shopee/platforms/live-commerce/internal/domain"
 )
@@ -18,7 +19,7 @@ func NewStore(client *redis.Client) *Store {
 }
 
 func (s *Store) GetLivestream(ctx context.Context, id string) (*domain.Livestream, error) {
-	key := fmt.Sprintf("cache:livestream:%s", id)
+	key := "cache:livestream:" + id
 	data, err := s.client.Get(ctx, key).Bytes()
 	if err != nil {
 		if err == redis.Nil {
@@ -27,15 +28,15 @@ func (s *Store) GetLivestream(ctx context.Context, id string) (*domain.Livestrea
 		return nil, err
 	}
 	ls := &domain.Livestream{}
-	if err := json.Unmarshal(data, ls); err != nil {
+	if err := sonic.Unmarshal(data, ls); err != nil {
 		return nil, err
 	}
 	return ls, nil
 }
 
 func (s *Store) SetLivestream(ctx context.Context, ls *domain.Livestream) error {
-	key := fmt.Sprintf("cache:livestream:%s", ls.ID)
-	data, err := json.Marshal(ls)
+	key := "cache:livestream:" + ls.ID
+	data, err := sonic.Marshal(ls)
 	if err != nil {
 		return err
 	}
@@ -43,7 +44,8 @@ func (s *Store) SetLivestream(ctx context.Context, ls *domain.Livestream) error 
 }
 
 func (s *Store) InvalidateLivestream(ctx context.Context, id string) error {
-	return s.client.Del(ctx, fmt.Sprintf("cache:livestream:%s", id)).Err()
+	key := "cache:livestream:" + id
+	return s.client.Del(ctx, key).Err()
 }
 
 func (s *Store) GetActiveLivestreams(ctx context.Context, offset, limit int) ([]*domain.Livestream, error) {
@@ -52,10 +54,10 @@ func (s *Store) GetActiveLivestreams(ctx context.Context, offset, limit int) ([]
 	if err != nil {
 		return nil, err
 	}
-	var result []*domain.Livestream
+	result := make([]*domain.Livestream, 0, len(data))
 	for _, d := range data {
 		ls := &domain.Livestream{}
-		if err := json.Unmarshal([]byte(d), ls); err != nil {
+		if err := sonic.Unmarshal([]byte(d), ls); err != nil {
 			continue
 		}
 		result = append(result, ls)
@@ -68,10 +70,20 @@ func (s *Store) SetActiveLivestreams(ctx context.Context, livestreams []*domain.
 	s.client.Del(ctx, key)
 	pipe := s.client.Pipeline()
 	for _, ls := range livestreams {
-		data, _ := json.Marshal(ls)
+		data, _ := sonic.Marshal(ls)
 		pipe.RPush(ctx, key, data)
 	}
 	pipe.Expire(ctx, key, 1*time.Minute)
 	_, err := pipe.Exec(ctx)
 	return err
+}
+
+// CacheKeyLivestream builds a cache key without fmt.Sprintf (helper for external callers).
+func CacheKeyLivestream(id string) string {
+	return "cache:livestream:" + id
+}
+
+// CacheKeyActiveLivestreams returns the fixed key for active livestreams list.
+func CacheKeyActiveLivestreams() string {
+	return fmt.Sprintf("cache:livestreams:active")
 }

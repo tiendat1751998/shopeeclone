@@ -9,7 +9,7 @@ datasources:
     editable: false
     jsonData:
       timeInterval: 15s
-      queryTimeout: 30s
+      queryTimeout: 60s
       httpMethod: POST
 
   - name: Loki
@@ -18,13 +18,12 @@ datasources:
     url: http://loki:3100
     editable: false
     jsonData:
-      maxLines: 1000
+      maxLines: 5000
       derivedFields:
         - name: trace_id
           type: string
           matcherRegex: "trace_id=(\\w+)"
           url: "$${__value.raw}"
-          datasourceName: Tempo
           datasourceUid: tempo
 
   - name: Tempo
@@ -37,9 +36,9 @@ datasources:
         enabled: true
       search:
         hide: false
-      tracesToLogs:
+      tracesToLogsV2:
         datasourceUid: loki
-        tags: ["service.name", "span.name"]
         filterByTraceID: true
+        filterBySpanID: false
         spanStartTimeShift: "-1h"
         spanEndTimeShift: "1h"

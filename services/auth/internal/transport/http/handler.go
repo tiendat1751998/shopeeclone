@@ -34,7 +34,7 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	ip := c.ClientIP()
+	ip := clientIP(c)
 	userAgent := c.GetHeader("User-Agent")
 
 	tokens, _, err := h.authService.Register(ctx, &req, ip, userAgent)
@@ -63,7 +63,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	ip := c.ClientIP()
+	ip := clientIP(c)
 	userAgent := c.GetHeader("User-Agent")
 
 	tokens, _, err := h.authService.Login(ctx, &req, ip, userAgent)
@@ -91,7 +91,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	ip := c.ClientIP()
+	ip := clientIP(c)
 	userAgent := c.GetHeader("User-Agent")
 
 	tokens, _, err := h.authService.RefreshToken(ctx, req.RefreshToken, ip, userAgent)
@@ -259,7 +259,7 @@ func (h *Handler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	ip := c.ClientIP()
+	ip := clientIP(c)
 	if err := h.authService.RequestPasswordReset(ctx, &req, ip); err != nil {
 		handleError(c, err)
 		return
@@ -281,7 +281,7 @@ func (h *Handler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	ip := c.ClientIP()
+	ip := clientIP(c)
 	if err := h.authService.ResetPassword(ctx, &req, ip); err != nil {
 		handleError(c, err)
 		return
@@ -303,7 +303,7 @@ func (h *Handler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	ip := c.ClientIP()
+	ip := clientIP(c)
 	if err := h.authService.VerifyEmail(ctx, &req, ip); err != nil {
 		handleError(c, err)
 		return
@@ -384,4 +384,24 @@ func extractToken(c *gin.Context) string {
 		return bearer[7:]
 	}
 	return ""
+}
+
+// clientIP extracts the real client IP, trusting X-Forwarded-For from our own proxy.
+// The Next.js proxy and nginx both set X-Forwarded-For, so we always use it.
+func clientIP(c *gin.Context) string {
+	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
+		// Take the first IP (original client)
+		if idx := len(xff); idx > 0 {
+			for i, ch := range xff {
+				if ch == ',' {
+					return xff[:i]
+				}
+			}
+			return xff
+		}
+	}
+	if xri := c.GetHeader("X-Real-IP"); xri != "" {
+		return xri
+	}
+	return c.ClientIP()
 }

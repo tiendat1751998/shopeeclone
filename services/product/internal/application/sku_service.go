@@ -2,10 +2,10 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/errors"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"github.com/shopee-clone/shopee/services/product/internal/domain"
@@ -207,7 +207,7 @@ func (s *SKUService) UpdateSKUPrice(ctx context.Context, skuID string, price flo
 	// Publish event
 	event := domain.NewSKUUpdatedEvent(existing.SPUID, existing.SKUID, price, existing.Stock, string(existing.Status))
 	event.SalePrice = salePrice
-	if payload, err := json.Marshal(event); err == nil {
+	if payload, err := sonic.Marshal(event); err == nil {
 		if pubErr := s.publisher.Publish(ctx, "sku.events", skuID, payload); pubErr != nil {
 			log.Warn("failed to publish SKUUpdatedEvent",
 				zap.Error(pubErr),
@@ -296,7 +296,7 @@ func (s *SKUService) UpdateSKUStock(ctx context.Context, skuID string, stock int
 
 	// Publish event
 	event := domain.NewSKUUpdatedEvent(existing.SPUID, existing.SKUID, existing.Price, stock, string(existing.Status))
-	if payload, err := json.Marshal(event); err == nil {
+	if payload, err := sonic.Marshal(event); err == nil {
 		if pubErr := s.publisher.Publish(ctx, "sku.events", skuID, payload); pubErr != nil {
 			log.Warn("failed to publish SKUUpdatedEvent",
 				zap.Error(pubErr),
@@ -392,7 +392,7 @@ func (s *SKUService) CreateSKU(ctx context.Context, spuID string, req CreateSKUR
 	// Publish event
 	event := domain.NewSKUUpdatedEvent(sku.SPUID, sku.SKUID, sku.Price, sku.Stock, string(sku.Status))
 	event.SalePrice = sku.SalePrice
-	if payload, err := json.Marshal(event); err == nil {
+	if payload, err := sonic.Marshal(event); err == nil {
 		if pubErr := s.publisher.Publish(ctx, "sku.events", sku.SKUID, payload); pubErr != nil {
 			log.Warn("failed to publish SKUUpdatedEvent",
 				zap.Error(pubErr),

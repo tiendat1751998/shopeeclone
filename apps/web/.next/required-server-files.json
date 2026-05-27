@@ -24,7 +24,7 @@
       "jsx",
       "js"
     ],
-    "poweredByHeader": true,
+    "poweredByHeader": false,
     "compress": true,
     "images": {
       "deviceSizes": [
@@ -32,10 +32,7 @@
         750,
         828,
         1080,
-        1200,
-        1920,
-        2048,
-        3840
+        1200
       ],
       "imageSizes": [
         16,
@@ -52,7 +49,7 @@
       "loaderFile": "",
       "domains": [],
       "disableStaticImages": false,
-      "minimumCacheTTL": 60,
+      "minimumCacheTTL": 86400,
       "formats": [
         "image/avif",
         "image/webp"
@@ -64,24 +61,11 @@
       "remotePatterns": [
         {
           "protocol": "https",
-          "hostname": "**.shopee.vn"
+          "hostname": "salt.tikicdn.com"
         },
         {
           "protocol": "https",
-          "hostname": "**.shopee.sg"
-        },
-        {
-          "protocol": "https",
-          "hostname": "**.shopee.com"
-        },
-        {
-          "protocol": "https",
-          "hostname": "cdn.example.com"
-        },
-        {
-          "protocol": "http",
-          "hostname": "localhost",
-          "port": "9000"
+          "hostname": "tiki.vn"
         }
       ],
       "unoptimized": false
@@ -105,7 +89,7 @@
     "serverRuntimeConfig": {},
     "publicRuntimeConfig": {},
     "reactProductionProfiling": false,
-    "reactStrictMode": null,
+    "reactStrictMode": true,
     "reactMaxHeadersLength": 6000,
     "httpAgentOptions": {
       "keepAlive": true
@@ -182,7 +166,7 @@
       "middlewarePrefetch": "flexible",
       "optimisticClientCache": true,
       "manualClientBasePath": false,
-      "cpus": 3,
+      "cpus": 5,
       "memoryBasedWorkersCount": false,
       "imgOptConcurrency": null,
       "imgOptTimeoutInSeconds": 7,
@@ -231,6 +215,7 @@
       "middlewareClientMaxBodySize": 10485760,
       "optimizePackageImports": [
         "lucide-react",
+        "recharts",
         "date-fns",
         "lodash-es",
         "ramda",
@@ -248,7 +233,6 @@
         "rxjs",
         "@mui/material",
         "@mui/icons-material",
-        "recharts",
         "react-use",
         "effect",
         "@effect/schema",
@@ -314,16 +298,6 @@
     "configFileName": "next.config.ts",
     "turbopack": {
       "root": "/home/datdt/shopeeclone"
-    },
-    "_originalRewrites": {
-      "beforeFiles": [],
-      "afterFiles": [
-        {
-          "source": "/api/gateway/:path*",
-          "destination": "http://localhost:8080/api/v1/:path*"
-        }
-      ],
-      "fallback": []
     }
   },
   "appDir": "/home/datdt/shopeeclone/apps/web",
@@ -349,6 +323,6 @@
     ".next/required-server-files.json"
   ],
   "ignore": [
-    "node_modules/next/dist/compiled/@ampproject/toolbox-optimizer/**/*"
+    "../../node_modules/next/dist/compiled/@ampproject/toolbox-optimizer/**/*"
   ]
 }

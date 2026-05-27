@@ -76,7 +76,10 @@ func (lb *LoadBalancer) leastConnections() *discovery.ServiceInstance {
 	bestCount := int64(1 << 62)
 	for _, inst := range lb.instances {
 		val, _ := lb.lcCounts.LoadOrStore(inst.ID, int64(0))
-		count := val.(int64)
+		count, ok := val.(int64)
+		if !ok {
+			count = 0
+		}
 		if count < bestCount {
 			bestCount = count
 			best = inst

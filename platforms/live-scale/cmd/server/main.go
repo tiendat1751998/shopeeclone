@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
 	"go.uber.org/zap"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/shopee-clone/shopee/platforms/live-scale/internal/cdn"
 	"github.com/shopee-clone/shopee/platforms/live-scale/internal/config"
@@ -25,8 +26,19 @@ import (
 	httpTransport "github.com/shopee-clone/shopee/platforms/live-scale/internal/transport/http"
 )
 
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
+
 func main() {
 	cfg := config.Load()
+	// Auto-tune GOMAXPROCS for container environments
+	_, _ = automaxprocs.Set()
+
+
 	logger := logging.NewLogger(cfg.AppEnv)
 	defer logger.Sync()
 
@@ -69,9 +81,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", httpPort),
 		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
+		ReadTimeout:       5 * time.Second,
 		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {

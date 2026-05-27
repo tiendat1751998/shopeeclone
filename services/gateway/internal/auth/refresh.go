@@ -69,8 +69,22 @@ func (h *RefreshTokenHandler) HandleRefresh() gin.HandlerFunc {
 			}
 		}
 
-		deviceInfo, _ := c.Get(string(middleware.DeviceInfoKey))
-		deviceMap, _ := deviceInfo.(map[string]string)
+		deviceInfo, exists := c.Get(string(middleware.DeviceInfoKey))
+		if !exists || deviceInfo == nil {
+			c.AbortWithStatusJSON(400, gin.H{
+				"error_code": "MISSING_DEVICE_INFO",
+				"message":    "device info not found in context",
+			})
+			return
+		}
+		deviceMap, ok := deviceInfo.(map[string]string)
+		if !ok {
+			c.AbortWithStatusJSON(400, gin.H{
+				"error_code": "INVALID_DEVICE_INFO",
+				"message":    "invalid device info format",
+			})
+			return
+		}
 
 		newAccessToken, err := h.issueToken(claims.UserID, claims.Roles, claims.SessionID, h.cfg.AccessTTL, deviceMap)
 		if err != nil {

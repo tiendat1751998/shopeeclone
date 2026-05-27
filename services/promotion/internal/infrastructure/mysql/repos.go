@@ -30,7 +30,7 @@ func (r *VoucherRepository) FindByCodeForUpdate(ctx context.Context, tx *sql.Tx,
 
 func (r *VoucherRepository) FindByID(ctx context.Context, id string) (*domain.Voucher, error) {
 	var v domain.Voucher
-	err := r.db.GetContext(ctx, &v, "SELECT * FROM vouchers WHERE id = ?", id)
+	err := r.db.GetContext(ctx, &v, "SELECT id, code, title, description, type, discount_value, min_spend, max_discount, usage_limit, usage_count, per_user_limit, scope, shop_id, category_id, sku, region, payment_method, start_time, end_time, status, stackable, priority, created_at, updated_at FROM vouchers WHERE id = ?", id)
 	if err == sql.ErrNoRows { return nil, nil }
 	if err != nil { return nil, err }
 	return &v, nil
@@ -38,7 +38,7 @@ func (r *VoucherRepository) FindByID(ctx context.Context, id string) (*domain.Vo
 
 func (r *VoucherRepository) FindByCode(ctx context.Context, code string) (*domain.Voucher, error) {
 	var v domain.Voucher
-	err := r.db.GetContext(ctx, &v, "SELECT * FROM vouchers WHERE code = ?", code)
+	err := r.db.GetContext(ctx, &v, "SELECT id, code, title, description, type, discount_value, min_spend, max_discount, usage_limit, usage_count, per_user_limit, scope, shop_id, category_id, sku, region, payment_method, start_time, end_time, status, stackable, priority, created_at, updated_at FROM vouchers WHERE code = ?", code)
 	if err == sql.ErrNoRows { return nil, nil }
 	if err != nil { return nil, err }
 	return &v, nil
@@ -97,7 +97,7 @@ func (r *VoucherRepository) ListActive(ctx context.Context, offset, limit int) (
 	var total int64
 	r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM vouchers WHERE status = 'active' AND end_time > NOW()")
 	var vouchers []*domain.Voucher
-	err := r.db.SelectContext(ctx, &vouchers, "SELECT * FROM vouchers WHERE status = 'active' AND end_time > NOW() ORDER BY priority DESC LIMIT ? OFFSET ?", limit, offset)
+	err := r.db.SelectContext(ctx, &vouchers, "SELECT id, code, title, description, type, discount_value, min_spend, max_discount, usage_limit, usage_count, per_user_limit, scope, shop_id, category_id, sku, region, payment_method, start_time, end_time, status, stackable, priority, created_at, updated_at FROM vouchers WHERE status = 'active' AND end_time > NOW() ORDER BY priority DESC LIMIT ? OFFSET ?", limit, offset)
 	return vouchers, total, err
 }
 
@@ -108,20 +108,20 @@ func NewVoucherRedemptionRepository(db *sqlx.DB) *VoucherRedemptionRepository {
 
 func (r *VoucherRedemptionRepository) FindByID(ctx context.Context, id string) (*domain.VoucherRedemption, error) {
 	var red domain.VoucherRedemption
-	err := r.db.GetContext(ctx, &red, "SELECT * FROM voucher_redemptions WHERE id = ?", id)
+	err := r.db.GetContext(ctx, &red, "SELECT id, voucher_id, user_id, order_id, discount_amount, idempotency_key, created_at FROM voucher_redemptions WHERE id = ?", id)
 	if err == sql.ErrNoRows { return nil, nil }
 	return &red, err
 }
 
 func (r *VoucherRedemptionRepository) FindByUserAndVoucher(ctx context.Context, userID, voucherID string) ([]*domain.VoucherRedemption, error) {
 	var reds []*domain.VoucherRedemption
-	err := r.db.SelectContext(ctx, &reds, "SELECT * FROM voucher_redemptions WHERE user_id = ? AND voucher_id = ?", userID, voucherID)
+	err := r.db.SelectContext(ctx, &reds, "SELECT id, voucher_id, user_id, order_id, discount_amount, idempotency_key, created_at FROM voucher_redemptions WHERE user_id = ? AND voucher_id = ?", userID, voucherID)
 	return reds, err
 }
 
 func (r *VoucherRedemptionRepository) FindByIdempotencyKey(ctx context.Context, key string) (*domain.VoucherRedemption, error) {
 	var red domain.VoucherRedemption
-	err := r.db.GetContext(ctx, &red, "SELECT * FROM voucher_redemptions WHERE idempotency_key = ?", key)
+	err := r.db.GetContext(ctx, &red, "SELECT id, voucher_id, user_id, order_id, discount_amount, idempotency_key, created_at FROM voucher_redemptions WHERE idempotency_key = ?", key)
 	if err == sql.ErrNoRows { return nil, nil }
 	return &red, err
 }
@@ -170,7 +170,7 @@ func NewCampaignRepository(db *sqlx.DB) *CampaignRepository { return &CampaignRe
 
 func (r *CampaignRepository) FindByID(ctx context.Context, id string) (*domain.Campaign, error) {
 	var c domain.Campaign
-	err := r.db.GetContext(ctx, &c, "SELECT * FROM campaigns WHERE id = ?", id)
+	err := r.db.GetContext(ctx, &c, "SELECT id, name, type, description, rules, start_time, end_time, status, priority, created_at, updated_at FROM campaigns WHERE id = ?", id)
 	if err == sql.ErrNoRows { return nil, nil }
 	return &c, err
 }
@@ -189,7 +189,7 @@ func (r *CampaignRepository) Update(ctx context.Context, c *domain.Campaign) err
 
 func (r *CampaignRepository) ListActive(ctx context.Context) ([]*domain.Campaign, error) {
 	var campaigns []*domain.Campaign
-	err := r.db.SelectContext(ctx, &campaigns, "SELECT * FROM campaigns WHERE status = 'active' AND start_time <= NOW() AND end_time > NOW() ORDER BY priority DESC LIMIT 100")
+	err := r.db.SelectContext(ctx, &campaigns, "SELECT id, name, type, description, rules, start_time, end_time, status, priority, created_at, updated_at FROM campaigns WHERE status = 'active' AND start_time <= NOW() AND end_time > NOW() ORDER BY priority DESC LIMIT 100")
 	return campaigns, err
 }
 
@@ -199,7 +199,7 @@ func (r *CampaignRepository) ListByType(ctx context.Context, cType string, offse
 	var total int64
 	r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM campaigns WHERE type = ?", cType)
 	var campaigns []*domain.Campaign
-	err := r.db.SelectContext(ctx, &campaigns, "SELECT * FROM campaigns WHERE type = ? ORDER BY priority DESC LIMIT ? OFFSET ?", cType, limit, offset)
+	err := r.db.SelectContext(ctx, &campaigns, "SELECT id, name, type, description, rules, start_time, end_time, status, priority, created_at, updated_at FROM campaigns WHERE type = ? ORDER BY priority DESC LIMIT ? OFFSET ?", cType, limit, offset)
 	return campaigns, total, err
 }
 
@@ -207,7 +207,7 @@ type PricingRuleRepository struct{ db *sqlx.DB }
 func NewPricingRuleRepository(db *sqlx.DB) *PricingRuleRepository { return &PricingRuleRepository{db: db} }
 func (r *PricingRuleRepository) FindByCampaign(ctx context.Context, campaignID string) ([]*domain.PricingRule, error) {
 	var rules []*domain.PricingRule
-	err := r.db.SelectContext(ctx, &rules, "SELECT * FROM pricing_rules WHERE campaign_id = ? AND is_active = true ORDER BY priority DESC", campaignID)
+	err := r.db.SelectContext(ctx, &rules, "SELECT id, campaign_id, rule_type, condition_json, action_json, priority, is_active, created_at, updated_at FROM pricing_rules WHERE campaign_id = ? AND is_active = true ORDER BY priority DESC", campaignID)
 	return rules, err
 }
 func (r *PricingRuleRepository) FindByCampaigns(ctx context.Context, campaignIDs []string) (map[string][]*domain.PricingRule, error) {
@@ -215,7 +215,7 @@ func (r *PricingRuleRepository) FindByCampaigns(ctx context.Context, campaignIDs
 		return map[string][]*domain.PricingRule{}, nil
 	}
 	var rules []*domain.PricingRule
-	query, args, err := sqlx.In("SELECT * FROM pricing_rules WHERE campaign_id IN (?) AND is_active = true ORDER BY priority DESC", campaignIDs)
+	query, args, err := sqlx.In("SELECT id, campaign_id, rule_type, condition_json, action_json, priority, is_active, created_at, updated_at FROM pricing_rules WHERE campaign_id IN (?) AND is_active = true ORDER BY priority DESC", campaignIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +245,7 @@ type EligibilityRuleRepository struct{ db *sqlx.DB }
 func NewEligibilityRuleRepository(db *sqlx.DB) *EligibilityRuleRepository { return &EligibilityRuleRepository{db: db} }
 func (r *EligibilityRuleRepository) FindByPromotion(ctx context.Context, promotionID string) ([]*domain.EligibilityRule, error) {
 	var rules []*domain.EligibilityRule
-	err := r.db.SelectContext(ctx, &rules, "SELECT * FROM eligibility_rules WHERE promotion_id = ? AND is_active = true ORDER BY id ASC LIMIT 100", promotionID)
+	err := r.db.SelectContext(ctx, &rules, "SELECT id, promotion_id, target_type, target_value, is_active FROM eligibility_rules WHERE promotion_id = ? AND is_active = true ORDER BY id ASC LIMIT 100", promotionID)
 	return rules, err
 }
 func (r *EligibilityRuleRepository) Create(ctx context.Context, rule *domain.EligibilityRule) error {
@@ -258,7 +258,7 @@ type StackingRuleRepository struct{ db *sqlx.DB }
 func NewStackingRuleRepository(db *sqlx.DB) *StackingRuleRepository { return &StackingRuleRepository{db: db} }
 func (r *StackingRuleRepository) FindByPromotionType(ctx context.Context, pType string) ([]*domain.StackingRule, error) {
 	var rules []*domain.StackingRule
-	err := r.db.SelectContext(ctx, &rules, "SELECT * FROM stacking_rules WHERE promotion_type = ? ORDER BY id ASC LIMIT 100", pType)
+	err := r.db.SelectContext(ctx, &rules, "SELECT id, promotion_type, can_stack_with, max_stack_count, priority FROM stacking_rules WHERE promotion_type = ? ORDER BY id ASC LIMIT 100", pType)
 	return rules, err
 }
 func (r *StackingRuleRepository) Create(ctx context.Context, rule *domain.StackingRule) error {

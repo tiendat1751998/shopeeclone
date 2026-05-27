@@ -1,20 +1,35 @@
 import type { Metadata } from "next";
-import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer";
-import "@/styles/globals.css";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { Providers } from "./providers";
+import { ToastContainer } from "@/components/ui/Toast";
+
+const inter = Inter({
+  subsets: ["latin", "vietnamese"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
-  title: "Shopee Clone – Online Shopping Mall",
-  description: "Shop millions of products at great prices. Free shipping available.",
+  title: {
+    default: "Tiki - Mua hàng online giá tốt, hàng chuẩn, ship nhanh",
+    template: "%s | Tiki",
+  },
+  description: "Mua sắm trực tuyến hàng triệu sản phẩm. Giá tốt, giao nhanh, miễn phí ship.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en">
-      <body>
-        <Header />
-        <main className="min-h-[calc(100vh-200px)]">{children}</main>
-        <Footer />
+    <html lang="vi" className={inter.variable}>
+      <body className="min-h-screen bg-tiki-bg text-tiki-text antialiased font-sans">
+        <Providers>
+          {children}
+          <ToastContainer />
+        </Providers>
       </body>
     </html>
   );

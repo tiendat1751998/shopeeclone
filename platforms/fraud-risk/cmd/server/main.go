@@ -16,10 +16,21 @@ import (
 	"github.com/shopee-clone/shopee/platforms/fraud-risk/internal/ruleengine"
 	"github.com/shopee-clone/shopee/platforms/fraud-risk/internal/transactionmon"
 	httpTransport "github.com/shopee-clone/shopee/platforms/fraud-risk/internal/transport/http"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 )
+
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
 
 func main() {
 	ruleRepo := ruleengine.NewInMemoryRuleRepository()
+	// Auto-tune GOMAXPROCS for container environments
+	_, _ = automaxprocs.Set()
+
 	rulesetRepo := ruleengine.NewInMemoryRuleSetRepository()
 	riskRepo := riskscoring.NewInMemoryRepository()
 	deviceRepo := devicefp.NewInMemoryRepository()
@@ -43,9 +54,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         ":8080",
 		Handler:      router,
-		ReadTimeout:  15 * time.Second,
+		ReadTimeout:       5 * time.Second,
 		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {

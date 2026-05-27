@@ -70,6 +70,10 @@ func (s *AuthService) Register(ctx context.Context, req *domain.RegisterRequest,
 		return nil, nil, err
 	}
 
+	if req.Password != req.ConfirmPassword {
+		return nil, nil, fmt.Errorf("%w: passwords do not match", domain.ErrPasswordMismatch)
+	}
+
 	if err := validatePassword(req.Password); err != nil {
 		span.SetStatus(codes.Error, "weak password")
 		return nil, nil, err
@@ -96,6 +100,8 @@ func (s *AuthService) Register(ctx context.Context, req *domain.RegisterRequest,
 	user := domain.NewUser(req.Email, req.Username, passwordHash)
 	user.DisplayName = req.DisplayName
 	user.Phone = req.Phone
+	user.EmailVerified = true
+	user.Status = domain.UserStatusActive
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		span.SetStatus(codes.Error, "db create failed")
@@ -370,38 +376,40 @@ func (s *AuthService) createSession(ctx context.Context, user *domain.User, ip, 
 		}
 	}
 
-	accessClaims := &jwt.Claims{
-		UserID:    user.ID,
-		Email:     user.Email,
-		Roles:     s.getUserRoles(ctx, user.ID),
-		Type:      "access",
-		SessionID: "",
-	}
-
-	accessToken, _, err := s.jwtService.GenerateAccessToken(ctx, accessClaims)
-	if err != nil {
-		return nil, nil, fmt.Errorf("access token generation failed: %w", err)
-	}
-
-	refreshToken, refreshTokenID, err := s.jwtService.GenerateRefreshToken(ctx, user.ID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("refresh token generation failed: %w", err)
-	}
-
+	// Create the session FIRST so we can embed the session ID in both tokens.
+	refreshTokenID := uuid.New().String()
 	session := domain.NewSession(
 		user.ID, ip, userAgent, refreshTokenID,
 		s.cfg.Session.SessionTTL,
 	)
 	session.DeviceID = deviceID
+	session.RefreshTokenID = refreshTokenID
 
 	if err := s.sessionRepo.Create(ctx, session); err != nil {
 		return nil, nil, fmt.Errorf("session creation failed: %w", err)
 	}
 
-	accessClaims.SessionID = session.ID
-
 	if s.redisStore != nil {
 		s.redisStore.StoreSession(ctx, session)
+	}
+
+	// Generate access token with the real session ID
+	accessClaims := &jwt.Claims{
+		UserID:    user.ID,
+		Email:     user.Email,
+		Roles:     s.getUserRoles(ctx, user.ID),
+		Type:      "access",
+		SessionID: session.ID,
+	}
+	accessToken, _, err := s.jwtService.GenerateAccessToken(ctx, accessClaims)
+	if err != nil {
+		return nil, nil, fmt.Errorf("access token generation failed: %w", err)
+	}
+
+	// Generate refresh token with the real session ID
+	refreshToken, err := s.jwtService.GenerateRefreshTokenWithSession(ctx, user.ID, session.ID, refreshTokenID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("refresh token generation failed: %w", err)
 	}
 
 	tokens := &domain.TokenPair{

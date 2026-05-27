@@ -21,8 +21,17 @@ func (h *Handler) CreateShipment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	userID, _ := c.Get("user_id")
-	req.UserID = userID.(string)
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id not found in context"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user_id in context"})
+		return
+	}
+	req.UserID = uid
 	shipment, err := h.shipmentService.CreateShipment(c.Request.Context(), &req)
 	if err != nil {
 		handleError(c, err)
@@ -51,8 +60,17 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	userID, _ := c.Get("user_id")
-	shipment, err := h.shipmentService.UpdateStatus(c.Request.Context(), shipmentID, domain.ShipmentStatus(req.Status), userID.(string), req.Reason)
+	userID, exists := c.Get("user_id")
+	if !exists || userID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id not found in context"})
+		return
+	}
+	uid, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id is not a valid string"})
+		return
+	}
+	shipment, err := h.shipmentService.UpdateStatus(c.Request.Context(), shipmentID, domain.ShipmentStatus(req.Status), uid, req.Reason)
 	if err != nil {
 		handleError(c, err)
 		return

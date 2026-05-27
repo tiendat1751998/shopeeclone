@@ -22,6 +22,7 @@ import (
 	"github.com/shopee-clone/shopee/services/catalog-product/internal/repository"
 	"github.com/shopee-clone/shopee/services/catalog-product/internal/usecase"
 	"go.uber.org/zap"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
@@ -29,9 +30,22 @@ import (
 
 var version = "0.1.0"
 
+func init() {
+	// Tune GC for low-latency: more frequent GCs, less heap growth
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+}
+
 func main() {
 	cfg := sharedConfig.Load()
+
 	logger := observability.InitLogger("catalog-product", cfg.LogLevel)
+
+	// Auto-tune GOMAXPROCS for container environments
+	if _, err := automaxprocs.Set(); err != nil {
+		logger.Warn("failed to set automaxprocs", zap.Error(err))
+	}
 
 	shutdownTracer, err := observability.InitTracer("catalog-product", cfg.OpenTelemetry.Endpoint)
 	if err != nil {
@@ -114,9 +128,9 @@ func main() {
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	grpcServer := grpc.NewServer(

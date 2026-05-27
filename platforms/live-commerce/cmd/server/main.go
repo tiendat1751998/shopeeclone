@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,7 +17,6 @@ import (
 	"github.com/shopee-clone/shopee/platforms/live-commerce/internal/application"
 	"github.com/shopee-clone/shopee/platforms/live-commerce/internal/cache"
 	"github.com/shopee-clone/shopee/platforms/live-commerce/internal/config"
-	"github.com/shopee-clone/shopee/platforms/live-commerce/internal/domain"
 	"github.com/shopee-clone/shopee/platforms/live-commerce/internal/engagement"
 	"github.com/shopee-clone/shopee/platforms/live-commerce/internal/fanout"
 	"github.com/shopee-clone/shopee/platforms/live-commerce/internal/health"
@@ -30,13 +30,39 @@ import (
 	kafkatransport "github.com/shopee-clone/shopee/platforms/live-commerce/internal/transport/kafka"
 	"github.com/shopee-clone/shopee/platforms/live-commerce/internal/websocket"
 	"go.uber.org/zap"
+	automaxprocs "go.uber.org/automaxprocs/maxprocs"
 )
 
 var version = "1.0.0"
 
+func init() {
+	if gogc := os.Getenv("GOGC"); gogc == "" {
+		os.Setenv("GOGC", "50")
+	}
+	// Tune net/http defaults for flash-sale traffic
+	http.DefaultTransport = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          256,
+		MaxIdleConnsPerHost:   64,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+}
+
 func main() {
 	cfg := config.Load()
+
 	logger := observability.InitLogger(cfg.AppName, cfg.LogLevel)
+
+	if _, err := automaxprocs.Set(); err != nil {
+		logger.Warn("failed to set automaxprocs", zap.Error(err))
+	}
 	defer observability.Sync()
 
 	shutdownTracer, err := observability.InitTracer(cfg.OpenTelemetry.ServiceName, cfg.OpenTelemetry.Endpoint)
@@ -127,11 +153,13 @@ func main() {
 	router.Setup(engine)
 
 	httpServer := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.HTTPPort),
-		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              fmt.Sprintf(":%d", cfg.HTTPPort),
+		Handler:           engine,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		ReadHeaderTimeout: 2 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	var wg sync.WaitGroup
@@ -146,7 +174,9 @@ func main() {
 		}
 	}()
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -169,6 +199,7 @@ func main() {
 	defer shutdownCancel()
 
 	httpServer.Shutdown(shutdownCtx)
+	hub.Stop()
 	broadcaster.Stop()
 
 	if redisClient != nil {

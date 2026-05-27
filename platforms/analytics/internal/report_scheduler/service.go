@@ -66,13 +66,25 @@ func (s *Service) UpdateReport(ctx context.Context, id string, updates map[strin
 		return nil, ErrReportNotFound
 	}
 	if v, ok := updates["name"]; ok {
-		r.Name = v.(string)
+		s, ok := v.(string)
+		if !ok {
+			return nil, ErrReportInvalid
+		}
+		r.Name = s
 	}
 	if v, ok := updates["is_active"]; ok {
-		r.IsActive = v.(bool)
+		b, ok := v.(bool)
+		if !ok {
+			return nil, ErrReportInvalid
+		}
+		r.IsActive = b
 	}
 	if v, ok := updates["frequency"]; ok {
-		r.Frequency = ScheduleFrequency(v.(string))
+		s, ok := v.(string)
+		if !ok {
+			return nil, ErrReportInvalid
+		}
+		r.Frequency = ScheduleFrequency(s)
 	}
 	r.UpdatedAt = time.Now()
 	if err := s.repo.UpdateReport(ctx, r); err != nil {

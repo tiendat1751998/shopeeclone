@@ -64,9 +64,12 @@ func NewInMemoryRepository() *InMemoryRepository {
 }
 
 var (
-	ErrNotFound = errors.New("incident not found")
+	ErrNotFound        = errors.New("incident not found")
 	ErrInvalidSeverity = errors.New("invalid severity")
-	ErrInvalidStatus = errors.New("invalid status")
+	ErrInvalidStatus   = errors.New("invalid status")
+	ErrInvalidAssignee = errors.New("invalid assignee")
+	ErrInvalidDescription = errors.New("invalid description")
+	ErrInvalidTitle    = errors.New("invalid title")
 )
 
 func (r *InMemoryRepository) Create(inc *Incident) error {

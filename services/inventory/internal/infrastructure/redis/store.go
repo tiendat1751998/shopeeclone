@@ -79,9 +79,18 @@ func (s *Store) GetCachedStock(ctx context.Context, skuID string) (int, int, err
 	if s.client == nil { return 0, 0, fmt.Errorf("redis not available") }
 	vals, err := s.client.HMGet(ctx, fmt.Sprintf("stock:%s", skuID), "quantity", "reserved").Result()
 	if err != nil { return 0, 0, err }
-	qty, _ := vals[0].(int64)
-	res, _ := vals[1].(int64)
-	return int(qty), int(res), nil
+	if len(vals) < 2 {
+		return 0, 0, fmt.Errorf("unexpected number of values from HMGet: got %d, want 2", len(vals))
+	}
+	qtyVal, ok := vals[0].(int64)
+	if !ok {
+		return 0, 0, fmt.Errorf("unexpected type for quantity: %T", vals[0])
+	}
+	resVal, ok := vals[1].(int64)
+	if !ok {
+		return 0, 0, fmt.Errorf("unexpected type for reserved: %T", vals[1])
+	}
+	return int(qtyVal), int(resVal), nil
 }
 
 func (s *Store) IncrementCounter(ctx context.Context, key string, ttl time.Duration) (int64, error) {

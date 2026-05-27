@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+
+	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
@@ -17,6 +19,13 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
+// bufferPool reduces allocations for WebSocket message serialization
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 0, 512)
+	},
+}
+
 type Hub struct {
 	rooms      map[string]*Room
 	mu         sync.RWMutex
@@ -25,17 +34,22 @@ type Hub struct {
 	handlers   map[string]MessageHandler
 	onMessage  func(ctx context.Context, client *Client, msg map[string]interface{})
 	logger     *zap.Logger
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 type MessageHandler func(ctx context.Context, client *Client, payload map[string]interface{})
 
 func NewHub() *Hub {
+	ctx, cancel := context.WithCancel(context.Background())
 	h := &Hub{
 		rooms:      make(map[string]*Room),
 		Register:   make(chan *Client, 256),
 		Unregister: make(chan *Client, 256),
 		handlers:   make(map[string]MessageHandler),
 		logger:     observability.LogWithTrace(nil),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 	return h
 }
@@ -76,8 +90,14 @@ func (h *Hub) Run() {
 			h.logger.Info("client left room",
 				zap.String("client_id", client.ID),
 				zap.String("room_id", client.RoomID))
+		case <-h.ctx.Done():
+			return
 		}
 	}
+}
+
+func (h *Hub) Stop() {
+	h.cancel()
 }
 
 func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request, roomID, userID, username string) {
@@ -124,7 +144,11 @@ func (h *Hub) RoomCount(roomID string) int {
 
 func (h *Hub) handleMessage(client *Client, msg map[string]interface{}) {
 	ctx := context.Background()
-	msgType, _ := msg["type"].(string)
+	msgType, ok := msg["type"].(string)
+	if !ok {
+		client.sendError("missing or invalid message type")
+		return
+	}
 	if handler, ok := h.handlers[msgType]; ok {
 		handler(ctx, client, msg)
 	} else {
@@ -148,4 +172,9 @@ func WSAuthHandler(hub *Hub, auth WSAuthMiddleware, getRoomID func(r *http.Reque
 		roomID := getRoomID(r)
 		hub.HandleWS(w, r, roomID, userID, username)
 	}
+}
+
+// SonicMarshal uses sonic for faster JSON serialization (fewer allocs than encoding/json).
+func SonicMarshal(v interface{}) ([]byte, error) {
+	return sonic.Marshal(v)
 }

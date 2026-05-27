@@ -91,27 +91,6 @@ func (l *RateLimiter) AllowN(ctx context.Context, key string, rate int, n int) (
 	}, nil
 }
 
-func (l *RateLimiter) GlobalMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !l.cfg.Enabled {
-			c.Next()
-			return
-		}
-
-		result, err := l.Allow(c.Request.Context(), "global:"+c.ClientIP(), l.cfg.GlobalMaxRPS)
-		if err != nil || !result.Allowed {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error_code": "GLOBAL_RATE_LIMIT_EXCEEDED",
-				"message":    "global rate limit exceeded",
-			})
-			return
-		}
-
-		setRateLimitHeaders(c, result)
-		c.Next()
-	}
-}
-
 func (l *RateLimiter) IPRateLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !l.cfg.Enabled {
@@ -119,7 +98,7 @@ func (l *RateLimiter) IPRateLimit() gin.HandlerFunc {
 			return
 		}
 
-		clientIP := c.ClientIP()
+		clientIP := forwardedClientIP(c)
 		key := fmt.Sprintf("ip:%s", clientIP)
 
 		result, err := l.Allow(c.Request.Context(), key, l.cfg.IPMaxRPS)
@@ -134,6 +113,43 @@ func (l *RateLimiter) IPRateLimit() gin.HandlerFunc {
 		setRateLimitHeaders(c, result)
 		c.Next()
 	}
+}
+
+func (l *RateLimiter) GlobalMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !l.cfg.Enabled {
+			c.Next()
+			return
+		}
+
+		result, err := l.Allow(c.Request.Context(), "global:"+forwardedClientIP(c), l.cfg.GlobalMaxRPS)
+		if err != nil || !result.Allowed {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error_code": "GLOBAL_RATE_LIMIT_EXCEEDED",
+				"message":    "global rate limit exceeded",
+			})
+			return
+		}
+
+		setRateLimitHeaders(c, result)
+		c.Next()
+	}
+}
+
+// forwardedClientIP extracts the real client IP from X-Forwarded-For (set by our proxy)
+func forwardedClientIP(c *gin.Context) string {
+	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
+		for i, ch := range xff {
+			if ch == ',' {
+				return xff[:i]
+			}
+		}
+		return xff
+	}
+	if xri := c.GetHeader("X-Real-IP"); xri != "" {
+		return xri
+	}
+	return c.ClientIP()
 }
 
 func (l *RateLimiter) AuthenticatedRateLimit() gin.HandlerFunc {
