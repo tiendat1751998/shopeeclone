@@ -17,13 +17,14 @@ type Product struct {
 }
 
 type SKU struct {
-	SKUID      string      `json:"sku_id" bson:"sku_id"`
-	SPUID      string      `json:"spu_id" bson:"spu_id"`
-	Price      float64     `json:"price" bson:"price"`
-	Stock      int32       `json:"stock" bson:"stock"`
-	Variations []Variation `json:"variations" bson:"variations"`
-	Image      string      `json:"image,omitempty" bson:"image,omitempty"`
-	Status     string      `json:"status" bson:"status"`
+	SKUID        string      `json:"sku_id" bson:"sku_id"`
+	SPUID        string      `json:"spu_id" bson:"spu_id"`
+	Price        float64     `json:"price" bson:"price"`
+	ComparePrice float64     `json:"compare_price" bson:"compare_price"`
+	Stock        int32       `json:"stock" bson:"stock"`
+	Variations   []Variation `json:"variations" bson:"variations"`
+	Image        string      `json:"image,omitempty" bson:"image,omitempty"`
+	Status       string      `json:"status" bson:"status"`
 }
 
 type Variation struct {
@@ -50,6 +51,8 @@ type ProductFilter struct {
 	MinPrice   float64
 	MaxPrice   float64
 	SortBy     string
+	SortOrder  string
+	IsDeal     bool
 }
 
 type ProductList struct {

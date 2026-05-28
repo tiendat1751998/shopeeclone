@@ -8,9 +8,9 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:shopee_auth}
-    username: ${POSTGRES_USER:shopee}
-    password: ${POSTGRES_PASSWORD:shopee_dev}
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:tiki_auth}
+    username: ${POSTGRES_USER:tiki}
+    password: ${POSTGRES_PASSWORD:tiki_dev}
     hikari:
       maximum-pool-size: 25
       minimum-idle: 5
@@ -115,7 +115,7 @@ management:
 # Logging - Structured JSON
 logging:
   level:
-    com.shopee: ${LOG_LEVEL:INFO}
+    com.tiki: ${LOG_LEVEL:INFO}
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
   pattern:

@@ -1,4 +1,4 @@
-// File: /home/datdt/shopeeclone/apps/web/src/app/promotions/page.tsx
+// File: /home/datdt/tikiclone/apps/web/src/app/promotions/page.tsx
 import * as entry from '../../../../src/app/promotions/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

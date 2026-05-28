@@ -1,4 +1,4 @@
-// File: /home/datdt/shopeeclone/apps/web/src/app/api/v1/promotions/route.ts
+// File: /home/datdt/tikiclone/apps/web/src/app/api/v1/promotions/route.ts
 import * as entry from '../../../../../../src/app/api/v1/promotions/route.js'
 import type { NextRequest } from 'next/server.js'
 

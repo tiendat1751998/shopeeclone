@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:shopee_auth}
-    username: ${MYSQL_USER:shopee}
-    password: ${MYSQL_PASSWORD:shopee_dev}
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:tiki_auth}
+    username: ${MYSQL_USER:tiki}
+    password: ${MYSQL_PASSWORD:tiki_dev}
     hikari:
       maximum-pool-size: 25
       minimum-idle: 5
@@ -100,6 +100,6 @@ management:
 
 logging:
   level:
-    com.shopee: ${LOG_LEVEL:INFO}
+    com.tiki: ${LOG_LEVEL:INFO}
     org.springframework.security: WARN
     org.hibernate.SQL: WARN

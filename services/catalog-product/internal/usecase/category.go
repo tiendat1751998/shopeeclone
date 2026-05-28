@@ -3,15 +3,16 @@ package usecase
 import (
 	"context"
 
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/errors"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/kafka"
-	"github.com/shopee-clone/shopee/services/catalog-product/internal/domain"
+	"github.com/tikiclone/tiki/packages/go-shared/pkg/errors"
+	"github.com/tikiclone/tiki/packages/go-shared/pkg/kafka"
+	"github.com/tikiclone/tiki/services/catalog-product/internal/domain"
 	"go.opentelemetry.io/otel"
 )
 
 type CategoryRepository interface {
 	Create(ctx context.Context, category *domain.Category) error
 	GetByID(ctx context.Context, categoryID string) (*domain.Category, error)
+	GetBySlug(ctx context.Context, slug string) (*domain.Category, error)
 	List(ctx context.Context, parentID string, level int32) ([]domain.Category, error)
 	Update(ctx context.Context, category *domain.Category) error
 }
@@ -57,6 +58,23 @@ func (uc *CategoryUseCase) GetByID(ctx context.Context, categoryID string) (*dom
 	defer span.End()
 
 	category, err := uc.repo.GetByID(ctx, categoryID)
+	if err != nil {
+		return nil, errors.NewInternalError(err)
+	}
+
+	if category == nil {
+		return nil, domain.ErrCategoryNotFound
+	}
+
+	return category, nil
+}
+
+// GetBySlug retrieves a category by its slug (e.g., "dien-thoai" -> category)
+func (uc *CategoryUseCase) GetBySlug(ctx context.Context, slug string) (*domain.Category, error) {
+	ctx, span := otel.Tracer("catalog-product").Start(ctx, "usecase.category.get_by_slug")
+	defer span.End()
+
+	category, err := uc.repo.GetBySlug(ctx, slug)
 	if err != nil {
 		return nil, errors.NewInternalError(err)
 	}

@@ -4,43 +4,38 @@ export function Footer() {
   return (
     <footer className="bg-white border-t border-tiki-border mt-6">
       <div className="max-w-tiki mx-auto px-3">
-        {/* Main columns */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 py-4">
-          {/* Support */}
           <div>
             <h4 className="text-[11px] font-semibold text-tiki-text mb-2">Hỗ trợ khách hàng</h4>
             <ul className="space-y-1.5 text-[10px] text-tiki-text-secondary">
               <li>Hotline: <a href="tel:19006035" className="text-tiki-blue font-medium">1900-6035</a></li>
               <li className="text-[9px]">(1000 đ/phút, 8-21h kể cả T7, CN)</li>
-              <li><Link href="#" className="hover:text-tiki-blue">Các câu hỏi thường gặp</Link></li>
-              <li><Link href="#" className="hover:text-tiki-blue">Gửi yêu cầu hỗ trợ</Link></li>
-              <li><Link href="#" className="hover:text-tiki-blue">Hướng dẫn đặt hàng</Link></li>
-              <li><Link href="#" className="hover:text-tiki-blue">Chính sách đổi trả</Link></li>
+              <li><Link href="/forgot-password" className="hover:text-tiki-blue">Các câu hỏi thường gặp</Link></li>
+              <li><Link href="/account/orders" className="hover:text-tiki-blue">Tra cứu đơn hàng</Link></li>
+              <li><Link href="/products" className="hover:text-tiki-blue">Hướng dẫn đặt hàng</Link></li>
+              <li><Link href="/account/addresses" className="hover:text-tiki-blue">Chính sách đổi trả</Link></li>
             </ul>
           </div>
 
-          {/* About */}
           <div>
             <h4 className="text-[11px] font-semibold text-tiki-text mb-2">Về Tiki</h4>
             <ul className="space-y-1.5 text-[10px] text-tiki-text-secondary">
-              <li><Link href="#" className="hover:text-tiki-blue">Giới thiệu Tiki</Link></li>
-              <li><Link href="#" className="hover:text-tiki-blue">Tiki Blog</Link></li>
-              <li><Link href="#" className="hover:text-tiki-blue">Tuyển dụng</Link></li>
-              <li><Link href="#" className="hover:text-tiki-blue">Chính sách bảo mật</Link></li>
-              <li><Link href="#" className="hover:text-tiki-blue">Điều khoản sử dụng</Link></li>
+              <li><Link href="/products" className="hover:text-tiki-blue">Giới thiệu Tiki</Link></li>
+              <li><Link href="/products" className="hover:text-tiki-blue">Tiki Blog</Link></li>
+              <li><Link href="/register" className="hover:text-tiki-blue">Tuyển dụng</Link></li>
+              <li><Link href="/products" className="hover:text-tiki-blue">Chính sách bảo mật</Link></li>
+              <li><Link href="/products" className="hover:text-tiki-blue">Điều khoản sử dụng</Link></li>
             </ul>
           </div>
 
-          {/* Partner */}
           <div>
             <h4 className="text-[11px] font-semibold text-tiki-text mb-2">Hợp tác & Liên kết</h4>
             <ul className="space-y-1.5 text-[10px] text-tiki-text-secondary">
-              <li><Link href="#" className="hover:text-tiki-blue">Quy chế hoạt động</Link></li>
+              <li><Link href="/products" className="hover:text-tiki-blue">Quy chế hoạt động</Link></li>
               <li><Link href="/products" className="hover:text-tiki-blue">Bán hàng cùng Tiki</Link></li>
             </ul>
           </div>
 
-          {/* Payment */}
           <div>
             <h4 className="text-[11px] font-semibold text-tiki-text mb-2">Phương thức thanh toán</h4>
             <div className="flex flex-wrap gap-1 mb-3">
@@ -55,7 +50,6 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Logo & Social */}
           <div>
             <div className="flex flex-col items-start gap-1.5 mb-3">
               <svg width="64" height="22" viewBox="0 0 64 22" fill="none">
@@ -65,14 +59,20 @@ export function Footer() {
               <span className="text-[8px] text-[#003EA1] font-semibold tracking-tight">TỐT &amp; NHANH</span>
             </div>
             <div className="flex gap-1">
-              {["F", "Y", "Z", "I"].map((s) => (
-                <span key={s} className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded text-[9px] text-tiki-text-secondary font-medium">{s}</span>
+              {[
+                { label: "F", href: "#" },
+                { label: "Y", href: "#" },
+                { label: "Z", href: "#" },
+                { label: "I", href: "#" },
+              ].map((s) => (
+                <a key={s.label} href={s.href} className="w-6 h-6 flex items-center justify-center bg-gray-100 rounded text-[9px] text-tiki-text-secondary font-medium hover:bg-gray-200 transition">
+                  {s.label}
+                </a>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Bottom bar */}
         <div className="border-t border-tiki-border py-3 text-[9px] text-tiki-text-secondary leading-5">
           <div className="font-medium text-tiki-text text-[10px] mb-0.5">Công ty TNHH TI KI</div>
           <div>Tòa nhà số 52, đường Út Tịch, P.4, Q. Tân Bình, TP. Hồ Chí Minh</div>

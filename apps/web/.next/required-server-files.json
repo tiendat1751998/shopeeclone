@@ -107,7 +107,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "/home/datdt/shopeeclone",
+    "outputFileTracingRoot": "/home/datdt/tikiclone",
     "experimental": {
       "useSkewCookie": false,
       "cacheLife": {
@@ -297,10 +297,10 @@
     "bundlePagesRouterDependencies": false,
     "configFileName": "next.config.ts",
     "turbopack": {
-      "root": "/home/datdt/shopeeclone"
+      "root": "/home/datdt/tikiclone"
     }
   },
-  "appDir": "/home/datdt/shopeeclone/apps/web",
+  "appDir": "/home/datdt/tikiclone/apps/web",
   "relativeAppDir": "apps/web",
   "files": [
     ".next/routes-manifest.json",

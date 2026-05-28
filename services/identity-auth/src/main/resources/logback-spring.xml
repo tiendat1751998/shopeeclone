@@ -5,7 +5,7 @@
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
     </root>
-    <logger name="com.shopee" level="${LOG_LEVEL:INFO}"/>
+    <logger name="com.tiki" level="${LOG_LEVEL:INFO}"/>
     <logger name="org.springframework.security" level="WARN"/>
     <logger name="org.hibernate.SQL" level="WARN"/>
 </configuration>

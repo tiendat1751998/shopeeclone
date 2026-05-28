@@ -158,17 +158,56 @@ export function Header() {
                   </button>
                   {/* Dropdown */}
                   {userDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-tiki-border rounded-lg shadow-lg z-50">
+                    <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-tiki-border rounded-lg shadow-lg z-50">
                       <div className="px-4 py-3 border-b border-tiki-border">
                         <p className="text-sm font-medium text-tiki-text truncate">{user.display_name}</p>
                         <p className="text-xs text-tiki-text-secondary truncate">{user.email}</p>
                       </div>
-                      <button
-                        onClick={handleLogout}
-                        className="w-full text-left px-4 py-2.5 text-sm text-tiki-text-secondary hover:bg-gray-50 transition"
+                      <Link
+                        href="/account"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="block px-4 py-2.5 text-sm text-tiki-text-secondary hover:bg-gray-50 transition"
                       >
-                        Đăng xuất
-                      </button>
+                        Tài khoản của tôi
+                      </Link>
+                      <Link
+                        href="/account/orders"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="block px-4 py-2.5 text-sm text-tiki-text-secondary hover:bg-gray-50 transition"
+                      >
+                        Đơn hàng của tôi
+                      </Link>
+                      <Link
+                        href="/account/addresses"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="block px-4 py-2.5 text-sm text-tiki-text-secondary hover:bg-gray-50 transition"
+                      >
+                        Sổ địa chỉ
+                      </Link>
+                      <Link
+                        href="/account/wishlist"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="block px-4 py-2.5 text-sm text-tiki-text-secondary hover:bg-gray-50 transition"
+                      >
+                        Sản phẩm yêu thích
+                      </Link>
+                      {user.role === "admin" && (
+                        <Link
+                          href="/admin"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="block px-4 py-2.5 text-sm text-tiki-blue hover:bg-gray-50 transition border-t border-tiki-border"
+                        >
+                          📊 Trang quản trị
+                        </Link>
+                      )}
+                      <div className="border-t border-tiki-border">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-gray-50 transition"
+                        >
+                          Đăng xuất
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -197,9 +236,9 @@ export function Header() {
         </div>
       </div>
 
-      {/* Category bar - hidden on mobile when menu is closed */}
-      <div className={`bg-white border-b border-tiki-border ${mobileMenuOpen ? 'block' : 'hidden lg:block'}`}>
-        <div className="max-w-tiki mx-auto px-6 flex items-center gap-6 h-10 text-sm">
+      {/* Category bar - shown on mobile via hamburger, always on desktop */}
+      <div className={`bg-white border-b border-tiki-border ${mobileMenuOpen ? 'block' : 'hidden md:block'}`}>
+        <div className="max-w-tiki mx-auto px-6 flex items-center gap-6 h-10 text-sm overflow-x-auto">
           <Link href="/" className="flex items-center gap-1.5 text-tiki-text font-medium hover:text-tiki-blue shrink-0">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <rect x="1" y="1" width="7.5" height="7.5" rx="1.5" stroke="#27272A" strokeWidth="1.5"/>
@@ -209,12 +248,12 @@ export function Header() {
             </svg>
             Danh mục
           </Link>
-          <div className="flex gap-5 overflow-x-auto">
+          <div className="flex gap-5">
             {categoryItems.map((cat: any) => (
               <Link
                 key={cat.id}
                 href={`/categories/${cat.slug}`}
-                className="text-tiki-text-secondary hover:text-tiki-blue whitespace-nowrap"
+                className="text-tiki-text-secondary hover:text-tiki-blue whitespace-nowrap text-xs"
               >
                 {cat.name}
               </Link>

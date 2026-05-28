@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/errors"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/kafka"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
-	"github.com/shopee-clone/shopee/services/catalog-product/internal/domain"
+	"github.com/tikiclone/tiki/packages/go-shared/pkg/errors"
+	"github.com/tikiclone/tiki/packages/go-shared/pkg/kafka"
+	"github.com/tikiclone/tiki/packages/go-shared/pkg/observability"
+	"github.com/tikiclone/tiki/services/catalog-product/internal/domain"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 )

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
-	"github.com/shopee-clone/shopee/services/catalog-product/internal/domain"
+	"github.com/tikiclone/tiki/packages/go-shared/pkg/observability"
+	"github.com/tikiclone/tiki/services/catalog-product/internal/domain"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"

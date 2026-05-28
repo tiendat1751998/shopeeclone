@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shopee-clone/shopee/services/catalog-product/internal/domain"
+	"github.com/tikiclone/tiki/services/catalog-product/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

@@ -12,6 +12,7 @@ import categoriesData from "@/data/tiki-categories.json";
 import promotionsData from "@/data/tiki-promotions.json";
 
 const GATEWAY_URL = process.env.GATEWAY_URL || "http://gateway:8080";
+const API_BASE = `${GATEWAY_URL}/api/v1`;
 
 /* ── Hero Banner ── */
 function Hero() {
@@ -233,16 +234,17 @@ function flattenCategories(data: typeof categoriesData): CategoryItem[] {
 }
 
 /* ── Page ── */
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   let featured: Product[] = [];
   let deals: Product[] = [];
   const categories = flattenCategories(categoriesData);
 
   try {
-    const baseUrl = process.env.GATEWAY_URL || "http://gateway:8080";
     const [featRes, dealsRes] = await Promise.all([
-      fetch(`${baseUrl}/api/v1/products/featured?limit=10`, { cache: "no-store" }).then(r => r.json()).catch(() => null),
-      fetch(`${baseUrl}/api/v1/products/deals?limit=10`, { cache: "no-store" }).then(r => r.json()).catch(() => null),
+      fetch(`${API_BASE}/products/featured?limit=10`, { cache: "no-store" }).then(r => r.json()).catch(() => null),
+      fetch(`${API_BASE}/products/deals?limit=10`, { cache: "no-store" }).then(r => r.json()).catch(() => null),
     ]);
     featured = featRes ? mapProductArray(Array.isArray(featRes) ? featRes : featRes.data || []) : [];
     deals = dealsRes ? mapProductArray(Array.isArray(dealsRes) ? dealsRes : dealsRes.data || []) : [];

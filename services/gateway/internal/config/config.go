@@ -116,7 +116,7 @@ type ServerConfig struct {
 
 func Load() *Config {
 	return &Config{
-		AppName:  getEnv("APP_NAME", "shopee-gateway"),
+		AppName:  getEnv("APP_NAME", "tiki-gateway"),
 		AppEnv:   getEnv("APP_ENV", "development"),
 		LogLevel: getEnv("LOG_LEVEL", "info"),
 		HTTPPort: getEnvInt("GATEWAY_HTTP_PORT", 8080),
@@ -135,11 +135,11 @@ func Load() *Config {
 		},
 
 		RateLimit: RateLimitConfig{
-			Enabled:          getEnvBool("RATE_LIMIT_ENABLED", true),
-			GlobalMaxRPS:     getEnvInt("RATE_LIMIT_GLOBAL_RPS", 10000),
-			DefaultMaxRPS:    getEnvInt("RATE_LIMIT_DEFAULT_RPS", 100),
-			IPMaxRPS:         getEnvInt("RATE_LIMIT_IP_RPS", 50),
-			AuthenticatedRPS: getEnvInt("RATE_LIMIT_AUTH_RPS", 200),
+			Enabled:          getEnvBool("RATE_LIMIT_ENABLED", false),
+			GlobalMaxRPS:     getEnvInt("RATE_LIMIT_GLOBAL_RPS", 100000),
+			DefaultMaxRPS:    getEnvInt("RATE_LIMIT_DEFAULT_RPS", 10000),
+			IPMaxRPS:         getEnvInt("RATE_LIMIT_IP_RPS", 5000),
+			AuthenticatedRPS: getEnvInt("RATE_LIMIT_AUTH_RPS", 5000),
 			LoginMaxRPS:      getEnvInt("RATE_LIMIT_LOGIN_RPS", 5),
 			CheckoutMaxRPS:   getEnvInt("RATE_LIMIT_CHECKOUT_RPS", 1),
 			WindowSize:       getEnvDuration("RATE_LIMIT_WINDOW", 1*time.Second),
@@ -157,9 +157,9 @@ func Load() *Config {
 
 		OpenTelemetry: OTELConfig{
 			Endpoint:      getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
-			ServiceName:   getEnv("OTEL_SERVICE_NAME", "shopee-gateway"),
+			ServiceName:   getEnv("OTEL_SERVICE_NAME", "tiki-gateway"),
 			TraceRatio:    getEnvFloat("OTEL_TRACES_SAMPLER_ARG", 0.1),
-			MetricsPrefix: getEnv("OTEL_METRICS_PREFIX", "shopee_gateway"),
+			MetricsPrefix: getEnv("OTEL_METRICS_PREFIX", "tiki_gateway"),
 		},
 
 		Upstreams: UpstreamConfig{
@@ -172,11 +172,11 @@ func Load() *Config {
 			SearchService:        getEnv("UPSTREAM_SEARCH_SERVICE", "search-indexing:8080"),
 			RecommendationService: getEnv("UPSTREAM_RECOMMENDATION_SERVICE", "recommendation-ml:8080"),
 			DefaultTimeout:       getEnvDuration("UPSTREAM_DEFAULT_TIMEOUT", 30*time.Second),
-			MaxIdleConns:         getEnvInt("UPSTREAM_MAX_IDLE_CONNS", 100),
-			IdleConnTimeout:      getEnvDuration("UPSTREAM_IDLE_CONN_TIMEOUT", 90*time.Second),
-			MaxRetries:           getEnvInt("UPSTREAM_MAX_RETRIES", 2),
+			MaxIdleConns:         getEnvInt("UPSTREAM_MAX_IDLE_CONNS", 1000),
+			IdleConnTimeout:      getEnvDuration("UPSTREAM_IDLE_CONN_TIMEOUT", 120*time.Second),
+			MaxRetries:           getEnvInt("UPSTREAM_MAX_RETRIES", 1),
 			CircuitBreaker: CircuitBreakerConfig{
-				Enabled:      getEnvBool("CIRCUIT_BREAKER_ENABLED", true),
+				Enabled:      getEnvBool("CIRCUIT_BREAKER_ENABLED", false),
 				MaxRequests:  getEnvInt("CIRCUIT_BREAKER_MAX_REQUESTS", 5),
 				Interval:     getEnvDuration("CIRCUIT_BREAKER_INTERVAL", 60*time.Second),
 				Timeout:      getEnvDuration("CIRCUIT_BREAKER_TIMEOUT", 30*time.Second),
@@ -186,7 +186,7 @@ func Load() *Config {
 		},
 
 		CORS: CORSConfig{
-			AllowedOrigins:   splitEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,https://api.shopee-clone.com"),
+			AllowedOrigins:   splitEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,https://api.tiki-clone.com"),
 			AllowedMethods:   strings.Split(getEnv("CORS_ALLOWED_METHODS", "GET,POST,PUT,PATCH,DELETE,OPTIONS"), ","),
 			AllowedHeaders:   strings.Split(getEnv("CORS_ALLOWED_HEADERS", "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-Correlation-ID"), ","),
 			ExposedHeaders:   strings.Split(getEnv("CORS_EXPOSED_HEADERS", "X-Request-ID,X-Correlation-ID,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset"), ","),

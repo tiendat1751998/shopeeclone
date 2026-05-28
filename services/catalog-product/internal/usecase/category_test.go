@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/shopee-clone/shopee/services/catalog-product/internal/domain"
+	"github.com/tikiclone/tiki/services/catalog-product/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -34,6 +34,14 @@ func (m *mockCategoryRepo) List(ctx context.Context, parentID string, level int3
 func (m *mockCategoryRepo) Update(ctx context.Context, category *domain.Category) error {
 	args := m.Called(ctx, category)
 	return args.Error(0)
+}
+
+func (m *mockCategoryRepo) GetBySlug(ctx context.Context, slug string) (*domain.Category, error) {
+	args := m.Called(ctx, slug)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Category), args.Error(1)
 }
 
 func TestCategoryUseCase_Create(t *testing.T) {

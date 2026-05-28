@@ -6,19 +6,27 @@ services:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: shopee_platform
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
+      MYSQL_DATABASE: tiki_platform
+      MYSQL_USER: tiki
+      MYSQL_PASSWORD: tiki_dev
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./database/init-databases.sql:/docker-entrypoint-initdb.d/01-init-databases.sql
+      - ./configs/mysql-performance.cnf:/etc/mysql/conf.d/performance.cnf
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --max-connections=2000
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
 
   redis-master:
     image: redis:7-alpine
@@ -31,6 +39,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    command: redis-server --maxclients 50000 --tcp-backlog 4096 --save "" --appendonly no
 
   mongodb:
     image: mongo:7
@@ -142,9 +155,9 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_DATABASE: shopee_auth
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
+      MYSQL_DATABASE: tiki_auth
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
       REDIS_HOST: redis-master
       REDIS_PORT: "6379"
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -168,9 +181,9 @@ services:
       INVENTORY_GRPC_PORT: "9096"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_inventory
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_inventory
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -193,9 +206,9 @@ services:
       CART_GRPC_PORT: "9092"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_cart
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_cart
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
@@ -218,9 +231,9 @@ services:
       PAYMENT_GRPC_PORT: "9093"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_payment
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_payment
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
@@ -244,9 +257,9 @@ services:
       ORDER_GRPC_PORT: "9094"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_order
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_order
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
@@ -269,9 +282,9 @@ services:
       CHECKOUT_GRPC_PORT: "9095"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_checkout
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_checkout
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
@@ -285,8 +298,8 @@ services:
     build:
       context: .
       dockerfile: ./services/gateway/Dockerfile
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     environment:
       APP_ENV: development
       GATEWAY_HTTP_PORT: "8080"
@@ -306,11 +319,68 @@ services:
       UPSTREAM_PRODUCT_CATALOG_SERVICE: product-catalog:8090
       UPSTREAM_PROMOTION_SERVICE: promotion:8091
       UPSTREAM_SHIPMENT_SERVICE: shipment:8092
+      UPSTREAM_MAX_IDLE_CONNS: "2000"
+      UPSTREAM_IDLE_CONN_TIMEOUT: "300s"
+      RATE_LIMIT_ENABLED: "false"
+      CIRCUIT_BREAKER_ENABLED: "false"
+      SERVER_READ_TIMEOUT: "30s"
+      SERVER_WRITE_TIMEOUT: "30s"
+      SERVER_IDLE_TIMEOUT: "300s"
     depends_on:
       redis-master:
         condition: service_healthy
-      identity-auth:
-        condition: service_started
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
+    sysctls:
+      - net.core.somaxconn=65536
+      - net.ipv4.tcp_fin_timeout=15
+      - net.ipv4.tcp_tw_reuse=1
+
+  gateway-2:
+    build:
+      context: .
+      dockerfile: ./services/gateway/Dockerfile
+    expose:
+      - "8080"
+    environment:
+      APP_ENV: development
+      GATEWAY_HTTP_PORT: "8080"
+      GATEWAY_GRPC_PORT: "9090"
+      REDIS_ADDR: redis-master:6379
+      KAFKA_BROKERS: kafka:9092
+      JWT_ACCESS_SECRET: dev-access-secret-key-for-local-development-only
+      ENCRYPTION_KEY: b8477fd5d6f4c7b22878f8d3b873778e28fcac8e34a0be45cdf014bbb31571d7
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      UPSTREAM_AUTH_SERVICE: auth:8087
+      UPSTREAM_CATALOG_SERVICE: catalog-product:8088
+      UPSTREAM_CART_SERVICE: cart:8082
+      UPSTREAM_ORDER_SERVICE: order:8084
+      UPSTREAM_INVENTORY_SERVICE: inventory:8086
+      UPSTREAM_PAYMENT_SERVICE: payment:8083
+      UPSTREAM_PRODUCT_SERVICE: product:8089
+      UPSTREAM_PRODUCT_CATALOG_SERVICE: product-catalog:8090
+      UPSTREAM_PROMOTION_SERVICE: promotion:8091
+      UPSTREAM_SHIPMENT_SERVICE: shipment:8092
+      UPSTREAM_MAX_IDLE_CONNS: "2000"
+      UPSTREAM_IDLE_CONN_TIMEOUT: "300s"
+      RATE_LIMIT_ENABLED: "false"
+      CIRCUIT_BREAKER_ENABLED: "false"
+      SERVER_READ_TIMEOUT: "30s"
+      SERVER_WRITE_TIMEOUT: "30s"
+      SERVER_IDLE_TIMEOUT: "300s"
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
+    sysctls:
+      - net.core.somaxconn=65536
+      - net.ipv4.tcp_fin_timeout=15
+      - net.ipv4.tcp_tw_reuse=1
 
   auth:
     build:
@@ -325,9 +395,9 @@ services:
       AUTH_GRPC_PORT: "9097"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_auth
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_auth
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -353,14 +423,14 @@ services:
       GRPC_PORT: "9098"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_platform
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_platform
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       MONGODB_URI: mongodb://mongodb:27017
-      MONGODB_DATABASE: shopee_catalog
+      MONGODB_DATABASE: tiki_catalog
     depends_on:
       mysql-primary:
         condition: service_healthy
@@ -382,9 +452,9 @@ services:
       GRPC_PORT: "9099"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_platform
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_platform
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -407,9 +477,9 @@ services:
       CATALOG_GRPC_PORT: "9100"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_platform
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_platform
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -433,9 +503,9 @@ services:
       PROMOTION_GRPC_PORT: "9101"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_platform
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_platform
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -458,12 +528,16 @@ services:
       SHIPMENT_GRPC_PORT: "9102"
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_platform
+      MYSQL_USER: tiki
+      MYSQL_PASSWORD: tiki_dev
+      MYSQL_DATABASE: tiki_platform
       REDIS_ADDR: redis-master:6379
       KAFKA_BROKERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      # Delivery tracker config
+      NOMINATIM_BASE_URL: https://nominatim.openstreetmap.org
+      NOMINATIM_USER_AGENT: tiki-shipment/1.0
+      OSRM_BASE_URL: https://router.project-osrm.org
     depends_on:
       mysql-primary:
         condition: service_healthy
@@ -481,19 +555,21 @@ services:
         GATEWAY_URL: http://gateway:8080
         MYSQL_HOST: mysql-primary
         MYSQL_PORT: "3306"
-        MYSQL_USER: shopee
-        MYSQL_PASSWORD: shopee_dev
-        MYSQL_DATABASE: shopee_platform
+        MYSQL_USER: "tiki"
+        MYSQL_PASSWORD: "tiki_dev"
+        MYSQL_DATABASE: tiki_platform
     expose:
       - "3000"
+    volumes:
+      - ./apps/web/public/images:/app/public/images:ro
     environment:
       NODE_ENV: production
       GATEWAY_URL: http://gateway:8080
       MYSQL_HOST: mysql-primary
       MYSQL_PORT: "3306"
-      MYSQL_USER: shopee
-      MYSQL_PASSWORD: shopee_dev
-      MYSQL_DATABASE: shopee_platform
+      MYSQL_USER: "tiki"
+      MYSQL_PASSWORD: "tiki_dev"
+      MYSQL_DATABASE: tiki_platform
     depends_on:
       gateway:
         condition: service_started

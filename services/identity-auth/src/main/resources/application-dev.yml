@@ -3,9 +3,9 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/shopee_auth
-    username: shopee
-    password: shopee_dev
+    url: jdbc:postgresql://localhost:5432/tiki_auth
+username: tiki
+password: tiki_dev
   jpa:
     show-sql: true
     hibernate:
@@ -23,4 +23,4 @@ jwt:
 
 logging:
   level:
-    com.shopee: DEBUG
+    com.tiki: DEBUG

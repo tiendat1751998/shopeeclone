@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/shopee-clone/shopee/packages/go-shared/pkg/observability"
-	"github.com/shopee-clone/shopee/services/catalog-product/internal/domain"
+	"github.com/tikiclone/tiki/packages/go-shared/pkg/observability"
+	"github.com/tikiclone/tiki/services/catalog-product/internal/domain"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -109,6 +109,10 @@ func (r *ProductRepository) List(ctx context.Context, filter domain.ProductFilte
 		query["skus.price"] = priceQuery
 	}
 
+	if filter.IsDeal {
+		query["skus.compare_price"] = bson.M{"$exists": true, "$gt": 0}
+	}
+
 	query["status"] = domain.ProductStatusActive
 
 	skip := int64((filter.Page - 1) * filter.Size)
@@ -121,17 +125,85 @@ func (r *ProductRepository) List(ctx context.Context, filter domain.ProductFilte
 		filter.Size = 20
 	}
 
-	opts := options.Find().
-		SetSkip(skip).
-		SetLimit(limit).
-		SetSort(bson.M{"created_at": -1})
-
+	// Count total (uses index when available — no in-memory sort)
 	total, err := r.collection.CountDocuments(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	cursor, err := r.collection.Find(ctx, query, opts)
+	// For default sorts (created_at) without computed fields, use Find for
+	// optimal index usage. For computed sorts (price with array access,
+	// popularity with missing field fallback) use the aggregation pipeline.
+	useFind := filter.SortBy == "created_at" || filter.SortBy == ""
+
+	if useFind {
+		sortDir := 1
+		if filter.SortOrder == "DESC" {
+			sortDir = -1
+		}
+		sortDoc := bson.M{}
+		switch filter.SortBy {
+		case "price":
+			sortDoc["skus.0.price"] = sortDir
+		default:
+			sortDoc["created_at"] = sortDir
+		}
+		opts := options.Find().
+			SetSkip(skip).
+			SetLimit(limit).
+			SetSort(sortDoc)
+
+		cursor, err := r.collection.Find(ctx, query, opts)
+		if err != nil {
+			return nil, err
+		}
+		defer cursor.Close(ctx)
+
+		var products []domain.Product
+		if err := cursor.All(ctx, &products); err != nil {
+			return nil, err
+		}
+		if products == nil {
+			products = []domain.Product{}
+		}
+		return &domain.ProductList{
+			Products: products,
+			Total:    total,
+			Page:     filter.Page,
+			Size:     filter.Size,
+		}, nil
+	}
+
+	// Aggregation pipeline for sorts needing computed fields (price, popularity)
+	sortDir := 1
+	if filter.SortOrder == "DESC" {
+		sortDir = -1
+	}
+	sortField := "created_at"
+	switch filter.SortBy {
+	case "price":
+		sortField = "_sortPrice"
+	case "popularity", "sales_count":
+		sortField = "sold_count"
+	}
+
+	addFields := bson.M{}
+	if filter.SortBy == "popularity" || filter.SortBy == "sales_count" {
+		addFields["sold_count"] = bson.M{"$ifNull": bson.A{"$sold_count", 0}}
+	}
+	if filter.SortBy == "price" {
+		addFields["_sortPrice"] = bson.M{"$arrayElemAt": bson.A{"$skus.price", 0}}
+	}
+
+	pipeline := bson.A{
+		bson.M{"$match": query},
+		bson.M{"$addFields": addFields},
+		bson.M{"$sort": bson.M{sortField: sortDir}},
+		bson.M{"$skip": skip},
+		bson.M{"$limit": limit},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +213,6 @@ func (r *ProductRepository) List(ctx context.Context, filter domain.ProductFilte
 	if err := cursor.All(ctx, &products); err != nil {
 		return nil, err
 	}
-
 	if products == nil {
 		products = []domain.Product{}
 	}
